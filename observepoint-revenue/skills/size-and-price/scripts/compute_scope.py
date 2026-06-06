@@ -57,3 +57,34 @@ def classify_tier(scans):
     if scans <= 6_000_000:
         return "professional"
     return "enterprise"
+
+
+def use_case_pages(base_pages, geographies=1, scenarios=1, environments=1.0):
+    """base × geos × scenarios × environments (geos×scenarios = the website's
+    geoPersonaMultiplier; environments is 1 or 1.5)."""
+    return base_pages * geographies * scenarios * environments
+
+
+def annual_scans(ucp, cadence_layers):
+    """Additive layered cadence model. cadence_layers: list of
+    {name, pct, runs_per_year}. A page may appear in multiple layers (layers are
+    additive). Returns {total, by_layer:[{name, pct, runs_per_year, pages, runs}]}."""
+    by_layer = []
+    total = 0.0
+    for layer in cadence_layers:
+        pages = ucp * layer["pct"]
+        runs = pages * layer["runs_per_year"]
+        total += runs
+        by_layer.append({
+            "name": layer["name"],
+            "pct": layer["pct"],
+            "runs_per_year": layer["runs_per_year"],
+            "pages": round(pages, 2),
+            "runs": round(runs, 2),
+        })
+    return {"total": round(total), "by_layer": by_layer}
+
+
+def apply_buffer(scans, buffer_pct=0.0):
+    """purchased = round(predicted × (1 + buffer))."""
+    return round(scans * (1 + buffer_pct))

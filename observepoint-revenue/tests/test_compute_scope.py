@@ -34,3 +34,32 @@ def test_classify_tier_boundaries():
     assert cs.classify_tier(6_000_000) == "professional"  # <= 6M
     assert cs.classify_tier(6_000_001) == "enterprise"
     assert cs.classify_tier(1_664_256) == "professional"
+
+
+CALIBRATION_LAYERS = [
+    {"name": "annual baseline", "pct": 1.0,   "runs_per_year": 1},
+    {"name": "quarterly",       "pct": 0.05,  "runs_per_year": 4},
+    {"name": "weekly",          "pct": 0.004, "runs_per_year": 52},
+    {"name": "daily",           "pct": 0.0,   "runs_per_year": 365},
+]
+
+
+def test_use_case_pages():
+    assert cs.use_case_pages(197_000, geographies=2, scenarios=3, environments=1) == 1_182_000
+
+
+def test_annual_scans_layered_calibration():
+    # Spec §10: 1,182,000 use-case pages through the calibration cadence = 1,664,256.
+    out = cs.annual_scans(1_182_000, CALIBRATION_LAYERS)
+    assert out["total"] == 1_664_256
+    by = {l["name"]: l["runs"] for l in out["by_layer"]}
+    assert by["annual baseline"] == 1_182_000
+    assert by["quarterly"] == 236_400
+    assert by["weekly"] == 245_856
+    assert by["daily"] == 0
+
+
+def test_apply_buffer():
+    assert cs.apply_buffer(100_000, 0.10) == 110_000
+    assert cs.apply_buffer(1_664_256, 0.0) == 1_664_256          # no-op
+    assert cs.apply_buffer(1_664_256, 0.10) == 1_830_682          # round(…*1.1)
