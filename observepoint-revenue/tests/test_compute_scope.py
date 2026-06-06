@@ -26,3 +26,11 @@ def test_graduated_price_first_paid_band():
     # 1,000 free + 9,000 @ 0.17
     p = cs.graduated_price(10_000, cs.BAKED_TIERS)
     assert p["total"] == round(9_000 * 0.17, 2)  # 1530.0
+
+
+def test_classify_tier_boundaries():
+    assert cs.classify_tier(599_999) == "starter"
+    assert cs.classify_tier(600_000) == "professional"   # n < 600k is starter; 600k is not
+    assert cs.classify_tier(6_000_000) == "professional"  # <= 6M
+    assert cs.classify_tier(6_000_001) == "enterprise"
+    assert cs.classify_tier(1_664_256) == "professional"

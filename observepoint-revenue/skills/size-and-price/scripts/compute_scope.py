@@ -48,3 +48,12 @@ def graduated_price(scans, tiers):
         breakdown.append({"band_limit": None, "rate": rate, "pages": remaining, "cost": round(cost, 2)})
     avg = round(total / scans, 4) if scans else 0.0
     return {"total": round(total, 2), "breakdown": breakdown, "avg_per_page": avg}
+
+
+def classify_tier(scans):
+    """Website $F classifier: starter < 600k <= professional <= 6M < enterprise."""
+    if scans < 600_000:
+        return "starter"
+    if scans <= 6_000_000:
+        return "professional"
+    return "enterprise"
