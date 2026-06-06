@@ -37,8 +37,17 @@ def test_validate_tiers():
     assert fp.validate_tiers(cs.BAKED_TIERS) is True
     assert fp.validate_tiers(None) is False
     assert fp.validate_tiers(cs.BAKED_TIERS[:3]) is False                  # < 5 bands
-    bad = [dict(b) for b in cs.BAKED_TIERS]; bad[2]["limit"] = 10          # non-monotonic
-    assert fp.validate_tiers(bad) is False
+    zero_width = [dict(b) for b in cs.BAKED_TIERS]; zero_width[2]["limit"] = 0
+    assert fp.validate_tiers(zero_width) is False                          # non-positive band width
+    rising = [dict(b) for b in cs.BAKED_TIERS]; rising[3]["pricePerPage"] = 0.50
+    assert fp.validate_tiers(rising) is False                              # paid rates must be non-increasing
+
+
+def test_validate_tiers_allows_nonincreasing_widths():
+    # 'limit' is a band WIDTH; a narrower later band must stay VALID (regression).
+    narrower = [dict(b) for b in cs.BAKED_TIERS]
+    narrower[3]["limit"] = 100_000  # narrower than the prior 500_000 band
+    assert fp.validate_tiers(narrower) is True
 
 
 def test_fetch_pricing_live():

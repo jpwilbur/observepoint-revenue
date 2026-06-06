@@ -34,13 +34,20 @@ def parse_tiers(js_text):
 
 
 def validate_tiers(tiers):
-    """Sanity gate: >= 5 bands, strictly increasing limits, non-negative rates."""
+    """Sanity gate that a parse produced a usable graduated table: >= 5 bands,
+    every band WIDTH positive, every rate non-negative, and the paid rates
+    non-increasing (graduated tiers get cheaper after the free first band).
+    NOTE: 'limit' is a band WIDTH, not a cumulative cap, so widths need NOT
+    increase across bands."""
     if not tiers or len(tiers) < 5:
         return False
-    if any(b["pricePerPage"] < 0 for b in tiers):
+    if any(b["limit"] <= 0 for b in tiers):
         return False
-    limits = [b["limit"] for b in tiers]
-    return all(a < b for a, b in zip(limits, limits[1:]))
+    rates = [b["pricePerPage"] for b in tiers]
+    if any(r < 0 for r in rates):
+        return False
+    paid = [r for r in rates if r > 0]
+    return all(a >= b for a, b in zip(paid, paid[1:]))
 
 
 def _default_fetcher(url):

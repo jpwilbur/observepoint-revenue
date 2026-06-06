@@ -128,7 +128,7 @@ def compute(inputs):
     return {
         "customer": inputs.get("customer"),
         "use_case": inputs.get("use_case"),
-        "pricing_source": inputs.get("pricing_source", f"baked ({BAKED_AS_OF})"),
+        "pricing_source": inputs.get("pricing_source") or inputs.get("source") or f"baked ({BAKED_AS_OF})",
         "confidence": pc.get("confidence"),
         "multipliers": {
             "geographies": m.get("geographies", 1),

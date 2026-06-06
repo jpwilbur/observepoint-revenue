@@ -19,7 +19,7 @@ def test_graduated_price_calibration():
     p = cs.graduated_price(1_664_256, cs.BAKED_TIERS)
     assert p["total"] == 133_030.24
     assert p["avg_per_page"] == 0.0799
-    # bands hit: free, 0.17, 0.12, 0.06, 0.04 (tail) = 5 priced bands
+    # bands hit: free, 0.17, 0.12, 0.06, 0.04 (5th band absorbs the remainder) = 5 priced bands
     assert len(p["breakdown"]) == 5
     assert p["breakdown"][1]["cost"] == 8_500.0   # 50,000 @ 0.17
 
@@ -149,3 +149,19 @@ def test_annual_scans_empty_layers():
 
 def test_apply_buffer_zero_scans():
     assert cs.apply_buffer(0, 0.10) == 0
+
+
+def test_compute_accepts_source_alias():
+    inp = dict(BASE_INPUTS, tiers=cs.BAKED_TIERS, source="live @ alias")
+    out = cs.compute(inp)
+    assert out["pricing_source"] == "live @ alias"
+
+
+def test_graduated_price_tail_beyond_bands():
+    # Above the sum of all band widths the remainder prices at the last band's rate.
+    total_width = sum(b["limit"] for b in cs.BAKED_TIERS)  # 56,551,000
+    p = cs.graduated_price(total_width + 1_000_000, cs.BAKED_TIERS)
+    tail = p["breakdown"][-1]
+    assert tail["band_limit"] is None
+    assert tail["pages"] == 1_000_000
+    assert tail["rate"] == cs.BAKED_TIERS[-1]["pricePerPage"]
