@@ -329,3 +329,29 @@ cadence also builds a **legal-evidence record**. The skill frames the cadence co
 | Usage model | layered vs blended | **layered cadences**, priced through live tiers, reconciled vs website |
 | Journeys | meter vs none | **none in v1** — free-tier default ($0) |
 | Buffer | none vs optional | **optional `buffer_pct`** (default 0); priced on purchased number; called out in the proposal |
+
+---
+
+## 13. Plan 2 contract notes (from the engine final review)
+
+Plan 1 (the deterministic engine) is built and tested (33 tests). The orchestration layer (Plan 2 —
+the three SKILL.md files + `.docx` proposal + Site Census MCP wiring) must honor these seams:
+
+- **`compute()` input** (`size-and-price/scripts/compute_scope.py`): `{customer, use_case,
+  page_count:{low,anchor,high,confidence}, multipliers:{geographies,scenarios,environments},
+  cadence_layers:[{name,pct,runs_per_year}], buffer_pct, tiers?, pricing_source?|source?}`.
+  Missing required keys raise raw `KeyError` — **the orchestrator owns input validation**.
+- **`fetch_pricing()` output**: `{tiers, source}`. Pass `tiers` and `source` straight into
+  `compute()` (it accepts `source` as an alias for `pricing_source`). When `source` starts with
+  `"fallback"`, the orchestrator must surface the spec §4.5 refresh warning in chat — the engine
+  only stamps, it does not warn.
+- **Single Part-1 object feeds both price and evidence.** The evidence appendix's
+  `rollup.spiral_adjusted_anchor` and `compute()`'s `page_count.anchor` must be the SAME number
+  (likewise `low`/`high`). Derive them from ONE Part-1 output, don't re-state the anchor twice.
+  `build_evidence_appendix` requires `hostname`, `raw_urls`, `defensible_pages` per domain and
+  `rollup.spiral_adjusted_anchor`; all other per-domain fields are optional.
+- **Tier is classified on the buffered (purchased) number.** A buffer can push a deal across a tier
+  boundary — the "predicted vs purchased" chat output should make that visible when it happens.
+- **Range payload is lean:** `range.low/high` carry only `{predicted_scans, purchased_scans,
+  price_total}` (full per-band/tier/cadence detail is on `anchor` only). If the chat wants a
+  per-band table at the range endpoints, the orchestrator must call `graduated_price` itself.
