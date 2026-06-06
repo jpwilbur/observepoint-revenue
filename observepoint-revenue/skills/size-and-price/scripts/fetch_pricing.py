@@ -12,7 +12,11 @@ import urllib.request
 from compute_scope import BAKED_TIERS, BAKED_AS_OF
 
 BUNDLE_URL = "https://app.observepoint.com/www-pricing/main.js"
-_GT_RE = re.compile(r"Gt=\[(\{limit:.*?\})\]")
+# Targets the minified (no-whitespace) bundle. The negative lookbehind keeps us from
+# matching a sibling minified var like `vGt=`. If the bundle is ever reformatted (added
+# whitespace) and this misses, fetch_pricing() degrades to the baked fallback (source
+# reports "fallback") rather than crashing or serving wrong data.
+_GT_RE = re.compile(r"(?<![A-Za-z_$])Gt=\[(\{limit:.*?\})\]")
 _BAND_RE = re.compile(r"\{limit:([\deE.+-]+),pricePerPage:([\d.]+)\}")
 
 

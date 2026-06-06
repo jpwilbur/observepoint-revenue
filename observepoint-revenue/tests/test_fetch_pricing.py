@@ -67,3 +67,22 @@ def test_cli_emits_json():
     assert res.returncode == 0
     out = json.loads(res.stdout)
     assert "tiers" in out and "source" in out
+
+
+def test_parse_tiers_ignores_sibling_var():
+    # A sibling minified var must NOT be matched instead of the real Gt.
+    js = (
+        "var vGt=[{limit:9,pricePerPage:9}];"
+        "var Gt=[{limit:1e3,pricePerPage:0},{limit:5e4,pricePerPage:.17},"
+        "{limit:5e5,pricePerPage:.12},{limit:1e6,pricePerPage:.06},"
+        "{limit:5e6,pricePerPage:.04},{limit:5e7,pricePerPage:.03}]"
+    )
+    tiers = fp.parse_tiers(js)
+    assert len(tiers) == 6
+    assert tiers[0] == {"limit": 1_000, "pricePerPage": 0.0}
+
+
+def test_validate_tiers_negative_rate():
+    bad = [dict(b) for b in cs.BAKED_TIERS]
+    bad[1]["pricePerPage"] = -0.01
+    assert fp.validate_tiers(bad) is False
