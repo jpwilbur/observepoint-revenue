@@ -1,3 +1,10 @@
+import json
+import pathlib
+import subprocess
+import sys
+
+import pytest
+
 import compute_scope as cs
 
 
@@ -65,11 +72,6 @@ def test_apply_buffer():
     assert cs.apply_buffer(1_664_256, 0.10) == 1_830_682          # round(…*1.1)
 
 
-import json
-import subprocess
-import sys
-import pathlib
-
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 COMPUTE = ROOT / "skills" / "size-and-price" / "scripts" / "compute_scope.py"
 
@@ -125,3 +127,25 @@ def test_cli_reads_json_writes_json(tmp_path):
     assert res.returncode == 0
     out = json.loads(res.stdout)
     assert out["anchor"]["price"]["total"] == 133_030.24
+
+
+def test_graduated_price_zero():
+    p = cs.graduated_price(0, cs.BAKED_TIERS)
+    assert p["total"] == 0.0
+    assert p["breakdown"] == []
+    assert p["avg_per_page"] == 0.0
+
+
+def test_graduated_price_empty_tiers_raises():
+    with pytest.raises(ValueError):
+        cs.graduated_price(100, [])
+
+
+def test_annual_scans_empty_layers():
+    out = cs.annual_scans(1_000_000, [])
+    assert out["total"] == 0
+    assert out["by_layer"] == []
+
+
+def test_apply_buffer_zero_scans():
+    assert cs.apply_buffer(0, 0.10) == 0

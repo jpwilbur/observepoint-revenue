@@ -16,6 +16,7 @@ BAKED_TIERS = [
     {"limit": 5_000_000,  "pricePerPage": 0.04},
     {"limit": 50_000_000, "pricePerPage": 0.03},
 ]
+# Update BAKED_AS_OF and BAKED_TIERS together whenever live pricing changes (spec §4.4).
 BAKED_AS_OF = "2026-06-06"
 
 
@@ -23,7 +24,9 @@ def graduated_price(scans, tiers):
     """Graduated/marginal price: each band's width priced at its rate, summed.
     Mirrors the website's calculateTierBreakdown exactly. Returns
     {total, breakdown:[{band_limit, rate, pages, cost}], avg_per_page}."""
-    remaining = int(scans)
+    if not tiers:
+        raise ValueError("tiers must be a non-empty list of price bands")
+    remaining = round(scans)
     breakdown = []
     total = 0.0
     for band in tiers:
@@ -73,14 +76,14 @@ def annual_scans(ucp, cadence_layers):
     total = 0.0
     for layer in cadence_layers:
         pages = ucp * layer["pct"]
-        runs = pages * layer["runs_per_year"]
+        runs = round(pages * layer["runs_per_year"], 2)
         total += runs
         by_layer.append({
             "name": layer["name"],
             "pct": layer["pct"],
             "runs_per_year": layer["runs_per_year"],
             "pages": round(pages, 2),
-            "runs": round(runs, 2),
+            "runs": runs,
         })
     return {"total": round(total), "by_layer": by_layer}
 
@@ -90,9 +93,10 @@ def apply_buffer(scans, buffer_pct=0.0):
     return round(scans * (1 + buffer_pct))
 
 
-def _compute_one(base, m, layers, buffer_pct, tiers):
-    ucp = use_case_pages(base, m.get("geographies", 1), m.get("scenarios", 1),
-                         m.get("environments", 1))
+def _compute_one(base, multipliers, layers, buffer_pct, tiers):
+    ucp = use_case_pages(base, multipliers.get("geographies", 1),
+                         multipliers.get("scenarios", 1),
+                         multipliers.get("environments", 1))
     sc = annual_scans(ucp, layers)
     predicted = sc["total"]
     purchased = apply_buffer(predicted, buffer_pct)
@@ -150,7 +154,11 @@ def compute(inputs):
 
 
 def main(argv):
-    raw = open(argv[1]).read() if len(argv) > 1 else sys.stdin.read()
+    if len(argv) > 1:
+        with open(argv[1]) as f:
+            raw = f.read()
+    else:
+        raw = sys.stdin.read()
     print(json.dumps(compute(json.loads(raw)), indent=2))
 
 
