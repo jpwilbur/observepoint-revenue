@@ -14,8 +14,11 @@ def _check_invariant(data):
     total = sum(d["defensible_pages"] for d in data["per_domain"])
     anchor = data["rollup"]["spiral_adjusted_anchor"]
     if total != anchor:
+        breakdown = ", ".join(
+            f"{d['hostname']}={d['defensible_pages']}" for d in data["per_domain"])
         raise ValueError(
-            f"per-domain defensible_pages sum {total} != rollup anchor {anchor}")
+            f"per-domain defensible_pages sum {total} != rollup anchor {anchor} "
+            f"(per domain: {breakdown})")
 
 
 def _bold_header(ws):
@@ -82,7 +85,11 @@ def build_workbook(data):
 
 
 def main(argv):
-    raw = open(argv[1]).read() if len(argv) > 1 else sys.stdin.read()
+    if len(argv) > 1:
+        with open(argv[1]) as fh:
+            raw = fh.read()
+    else:
+        raw = sys.stdin.read()
     out = argv[2] if len(argv) > 2 else "evidence-appendix.xlsx"
     build_workbook(json.loads(raw)).save(out)
     print(out)

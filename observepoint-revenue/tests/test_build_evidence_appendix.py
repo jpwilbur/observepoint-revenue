@@ -35,7 +35,7 @@ DATA = {
 def test_invariant_raises_on_mismatch():
     bad = json.loads(json.dumps(DATA))
     bad["rollup"]["spiral_adjusted_anchor"] = 9_999  # != 761 + 1900
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"sum \d+ != rollup anchor"):
         bea.build_workbook(bad)
 
 
@@ -59,6 +59,12 @@ def test_workbook_structure(tmp_path):
     samples = wb["URL Samples"]
     assert samples.max_row == 1 + 2 + 1          # header + 2 + 1 sample rows
 
+    ss = wb["Scope Summary"]
+    assert ss["B2"].value == "Acme"          # Customer
+    assert ss["B8"].value == 2661            # Defensible pages — anchor
+    assert ss["B11"].value == 268_042        # Total raw URLs (266042 + 2000)
+    assert ss["B13"].value == 265_381        # Discounted (268042 - 2661)
+
 
 def test_cli_writes_file(tmp_path):
     f = tmp_path / "in.json"; f.write_text(json.dumps(DATA))
@@ -68,3 +74,18 @@ def test_cli_writes_file(tmp_path):
     assert res.returncode == 0, res.stderr
     wb = load_workbook(out)
     assert "Scope Summary" in wb.sheetnames
+    assert res.stdout.strip() == str(out)
+
+
+def test_domain_without_optional_keys():
+    data = {
+        "customer": "B",
+        "rollup": {"spiral_adjusted_anchor": 100, "census_ids": []},
+        "per_domain": [
+            {"hostname": "x.com", "raw_urls": 120, "defensible_pages": 100,
+             "spiral_flag": False},
+        ],
+    }
+    wb = bea.build_workbook(data)            # must not raise on missing optional keys
+    assert wb["URL Samples"].max_row == 1    # header only, no sample rows
+    assert wb["Pages by Domain"][2][1].value == 100
