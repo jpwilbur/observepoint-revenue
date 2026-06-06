@@ -88,3 +88,71 @@ def annual_scans(ucp, cadence_layers):
 def apply_buffer(scans, buffer_pct=0.0):
     """purchased = round(predicted × (1 + buffer))."""
     return round(scans * (1 + buffer_pct))
+
+
+def _compute_one(base, m, layers, buffer_pct, tiers):
+    ucp = use_case_pages(base, m.get("geographies", 1), m.get("scenarios", 1),
+                         m.get("environments", 1))
+    sc = annual_scans(ucp, layers)
+    predicted = sc["total"]
+    purchased = apply_buffer(predicted, buffer_pct)
+    return {
+        "base_pages": base,
+        "use_case_pages": round(ucp),
+        "predicted_scans": predicted,
+        "purchased_scans": purchased,
+        "buffer_pct": buffer_pct,
+        "cadence_by_layer": sc["by_layer"],
+        "implied_blended_frequency": round(predicted / ucp, 3) if ucp else 0,
+        "tier": classify_tier(purchased),
+        "price": graduated_price(purchased, tiers),
+    }
+
+
+def compute(inputs):
+    """Full scope breakdown over the page-count range (low/anchor/high)."""
+    pc = inputs["page_count"]
+    m = inputs.get("multipliers", {})
+    layers = inputs["cadence_layers"]
+    buffer_pct = inputs.get("buffer_pct", 0.0)
+    tiers = inputs.get("tiers") or BAKED_TIERS
+
+    anchor = _compute_one(pc["anchor"], m, layers, buffer_pct, tiers)
+    low = _compute_one(pc["low"], m, layers, buffer_pct, tiers)
+    high = _compute_one(pc["high"], m, layers, buffer_pct, tiers)
+
+    return {
+        "customer": inputs.get("customer"),
+        "use_case": inputs.get("use_case"),
+        "pricing_source": inputs.get("pricing_source", f"baked ({BAKED_AS_OF})"),
+        "confidence": pc.get("confidence"),
+        "multipliers": {
+            "geographies": m.get("geographies", 1),
+            "scenarios": m.get("scenarios", 1),
+            "environments": m.get("environments", 1),
+            "combined_geo_persona": m.get("geographies", 1) * m.get("scenarios", 1),
+        },
+        "anchor": anchor,
+        "range": {
+            "low": {"predicted_scans": low["predicted_scans"],
+                    "purchased_scans": low["purchased_scans"],
+                    "price_total": low["price"]["total"]},
+            "high": {"predicted_scans": high["predicted_scans"],
+                     "purchased_scans": high["purchased_scans"],
+                     "price_total": high["price"]["total"]},
+        },
+        "recommended_quote": {
+            "purchased_scans": anchor["purchased_scans"],
+            "price_total": anchor["price"]["total"],
+            "tier": anchor["tier"],
+        },
+    }
+
+
+def main(argv):
+    raw = open(argv[1]).read() if len(argv) > 1 else sys.stdin.read()
+    print(json.dumps(compute(json.loads(raw)), indent=2))
+
+
+if __name__ == "__main__":
+    main(sys.argv)

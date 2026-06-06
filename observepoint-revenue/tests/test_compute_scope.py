@@ -63,3 +63,65 @@ def test_apply_buffer():
     assert cs.apply_buffer(100_000, 0.10) == 110_000
     assert cs.apply_buffer(1_664_256, 0.0) == 1_664_256          # no-op
     assert cs.apply_buffer(1_664_256, 0.10) == 1_830_682          # round(…*1.1)
+
+
+import json
+import subprocess
+import sys
+import pathlib
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+COMPUTE = ROOT / "skills" / "size-and-price" / "scripts" / "compute_scope.py"
+
+BASE_INPUTS = {
+    "customer": "Acme",
+    "use_case": "privacy",
+    "page_count": {"low": 180_000, "anchor": 197_000, "high": 210_000, "confidence": "MEDIUM"},
+    "multipliers": {"geographies": 2, "scenarios": 3, "environments": 1},
+    "cadence_layers": CALIBRATION_LAYERS,
+    "buffer_pct": 0.0,
+}
+
+
+def test_compute_anchor_calibration():
+    out = cs.compute(BASE_INPUTS)
+    a = out["anchor"]
+    assert a["use_case_pages"] == 1_182_000
+    assert a["predicted_scans"] == 1_664_256
+    assert a["purchased_scans"] == 1_664_256
+    assert a["tier"] == "professional"
+    assert a["price"]["total"] == 133_030.24
+    assert a["implied_blended_frequency"] == round(1_664_256 / 1_182_000, 3)
+    assert out["recommended_quote"]["price_total"] == 133_030.24
+    assert out["pricing_source"].startswith("baked")  # no tiers passed → baked
+
+
+def test_compute_range_is_monotonic():
+    out = cs.compute(BASE_INPUTS)
+    lo, hi = out["range"]["low"], out["range"]["high"]
+    assert lo["purchased_scans"] < out["anchor"]["purchased_scans"] < hi["purchased_scans"]
+    assert lo["price_total"] < out["anchor"]["price"]["total"] < hi["price_total"]
+
+
+def test_compute_buffer_changes_purchased():
+    inp = dict(BASE_INPUTS, buffer_pct=0.10)
+    out = cs.compute(inp)
+    assert out["anchor"]["predicted_scans"] == 1_664_256
+    assert out["anchor"]["purchased_scans"] == 1_830_682
+    assert out["anchor"]["price"]["total"] > 133_030.24
+
+
+def test_compute_uses_passed_tiers_and_source():
+    inp = dict(BASE_INPUTS, tiers=cs.BAKED_TIERS, pricing_source="live @ test")
+    out = cs.compute(inp)
+    assert out["pricing_source"] == "live @ test"
+
+
+def test_cli_reads_json_writes_json(tmp_path):
+    f = tmp_path / "in.json"
+    f.write_text(json.dumps(BASE_INPUTS))
+    res = subprocess.run([sys.executable, str(COMPUTE), str(f)],
+                         capture_output=True, text=True)
+    assert res.returncode == 0
+    out = json.loads(res.stdout)
+    assert out["anchor"]["price"]["total"] == 133_030.24
