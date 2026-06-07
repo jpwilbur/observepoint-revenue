@@ -182,6 +182,10 @@ def build_proposal(data):
     if data.get("properties_note"):
         _para(doc, data["properties_note"] + " The full property list is in the attached evidence "
                    "workbook — please review and confirm which properties are in scope.")
+    _para(doc, "The attached evidence workbook shows the detail: Pages by Domain (every property "
+               "and its page count), Sample Pages (real example pages we found on each), Annual "
+               "Usage Breakdown (how the page-scan total is built), and Methodology (how the count "
+               "was validated).", size=9.5, color=GRAY)
 
     # §2 What we monitor
     _heading(doc, "2. What ObservePoint will monitor")

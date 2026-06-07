@@ -68,6 +68,7 @@ def test_customer_sections_and_derivation():
     assert "430,744" in t                       # annual page scans total
     assert "Recommended contract" in t
     assert "430,167" in t and "$54,000" in t    # the reconciling pair
+    assert "Sample Pages" in t and "Methodology" in t   # points to the evidence workbook sheets
 
 
 def test_recommended_pair_reconciles_in_calculator():

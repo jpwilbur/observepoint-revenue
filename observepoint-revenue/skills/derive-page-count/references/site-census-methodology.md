@@ -161,6 +161,14 @@ Notes (all learned from live use, read-only query):
 - **Never fabricate sample URLs.** If the grid returns none, leave it empty — the workbook shows a
   "(none captured)" note. Some domains (file-heavy media libraries) may yield mostly docs; pick the
   cleanest page-like URLs.
+- **How many to sample (cost control — important).** Do NOT query every itemized domain; that's one
+  API round-trip per domain and the responses land back in context (token-heavy on big accounts).
+  Instead sample: (a) every **spiral-flagged** domain — their real pages are the single most
+  persuasive evidence (266k URLs → a handful of real pages) — plus (b) the **top ~8–10 remaining**
+  domains by page count. ~12–16 queries total is bounded and token-light; the long tail is already
+  represented by the aggregate row. For full per-domain coverage at scale without the token cost, a
+  **server-side bulk endpoint** (one call returning a compact `{hostname: [urls]}` map) is the right
+  tool — see the SKILL's note; until it exists, the top-N + spirals rule is the default.
 
 Also surface, in the rep-facing summary: the range (narrow, rounded), the anchor, a recommended
 quoting number within the band, confidence + one-line reason, the **inflation discounted**
