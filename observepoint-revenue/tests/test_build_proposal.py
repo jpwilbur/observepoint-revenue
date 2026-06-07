@@ -59,9 +59,19 @@ def test_proposal_omits_internal_pricing_source():
 def test_clean_guard_rejects_internal_terms():
     d = json.loads(json.dumps(DATA))
     d["monitoring_summary"] = "We discounted query-param spiral URLs."
-    doc = bp.build_proposal(d)
     with pytest.raises(ValueError):
-        bp._assert_clean(doc)
+        bp.build_proposal(d)
+
+
+def test_clean_guard_allows_collision_identity():
+    # Customer name / domains may legitimately contain forbidden substrings; must NOT trip the guard.
+    d = json.loads(json.dumps(DATA))
+    d["customer"] = "Discount Tire Co"
+    d["domains"] = ["spiral-galaxy.com"]
+    d["monitoring_summary"] = "Full-site privacy sweep annually."
+    t = _text(bp.build_proposal(d))  # must not raise
+    assert "Discount Tire Co" in t
+    assert "spiral-galaxy.com" in t
 
 
 def test_cli_writes_docx(tmp_path):

@@ -1,6 +1,6 @@
 ---
 name: size-and-price
-description: Use when sizing ObservePoint annual page-scan usage and price from a known page count — applying geography, consent-scenario, and environment multipliers plus test-cadence layers, then pricing it. For the page count itself use derive-page-count; for the full end-to-end scope use scope-calculator.
+description: Use when sizing ObservePoint annual page-scan usage and the price for a deal from a known page count. For deriving the page count itself use derive-page-count; for the full end-to-end scope use scope-calculator.
 ---
 
 # Size & Price

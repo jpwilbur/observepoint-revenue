@@ -162,7 +162,8 @@ their product equals the official `geoPersonaMultiplier`.
 
 1. Fetch the bundle URL.
 2. Regex-extract the `Gt=[{limit:…,pricePerPage:…},…]` array and validate
-   (monotonic limits, numeric rates, ≥5 bands).
+   (≥5 bands, positive band widths, non-negative & non-increasing paid rates — note `limit` is a
+   band WIDTH, not a cumulative cap, so widths are NOT required to increase).
 3. On success: return parsed table + a `pricing_source = "live @ <timestamp>"` stamp.
 4. On any failure (network, parse, validation): return the **baked last-known-good** table
    (the §4.4 values), set `pricing_source = "fallback (baked <date>)"`, and surface a visible

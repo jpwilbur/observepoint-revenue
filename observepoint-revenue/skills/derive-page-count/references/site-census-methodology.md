@@ -110,7 +110,11 @@ customer workbook):
 
 ```
 per_domain[] = { hostname, raw_urls, paths, patterns, spiral_flag, spiral_ratio,
-                 defensible_pages, discounted, why }   # why e.g. "349x query-param spiral"
+                 defensible_pages, discounted, why, url_samples }
+   # why         e.g. "349x query-param spiral"
+   # url_samples a small capped list (~5–10) of real sample URLs for that domain, pulled from the
+   #             census — populates the evidence workbook's "URL Samples" sheet so the customer can
+   #             eyeball that these are genuine pages. Capture them when you size the census.
 rollup = { url_total, path_floor, spiral_adjusted_anchor, low, high, confidence,
            census_ids, crawl_status, thresholds_swept }
 ```

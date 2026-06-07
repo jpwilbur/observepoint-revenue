@@ -11,7 +11,10 @@ import sys
 from docx import Document
 from docx.shared import Pt
 
-# Internal-only language that must never reach a customer-facing proposal.
+# Free-text fields the AGENT composes (vs. customer-supplied identity like name/domains/regulations,
+# which may legitimately contain these substrings — "Discount Tire", "spiral-galaxy.com").
+_NARRATIVE_FIELDS = ("monitoring_summary",)
+# Internal-only language that must never reach a customer-facing proposal via narrative text.
 _FORBIDDEN = ("spiral", "discount", "query-param", "raw url", "indefensible", "fallback")
 
 
@@ -24,6 +27,7 @@ def _usd(n):
 
 
 def build_proposal(data):
+    _assert_clean(data)
     s = data["scope"]
     pu = data["page_universe"]
     doc = Document()
@@ -62,12 +66,14 @@ def build_proposal(data):
     return doc
 
 
-def _assert_clean(doc):
-    """Defense-in-depth: no internal-only language leaked into the customer doc."""
-    text = "\n".join(p.text for p in doc.paragraphs).lower()
-    leaked = [w for w in _FORBIDDEN if w in text]
+def _assert_clean(data):
+    """Guard the agent-composed narrative fields against internal-only language. Scoped to
+    free-text narrative (`_NARRATIVE_FIELDS`) — NOT customer name / domains / regulations, which
+    are customer-supplied identity and may legitimately contain these substrings."""
+    blob = " ".join(str(data.get(f, "")) for f in _NARRATIVE_FIELDS).lower()
+    leaked = [w for w in _FORBIDDEN if w in blob]
     if leaked:
-        raise ValueError(f"proposal contains internal-only term(s): {leaked}")
+        raise ValueError(f"proposal narrative contains internal-only term(s): {leaked}")
 
 
 def main(argv):
@@ -77,8 +83,7 @@ def main(argv):
     else:
         raw = sys.stdin.read()
     out = argv[2] if len(argv) > 2 else "proposal.docx"
-    doc = build_proposal(json.loads(raw))
-    _assert_clean(doc)
+    doc = build_proposal(json.loads(raw))  # narrative guard runs inside build_proposal
     doc.save(out)
     print(out)
 
