@@ -133,10 +133,26 @@ tail-aggregate row so the invariant still holds:
    why: "not individually itemized in the Site Census summary" }`.
 This is honest (top domains in detail + a transparent tail) and keeps the per-domain sum exact.
 
-**`url_samples` is best-effort.** The `size_site_census` summary does NOT return sample URLs, so
-`url_samples` is usually empty and the workbook's "URL Samples" sheet shows a "(none available)"
-note. Populate it only if you have real sample URLs from another source (e.g. a Links export);
-never fabricate sample URLs.
+**`url_samples` — pull real sample pages from the links grid.** `size_site_census` doesn't return
+sample URLs, but you can fetch them with `op_api_call`:
+
+```
+POST /v3/reports/grid/links
+{ "columns":[{"columnId":"LINK_URL","groupBy":true}],
+  "filters":{"conditionMatchMode":"all","conditions":[
+     {"operator":"integer_in","filteredColumn":{"columnId":"SITE_CENSUS_ID"},"args":[<censusId>],"negated":false},
+     {"operator":"string_contains","filteredColumn":{"columnId":"LINK_URL_BASE_DOMAIN"},"arg":"<registrable domain>","wildcardStart":true,"wildcardEnd":true,"negated":false},
+     {"operator":"string_contains","filteredColumn":{"columnId":"LINK_URL"},"arg":"?","wildcardStart":true,"wildcardEnd":true,"negated":true},
+     {"operator":"string_contains","filteredColumn":{"columnId":"LINK_URL"},"arg":".pdf","wildcardStart":true,"wildcardEnd":true,"negated":true}],
+   "allAccounts":false},
+  "page":0,"size":10 }
+```
+
+Notes: it's a read-only report query. **`LINK_URL_BASE_DOMAIN` keys on the REGISTRABLE domain** — use
+`"acme.com"`, NOT `"www.acme.com"` (a `www.`/subdomain arg returns 0). Excluding `?` strips the
+query-string spiral so you get clean real pages; `size` must be ≥10. Take ~5–6 page URLs per
+itemized domain into `url_samples`. **Never fabricate sample URLs** — if the grid returns none, leave
+it empty and the workbook shows a "(none captured)" note.
 
 Also surface, in the rep-facing summary: the range (narrow, rounded), the anchor, a recommended
 quoting number within the band, confidence + one-line reason, the **inflation discounted**

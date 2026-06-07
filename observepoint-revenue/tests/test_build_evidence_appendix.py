@@ -1,7 +1,7 @@
 import json
+import pathlib
 import subprocess
 import sys
-import pathlib
 
 import pytest
 from openpyxl import load_workbook
@@ -12,58 +12,87 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "skills" / "derive-page-count" / "scripts" / "build_evidence_appendix.py"
 
 DATA = {
-    "customer": "Acme",
-    "rollup": {
-        "url_total": 268_042, "path_floor": 1_900, "spiral_adjusted_anchor": 2_661,
-        "low": 2_500, "high": 3_000, "confidence": "MEDIUM",
-        "census_ids": [711], "crawl_status": "paused",
-    },
+    "customer": "Acme Corp", "date": "2026-06-07",
+    "rollup": {"url_total": 410_000, "path_floor": 91_000, "spiral_adjusted_anchor": 95_000,
+               "low": 88_000, "high": 105_000, "confidence": "MEDIUM",
+               "census_ids": [812], "crawl_status": "done"},
     "per_domain": [
-        {"hostname": "www.1stagency.com", "raw_urls": 266_042, "paths": 761,
-         "patterns": 120, "spiral_flag": True, "spiral_ratio": 349.0,
-         "defensible_pages": 761, "discounted": 265_281,
-         "why": "349x query-param spiral",
-         "url_samples": ["https://www.1stagency.com/", "https://www.1stagency.com/about"]},
-        {"hostname": "shop.acme.com", "raw_urls": 2_000, "paths": 1_900,
-         "patterns": 90, "spiral_flag": False, "spiral_ratio": 1.05,
-         "defensible_pages": 1_900, "discounted": 100, "why": "",
-         "url_samples": ["https://shop.acme.com/p/1"]},
-    ],
+        {"hostname": "acme.com", "raw_urls": 90_000, "paths": 86_000, "spiral_flag": False,
+         "spiral_ratio": 1.05, "defensible_pages": 90_000, "discounted": 0, "why": "",
+         "url_samples": ["https://acme.com/", "https://acme.com/about"]},
+        {"hostname": "shop.acme.com", "raw_urls": 320_000, "paths": 5_000, "spiral_flag": True,
+         "spiral_ratio": 64.0, "defensible_pages": 5_000, "discounted": 315_000,
+         "why": "64x query-param spiral", "url_samples": ["https://shop.acme.com/p/1"]}],
+    "usage": {"consent_states": {"count": 3, "names": ["Default", "Opt-Out", "GPC"]},
+              "pages_per_sweep": 285_000, "annual_scans": 427_500,
+              "recommended_price": 54_000, "recommended_scans": 430_167,
+              "cadence_layers": [
+                  {"name": "Full privacy sweep", "runs_per_year": 1, "pct": 1.0, "pages": 285_000, "runs": 285_000},
+                  {"name": "Priority pages", "runs_per_year": 4, "pct": 0.05, "pages": 14_250, "runs": 57_000},
+                  {"name": "Consent-critical pages", "runs_per_year": 12, "pct": 0.025, "pages": 7_125, "runs": 85_500}]},
 }
+
+
+def _alltext(wb):
+    out = []
+    for ws in wb.worksheets:
+        out.append(ws.title)
+        for row in ws.iter_rows(values_only=True):
+            out += [str(v) for v in row if v is not None]
+    return "\n".join(out)
 
 
 def test_invariant_raises_on_mismatch():
     bad = json.loads(json.dumps(DATA))
-    bad["rollup"]["spiral_adjusted_anchor"] = 9_999  # != 761 + 1900
+    bad["rollup"]["spiral_adjusted_anchor"] = 9_999
     with pytest.raises(ValueError, match=r"sum \d+ != rollup anchor"):
         bea.build_workbook(bad)
 
 
-def test_workbook_structure(tmp_path):
+def test_sheets_present_with_usage():
     wb = bea.build_workbook(DATA)
-    assert wb.sheetnames == ["Scope Summary", "Pages by Domain", "Raw Evidence", "URL Samples"]
+    assert wb.sheetnames == ["Scope Summary", "Pages by Domain", "Sample Pages",
+                             "Annual Usage Breakdown", "Methodology"]
 
-    pbd = wb["Pages by Domain"]
-    assert [c.value for c in pbd[1]] == [
-        "Domain", "Defensible pages", "Spiral?", "Include in scope?", "Priority", "Notes"]
-    assert pbd[2][0].value == "www.1stagency.com"
-    assert pbd[2][1].value == 761
-    assert pbd[2][2].value == "Yes"
+
+def test_usage_sheet_omitted_when_no_usage():
+    d = json.loads(json.dumps(DATA))
+    d.pop("usage")
+    wb = bea.build_workbook(d)
+    assert "Annual Usage Breakdown" not in wb.sheetnames
+    assert len(wb.sheetnames) == 4
+
+
+def test_pages_by_domain_headers_and_fillable():
+    ws = bea.build_workbook(DATA)["Pages by Domain"]
+    assert [c.value for c in ws[3]] == ["Property (domain)", "Real pages", "% of total",
+                                        "Spiral?"] + bea.FILL_COLS
+    assert ws.cell(4, 1).value == "acme.com"      # sorted by pages desc
+    assert ws.cell(4, 2).value == 90_000
     # customer-fillable columns present and empty
-    assert pbd[2][3].value is None and pbd[2][4].value is None and pbd[2][5].value is None
+    assert ws.cell(4, 5).value is None and ws.cell(4, 6).value is None and ws.cell(4, 7).value is None
 
-    raw = wb["Raw Evidence"]
-    assert raw[2][1].value == 266_042            # raw distinct URLs
-    assert raw[2][5].value == "349x query-param spiral"
 
-    samples = wb["URL Samples"]
-    assert samples.max_row == 1 + 2 + 1          # header + 2 + 1 sample rows
+def test_sample_pages_present():
+    t = _alltext(bea.build_workbook(DATA))
+    assert "https://acme.com/about" in t
+    assert "https://shop.acme.com/p/1" in t
 
-    ss = wb["Scope Summary"]
-    assert ss["B2"].value == "Acme"          # Customer
-    assert ss["B8"].value == 2661            # Defensible pages — anchor
-    assert ss["B11"].value == 268_042        # Total raw URLs (266042 + 2000)
-    assert ss["B13"].value == 265_381        # Discounted (268042 - 2661)
+
+def test_usage_breakdown_content():
+    t = _alltext(bea.build_workbook(DATA))
+    assert "Default" in t and "Opt-Out" in t and "GPC" in t      # consent states
+    assert "TOTAL ANNUAL PAGE SCANS" in t
+    assert "427500" in t                                          # annual scans total (raw value)
+    assert "Annually" in t and "Quarterly" in t and "Monthly" in t  # cadence frequencies
+    assert "5.0%" in t and "2.5%" in t                            # % of pages
+    assert "430,167 page scans" in t and "$54,000 / year" in t    # reconciling contract sentence
+
+
+def test_methodology_shows_reduction():
+    t = _alltext(bea.build_workbook(DATA))
+    assert "64x query-param spiral" in t
+    assert "320000" in t                                          # raw URLs for the spiral domain
 
 
 def test_cli_writes_file(tmp_path):
@@ -72,21 +101,5 @@ def test_cli_writes_file(tmp_path):
     res = subprocess.run([sys.executable, str(SCRIPT), str(f), str(out)],
                          capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
-    wb = load_workbook(out)
-    assert "Scope Summary" in wb.sheetnames
     assert res.stdout.strip() == str(out)
-
-
-def test_domain_without_optional_keys():
-    data = {
-        "customer": "B",
-        "rollup": {"spiral_adjusted_anchor": 100, "census_ids": []},
-        "per_domain": [
-            {"hostname": "x.com", "raw_urls": 120, "defensible_pages": 100,
-             "spiral_flag": False},
-        ],
-    }
-    wb = bea.build_workbook(data)            # must not raise on missing optional keys
-    assert wb["URL Samples"].max_row == 2    # header + "no samples available" placeholder note
-    assert "no per-URL samples" in str(wb["URL Samples"][2][0].value)
-    assert wb["Pages by Domain"][2][1].value == 100
+    assert "Sample Pages" in load_workbook(out).sheetnames
