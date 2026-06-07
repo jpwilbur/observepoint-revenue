@@ -141,18 +141,26 @@ POST /v3/reports/grid/links
 { "columns":[{"columnId":"LINK_URL","groupBy":true}],
   "filters":{"conditionMatchMode":"all","conditions":[
      {"operator":"integer_in","filteredColumn":{"columnId":"SITE_CENSUS_ID"},"args":[<censusId>],"negated":false},
-     {"operator":"string_contains","filteredColumn":{"columnId":"LINK_URL_BASE_DOMAIN"},"arg":"<registrable domain>","wildcardStart":true,"wildcardEnd":true,"negated":false},
+     {"operator":"string_contains","filteredColumn":{"columnId":"LINK_URL"},"arg":"//<hostname>","wildcardStart":true,"wildcardEnd":true,"negated":false},
      {"operator":"string_contains","filteredColumn":{"columnId":"LINK_URL"},"arg":"?","wildcardStart":true,"wildcardEnd":true,"negated":true},
-     {"operator":"string_contains","filteredColumn":{"columnId":"LINK_URL"},"arg":".pdf","wildcardStart":true,"wildcardEnd":true,"negated":true}],
+     {"operator":"string_contains","filteredColumn":{"columnId":"LINK_URL"},"arg":"%22","wildcardStart":true,"wildcardEnd":true,"negated":true},
+     {"operator":"string_contains","filteredColumn":{"columnId":"LINK_URL"},"arg":".pdf","wildcardStart":true,"wildcardEnd":true,"negated":true},
+     {"operator":"string_contains","filteredColumn":{"columnId":"LINK_URL"},"arg":".jpg","wildcardStart":true,"wildcardEnd":true,"negated":true}],
    "allAccounts":false},
   "page":0,"size":10 }
 ```
 
-Notes: it's a read-only report query. **`LINK_URL_BASE_DOMAIN` keys on the REGISTRABLE domain** — use
-`"acme.com"`, NOT `"www.acme.com"` (a `www.`/subdomain arg returns 0). Excluding `?` strips the
-query-string spiral so you get clean real pages; `size` must be ≥10. Take ~5–6 page URLs per
-itemized domain into `url_samples`. **Never fabricate sample URLs** — if the grid returns none, leave
-it empty and the workbook shows a "(none captured)" note.
+Notes (all learned from live use, read-only query):
+- **Isolate the host with `LINK_URL contains "//<hostname>"`** (e.g. `//jobs.acme.com`) — this works for
+  apex AND subdomains. (`LINK_URL_BASE_DOMAIN` keys on the *registrable* domain, so it can't separate
+  `jobs.acme.com` from `www.acme.com`; and a `www.`/subdomain arg against it returns 0.)
+- **Exclude `?`** (strips the query-string spiral → clean real pages), **`%22`** (removes crawler
+  artifacts like `/%22//page///%22` AND cross-host contamination, since those embed via escaped quotes),
+  and **`.pdf` / `.jpg`** (and other asset extensions as needed).
+- `size` must be ≥10. Take ~4–6 page URLs per itemized domain into `url_samples`.
+- **Never fabricate sample URLs.** If the grid returns none, leave it empty — the workbook shows a
+  "(none captured)" note. Some domains (file-heavy media libraries) may yield mostly docs; pick the
+  cleanest page-like URLs.
 
 Also surface, in the rep-facing summary: the range (narrow, rounded), the anchor, a recommended
 quoting number within the band, confidence + one-line reason, the **inflation discounted**
