@@ -15,11 +15,13 @@ The single entry point reps use to scope an ObservePoint contract end to end. Yo
 4. **Assemble deliverables:**
    - **Evidence workbook:** `python3 ${CLAUDE_PLUGIN_ROOT}/skills/derive-page-count/scripts/build_evidence_appendix.py <perdomain.json> <customer>-evidence-appendix.xlsx` — fed the step-2 `{rollup, per_domain}`.
    - **Proposal:** `python3 ${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts/build_proposal.py <proposal.json> <customer>-proposal.docx`. Assemble `proposal.json`: `page_universe` = the step-2 `rollup` (low/anchor/high/confidence); `scope` = a FLAT object you build from the step-3 `compute_scope` output — these are nested, so map explicitly: `predicted_scans`←`anchor.predicted_scans`, `purchased_scans`←`anchor.purchased_scans`, `buffer_pct`←`anchor.buffer_pct`, `tier`←`recommended_quote.tier`, `price_total`←`recommended_quote.price_total`; plus `customer`, `domains`, `regulations`, and a one-line `monitoring_summary`. (Keep internal terms out of `monitoring_summary` — the generator rejects them.)
-   - Report the rep-facing breakdown (from `size-and-price`, including the assumptions-to-verify list) **and both file paths**.
+   - Write both files to a **persistent, rep-accessible folder** (the current working directory or a clearly-named output folder — NOT a temp dir), and report their **absolute paths** alongside the rep-facing breakdown (from `size-and-price`, including the assumptions-to-verify list).
 
 ## The single-source consistency rule
 
 There is **one** Part-1 object, and it feeds BOTH sides. The page-count anchor that goes into pricing (`page_count.anchor`), the anchor in the evidence appendix (`rollup.spiral_adjusted_anchor`), and the page-universe anchor in the proposal MUST be the **same number**. Never re-derive or re-state the anchor — pass the one object through.
+
+Use the **precise** anchor everywhere (e.g. `95721`, not a rounded `96000`) — feeding a rounded anchor into pricing or the appendix breaks the sum-to-anchor invariant and the cross-deliverable match. Round **only** in customer-facing display text, never in the numbers you pass between steps.
 
 ## Red Flags — STOP
 

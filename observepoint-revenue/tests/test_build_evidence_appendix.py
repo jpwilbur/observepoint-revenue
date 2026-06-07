@@ -87,5 +87,6 @@ def test_domain_without_optional_keys():
         ],
     }
     wb = bea.build_workbook(data)            # must not raise on missing optional keys
-    assert wb["URL Samples"].max_row == 1    # header only, no sample rows
+    assert wb["URL Samples"].max_row == 2    # header + "no samples available" placeholder note
+    assert "no per-URL samples" in str(wb["URL Samples"][2][0].value)
     assert wb["Pages by Domain"][2][1].value == 100

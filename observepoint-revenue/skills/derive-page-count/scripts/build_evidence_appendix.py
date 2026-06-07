@@ -77,9 +77,13 @@ def build_workbook(data):
     samples = wb.create_sheet("URL Samples")
     samples.append(["Domain", "Sample URL"])
     _bold_header(samples)
+    any_samples = False
     for d in domains:
         for url in d.get("url_samples", []):
             samples.append([d["hostname"], url])
+            any_samples = True
+    if not any_samples:
+        samples.append(["(no per-URL samples available from this census summary)", ""])
 
     return wb
 

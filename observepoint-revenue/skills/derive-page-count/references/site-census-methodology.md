@@ -123,6 +123,21 @@ rollup = { url_total, path_floor, spiral_adjusted_anchor, low, high, confidence,
 `defensible_pages` MUST sum to `rollup.spiral_adjusted_anchor` (the evidence-appendix builder
 enforces this invariant).
 
+**Truncated per-domain list → tail-aggregate row.** `size_site_census` lists only the top ~40
+hostnames in detail and rolls the rest into the totals. When the account has more domains than that
+(big accounts often have 200+), build `per_domain[]` from the rows you can see PLUS one labeled
+tail-aggregate row so the invariant still holds:
+`{ hostname: "(N additional domains — long tail, aggregated)",
+   defensible_pages: spiral_adjusted_anchor − Σ(shown defensible_pages),
+   raw_urls: url_total − Σ(shown raw_urls), spiral_flag: false,
+   why: "not individually itemized in the Site Census summary" }`.
+This is honest (top domains in detail + a transparent tail) and keeps the per-domain sum exact.
+
+**`url_samples` is best-effort.** The `size_site_census` summary does NOT return sample URLs, so
+`url_samples` is usually empty and the workbook's "URL Samples" sheet shows a "(none available)"
+note. Populate it only if you have real sample URLs from another source (e.g. a Links export);
+never fabricate sample URLs.
+
 Also surface, in the rep-facing summary: the range (narrow, rounded), the anchor, a recommended
 quoting number within the band, confidence + one-line reason, the **inflation discounted**
 (e.g. "excluded ~388k query-param URLs across 6 domains; largest www.1stagency.com 266,042 → 761 real
