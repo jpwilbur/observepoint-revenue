@@ -1,0 +1,29 @@
+---
+name: scope-calculator
+description: Use when a revenue or sales rep needs to size or price an ObservePoint contract for a prospect or customer — "scope this account", "how many pages do they need", "size a deal", "price out X", "build a usage proposal". Produces a usage + price breakdown plus a customer proposal and an evidence workbook.
+---
+
+# Scope Calculator
+
+The single entry point reps use to scope an ObservePoint contract end to end. You **orchestrate two sub-skills** and assemble the deliverables — you do NOT do their work yourself.
+
+## Flow
+
+1. **Gather:** customer name, domain(s), use case (privacy / analytics / accessibility), and any regulations (CCPA, GDPR, …).
+2. **Page count — invoke the `derive-page-count` skill.** It returns the `{rollup, per_domain}` object (defensible range + per-domain evidence). **Do NOT invent or estimate a page count yourself** — that skill owns it (spirals, cold starts, confidence).
+3. **Usage + price — invoke the `size-and-price` skill**, feeding `page_count` = the SAME `rollup` low/anchor/high from step 2. **Do NOT improvise multipliers, cadence, or pricing yourself** — that skill owns them (regulation-based defaults, the cadence starting templates, the assumptions-to-verify list, and live pricing via the scripts). Let it run `fetch_pricing.py` + `compute_scope.py`.
+4. **Assemble deliverables:**
+   - **Evidence workbook:** `python3 ${CLAUDE_PLUGIN_ROOT}/skills/derive-page-count/scripts/build_evidence_appendix.py <perdomain.json> <customer>-evidence-appendix.xlsx` — fed the step-2 `{rollup, per_domain}`.
+   - **Proposal:** `python3 ${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts/build_proposal.py <proposal.json> <customer>-proposal.docx` — `page_universe` = the step-2 `rollup` (low/anchor/high/confidence); `scope` = the step-3 `compute_scope` output (predicted/purchased scans, buffer, tier, price_total); plus `domains`, `regulations`, and a one-line `monitoring_summary`.
+   - Report the rep-facing breakdown (from `size-and-price`, including the assumptions-to-verify list) **and both file paths**.
+
+## The single-source consistency rule
+
+There is **one** Part-1 object, and it feeds BOTH sides. The page-count anchor that goes into pricing (`page_count.anchor`), the anchor in the evidence appendix (`rollup.spiral_adjusted_anchor`), and the page-universe anchor in the proposal MUST be the **same number**. Never re-derive or re-state the anchor — pass the one object through.
+
+## Red Flags — STOP
+
+- About to estimate a page count yourself → invoke `derive-page-count` instead.
+- About to pick multipliers / cadence / a price yourself → invoke `size-and-price` instead (its defaults, flags, and live pricing must apply; an improvised cadence or buffer is the failure).
+- The proposal, the appendix, and the price show **different** anchor numbers → STOP; you re-derived instead of passing one object through.
+- About to hand over only one deliverable → reps need the chat breakdown AND both files.
