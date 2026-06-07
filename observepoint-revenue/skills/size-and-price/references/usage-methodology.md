@@ -43,18 +43,26 @@ undetected issue?"** — and for privacy, cadence also builds a **legal-evidence
 
 ## 4. Use-case profiles (seed defaults)
 
+Each profile ships a **concrete starting cadence template** (a list of `{pct, runs_per_year}` layers)
+so the default is deterministic, not a guess. **Cadence is the #1 thing to confirm with the customer**
+— always present the template as a labeled assumption-to-verify, never as settled fact. A "slice" is a
+*fraction* of pages (a critical subset), not the whole site.
+
 - **Privacy / consent monitoring** — "catch active issues across the whole site." Cadence driven by
   (a) the **legal-exposure window** (how long you can tolerate unauthorized data collection before it
   becomes regulatory/litigation risk) and (b) **evidentiary cadence** (regular, time-stamped scans at a
   *consistent* frequency demonstrate ongoing diligence and are usable if a regulator or plaintiff
   alleges a violation — the litigation-defense value). Higher + consistent cadence = stronger legal
-  posture. Scenarios active (CCPA ×3 / GDPR ×2), environments ×1, broad coverage. Default: 100% annual
-  baseline + a meaningful monthly/quarterly slice.
+  posture. Scenarios active (CCPA ×3 / GDPR ×2), environments ×1, broad coverage.
+  **Starting template:** annual baseline 100% × 1/yr + quarterly slice 5% × 4/yr + monthly critical
+  slice 2.5% × 12/yr (implied blended ≈ 1.5×).
 - **Analytics validation** — "verify tagging before release." Cadence driven by the **data-quality
   window** (how long you can tolerate degraded/missing data flowing into reporting, ad spend, and
-  attribution before it's caught). Environments ×1.5 (prod+staging), scenarios ×1, targeted. Default:
-  critical conversion pages weekly/daily + full-site quarterly.
+  attribution before it's caught). Environments ×1.5 (prod+staging), scenarios ×1, targeted.
+  **Starting template:** annual baseline 100% × 1/yr + quarterly slice 5% × 4/yr + weekly
+  conversion-critical slice 0.4% × 52/yr (implied blended ≈ 1.4×).
 - **Accessibility** (stretch) — periodic full-site sweeps; scenarios/environments ×1.
+  **Starting template:** annual baseline 100% × 1/yr + quarterly slice 25% × 4/yr (implied blended ≈ 2×).
 
 ## 5. Reconciliation vs the public calculator
 
