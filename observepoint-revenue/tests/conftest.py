@@ -7,5 +7,6 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent  # observepoint-revenue/
 for rel in (
     "skills/size-and-price/scripts",
     "skills/derive-page-count/scripts",
+    "skills/scope-calculator/scripts",
 ):
     sys.path.insert(0, str(ROOT / rel))
