@@ -53,6 +53,27 @@ def graduated_price(scans, tiers):
     return {"total": round(total, 2), "breakdown": breakdown, "avg_per_page": avg}
 
 
+def scans_for_price(target_price, tiers):
+    """Inverse of graduated_price: the integer scan count whose graduated price ≈ target_price.
+    Lets a rep anchor on a clean budget figure and get the exact page-scans it covers, so the
+    two numbers always reconcile in ObservePoint's published calculator."""
+    if not tiers:
+        raise ValueError("tiers must be a non-empty list of price bands")
+    remaining = target_price
+    scans = 0
+    for band in tiers:
+        rate = band["pricePerPage"]
+        if rate == 0:
+            scans += band["limit"]
+            continue
+        band_cost = band["limit"] * rate
+        if remaining <= band_cost:
+            return round(scans + remaining / rate)
+        remaining -= band_cost
+        scans += band["limit"]
+    return round(scans + remaining / tiers[-1]["pricePerPage"])
+
+
 def classify_tier(scans):
     """Website $F classifier: starter < 600k <= professional <= 6M < enterprise."""
     if scans < 600_000:
@@ -150,7 +171,17 @@ def compute(inputs):
             "price_total": anchor["price"]["total"],
             "tier": anchor["tier"],
         },
+        "recommended_contract": _recommended_contract(anchor["price"]["total"], tiers),
     }
+
+
+def _recommended_contract(anchor_price, tiers):
+    """A clean, reconciling contract pair: round the price to the nearest $1,000 and back-solve
+    the EXACT scans that price to it (so price and scans always match the calculator)."""
+    price = round(anchor_price / 1000) * 1000
+    scans = scans_for_price(price, tiers)
+    return {"price": price, "scans": scans,
+            "exact_price": graduated_price(scans, tiers)["total"]}
 
 
 def main(argv):

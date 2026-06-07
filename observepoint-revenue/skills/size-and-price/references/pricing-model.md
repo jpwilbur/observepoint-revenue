@@ -35,6 +35,16 @@ Optional `buffer_pct` (default 0). `purchased_scans = round(predicted_scans × (
 e.g. "110,000 purchased = 100,000 predicted + 10% buffer." A buffer can push a deal across a tier
 boundary — make that visible if it happens.
 
+## 3b. Recommended contract — clean price ↔ exact scans
+
+`compute_scope.py` exposes `scans_for_price(target_price, tiers)` (the inverse of `graduated_price`)
+and emits `recommended_contract = {price, scans, exact_price}` on every `compute()`. It rounds the
+anchor price to the nearest $1,000 and **back-solves the exact page-scans that price to it**, so the
+two numbers a customer sees (price and page-scans) always reconcile in ObservePoint's published
+calculator. Present the clean price and the exact scans together; show the precise modeled
+pair (`predicted_scans` / `anchor.price.total`) in the internal/rep view. Never round one of the
+pair independently — that produces figures the customer can't verify in the calculator.
+
 ## 4. Journeys (v1)
 
 Journeys (funnel/login runs) are a separate ObservePoint meter, priced on flat tiers (≤100 free,

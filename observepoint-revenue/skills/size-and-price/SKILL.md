@@ -26,7 +26,7 @@ Turn a defensible page count into an **annual page-scan usage number and price**
 
 ## Output (rep-facing)
 
-Report: each multiplier with its rationale (and whether it was defaulted); the cadence table; annual_scans range; **predicted vs purchased** (if a buffer); tier (starter/professional/enterprise); the live price-by-band breakdown + total range; the recommended quote (anchor); the implied-blended-frequency reconciliation note; the pricing **`source`** stamp; and the **"Assumptions to verify with the customer"** checklist. If `source` starts with `"fallback"`, add a visible "pricing may be stale — verify/refresh" warning.
+Report: each multiplier with its rationale (and whether it was defaulted); the cadence table; annual_scans range; **predicted vs purchased** (if a buffer); tier (starter/professional/enterprise); the live price-by-band breakdown + total range; the recommended quote (anchor); the **recommended contract** (`recommended_contract` — a clean round price and the **exact** page-scans that reconcile to it in the calculator, so the two figures a customer sees always match); the implied-blended-frequency reconciliation note; the pricing **`source`** stamp; and the **"Assumptions to verify with the customer"** checklist. If `source` starts with `"fallback"`, add a visible "pricing may be stale — verify/refresh" warning.
 
 ## Red Flags — STOP
 

@@ -165,3 +165,22 @@ def test_graduated_price_tail_beyond_bands():
     assert tail["band_limit"] is None
     assert tail["pages"] == 1_000_000
     assert tail["rate"] == cs.BAKED_TIERS[-1]["pricePerPage"]
+
+
+def test_scans_for_price_inverts_graduated():
+    for scans in (10_000, 430_744, 1_664_256, 3_000_000):
+        price = cs.graduated_price(scans, cs.BAKED_TIERS)["total"]
+        assert abs(cs.scans_for_price(price, cs.BAKED_TIERS) - scans) <= 1
+
+
+def test_scans_for_price_clean_target():
+    s = cs.scans_for_price(54_000, cs.BAKED_TIERS)
+    assert s == 430_167
+    assert abs(cs.graduated_price(s, cs.BAKED_TIERS)["total"] - 54_000) < 0.5
+
+
+def test_compute_recommended_contract():
+    rc = cs.compute(BASE_INPUTS)["recommended_contract"]
+    assert rc["price"] == 133_000                       # nearest $1,000 of 133,030.24
+    assert rc["scans"] == cs.scans_for_price(133_000, cs.BAKED_TIERS)
+    assert abs(cs.graduated_price(rc["scans"], cs.BAKED_TIERS)["total"] - 133_000) < 1
