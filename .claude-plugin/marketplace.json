@@ -1,0 +1,14 @@
+{
+  "name": "observepoint-revenue",
+  "owner": {
+    "name": "Jarrod Wilbur",
+    "email": "jarrod.wilbur@observepoint.com"
+  },
+  "plugins": [
+    {
+      "name": "observepoint-revenue",
+      "source": "./observepoint-revenue",
+      "description": "ObservePoint revenue-team tooling. First capability: a contract scope calculator (page count -> annual usage -> live price -> customer proposal + evidence appendix)."
+    }
+  ]
+}
