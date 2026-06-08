@@ -38,17 +38,21 @@ tunable).
 1. **Invoke:** `research-account <Company>` with optional `domain` and optional `--deep-scan`.
 2. **Claude (the SKILL body):**
    1. Resolve the prospect's primary domain (from input, else a quick web lookup).
-   2. **Light OP scan (default):** call `detect_cmp({url: <homepage>})`. Record the CMP vendor (or
-      "none detected") and whether ObservePoint's auto-opt-out supports it. This is **measured**
-      evidence for the highest-weight fit criterion, `privacyConsentSurface` (25 pts).
-      - **Caveat baked into scoring guidance:** `detect_cmp` is a server-side fetch (no JS), so a
-        *positive* detection is strong evidence, but a *negative* is NOT proof of absence — fall
-        back to the public-web signal and mark the evidence "unconfirmed," never assert "no CMP."
-   3. **`--deep-scan` (opt-in):** additionally pull richer measured signals if available (e.g. a
-      tag/pixel inventory or Site Census sizing) to harden `tagPixelDensity` / `webScale`. v1 keeps
-      this best-effort and dependency-aware: it only uses data reachable without standing up new
-      customer infrastructure; if unavailable, it degrades silently to web research. (Full deep-scan
-      wiring can be hardened in a later pass; the light path is the guaranteed default.)
+   2. **Default scan** — two cheap, no-account measurements of the prospect's live site:
+      - `detect_cmp({url: <homepage>})` → CMP vendor (or "none detected") + whether ObservePoint's
+        auto-opt-out supports it. **Measured** evidence for `privacyConsentSurface` (25 pts).
+      - **Tag/pixel inventory:** `WebFetch` the homepage (and 1–2 high-value pages) and identify the
+        MarTech/pixel stack from script signatures — GTM (`googletagmanager.com/gtm.js`), GA4
+        (`gtag`), Adobe Launch (`assets.adobedtm.com`), Tealium (`tags.tiqcdn.com`), Segment, Meta
+        Pixel (`fbevents.js`), etc. **Measured** evidence for `tagPixelDensity` (20 pts).
+      - **Caveat baked into scoring guidance:** both are static fetches (no JS execution), so a
+        *positive* finding is strong evidence, but a *negative* is NOT proof of absence (tags injected
+        dynamically via a container, or a lazily-loaded CMP, can be missed) — fall back to the
+        public-web signal and mark the evidence "unconfirmed," never assert "no CMP / no tags."
+   3. **`--deep-scan` (opt-in, heavier):** stand up / size an ObservePoint **Site Census** to measure
+      `webScale` (real page count, multi-domain / SPA complexity) and a fuller crawl-based tag picture.
+      Intentionally gated: it is time-intensive and may need account context, so it runs only when the
+      rep flags it. Without the flag, `webScale` is classified from public web research.
    4. **Web research** per the ported prompts (`trigger-and-fit.md`, `research-and-contacts.md`):
       - Classify each of the 6 ICP fit criteria as `met` true/false with a short `evidence` string.
       - Find dated, **sourced** why-now triggers, each tagged with the single best `scoreKey` and a
@@ -59,8 +63,9 @@ tunable).
       - Source **2–5 real, currently-employed** contacts: name, title, LinkedIn, `sourceVerified`,
         `sourceUrl`, `personalizationHook`, `toneGuidance`, `avoid`. Enforce NERD's
         **no-placeholder** rule and the per-contact source-evidence rule.
-   5. Fold the CMP scan result into the `privacyConsentSurface` classification evidence
-      (measured > guessed).
+   5. Fold the scan results into the classification evidence — CMP → `privacyConsentSurface`,
+      tag/pixel inventory → `tagPixelDensity` (measured > guessed); Site Census (if `--deep-scan`) →
+      `webScale`.
    6. Write a **classification JSON** to a temp path, matching the schema in §4.
 3. **`score_account.py classification.json [scored.json]`** — deterministic scoring (port of NERD
    `scoring.ts` `computeFit` + recency decay), reading weights from bundled `scoring-config.json`:
@@ -82,7 +87,7 @@ tunable).
 
 | Component | Responsibility | Depends on |
 |---|---|---|
-| `SKILL.md` | Orchestrates: scan → research → write classification JSON → run both scripts → summarize. Carries the ICP/trigger/contact instructions (or points to references). | `WebSearch`, `WebFetch`, `detect_cmp`, the two scripts |
+| `SKILL.md` | Orchestrates: scan → research → write classification JSON → run both scripts → summarize. Carries the ICP/trigger/contact instructions (or points to references). | `WebSearch`, `WebFetch`, `detect_cmp` (+ `size_site_census` on `--deep-scan`), the two scripts |
 | `references/trigger-and-fit.md` | Ported NERD Stage-1 prompt: what OP does, 6 ICP criteria (keys), 12 why-now trigger `scoreKey`s, sources, the web-tracking-nexus rule. | — |
 | `references/research-and-contacts.md` | Ported NERD Stage-2/3 prompt: research protocol, CIPA framing as internal strategy, contact rules (real-only, source-verified, no placeholders). | — |
 | `references/scoring-config.json` | Ported NERD `config.json`: `fitGate`, `triggerOverride`, `recency`, `fit{}`, `whyNow{}`, `targetVerticals`, `personaPriorityTitles`, `triggerSources`. Single source of truth for weights. | — |
@@ -105,8 +110,13 @@ Ported from NERD `schemas.ts` (`FIT_TOOL` + `RESEARCH_TOOL`), flattened into one
   "domain": "ajg.com",
   "prepared_by": "Jarrod Wilbur",
   "date": "2026-06-07",
-  "scan": { "cmp": "OneTrust", "cmp_supported": true, "method": "observepoint detect_cmp",
-            "confirmed": true },
+  "scan": {
+    "cmp": "OneTrust", "cmp_supported": true, "cmp_confirmed": true,
+    "tags": ["Google Tag Manager", "GA4", "Meta Pixel", "Adobe Launch"],
+    "tag_method": "homepage script-signature scan (WebFetch)",
+    "site_census": null,
+    "method": "observepoint detect_cmp + static tag scan"
+  },
   "fit": [
     { "key": "privacyConsentSurface", "met": true,
       "evidence": "OneTrust CMP detected (confirmed via ObservePoint scan)." },
@@ -149,7 +159,9 @@ classification lines up with what the script scores. Unknown scoreKeys are shown
 3. **Why now** — triggers table: description, date, category, source URL, points (after decay).
    Sorted by points. The persuasive heart of the dossier.
 4. **ICP fit** — breakdown table: criterion label, met?, points, evidence. Privacy criteria first.
-5. **Account overview** — companyOverview, pain hypotheses (2–3), competitor intel, tech-stack notes.
+5. **Account overview** — companyOverview, pain hypotheses (2–3), competitor intel, tech-stack notes
+   (including the measured CMP + tag/pixel inventory from the scan, and the Site Census page count when
+   `--deep-scan` ran).
 6. **Best opening angle** — clearly labeled **"Internal strategy — not prospect-facing copy"** (the
    strategy-vs-copy boundary; sharp legal framing allowed here, never in outreach).
 7. **Contacts** — roster table: name, title, LinkedIn, **Verified?** (source_verified), hook, tone,
@@ -176,7 +188,9 @@ customer-facing proposal), but the opening-angle section keeps the internal-stra
   copy is the future `sequence-contacts` skill's job (where the tone governor lives).
 - **Privacy-weighted ICP** — privacy/consent is the dominant, durable angle; analytics is a lighter
   signal. (Encoded in the config point weights; do not flatten.)
-- **No fabricated `detect_cmp` conclusions** — positive = evidence; negative ≠ "no CMP."
+- **No fabricated scan conclusions** — for both the CMP detect and the tag/pixel scan, a positive
+  finding = evidence; a negative ≠ absence (a static fetch misses dynamically-injected tags / lazy
+  CMPs). Never assert "no CMP / no tags" from a null scan.
 
 ---
 
