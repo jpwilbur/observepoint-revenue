@@ -1,0 +1,49 @@
+{
+  "_note": "Ported from NERD control-plane/config/config.json. Single source of truth for ICP scoring. The model CLASSIFIES (which fit criteria are met, which triggers matched with dates); score_account.py computes the numbers. FIT is privacy-weighted; analytics-accuracy is intentionally lighter.",
+  "fitGate": 55,
+  "triggerOverride": 30,
+  "recency": { "fullStrengthMonths": 6, "zeroStrengthMonths": 24 },
+  "fit": {
+    "privacyConsentSurface": { "label": "Privacy & consent surface (CMP deployed, consent-mode, GPC/opt-out duty)", "points": 25 },
+    "regulatoryExposure": { "label": "Regulatory exposure (HIPAA / CCPA-CPRA + state / GDPR / FERPA / GLBA / COPPA)", "points": 20 },
+    "tagPixelDensity": { "label": "Tag/pixel & MarTech density (GTM/Tealium/Adobe/Segment + heavy 3rd-party pixels)", "points": 20 },
+    "webScale": { "label": "Web estate scale & complexity (many pages, multi-domain/brand, SPA, login-gated)", "points": 15 },
+    "targetVertical": { "label": "In a target vertical", "points": 10 },
+    "analyticsAccuracy": { "label": "Analytics-accuracy pressure (GA4 reliance, frequent releases/redesigns, data-quality owner)", "points": 10 }
+  },
+  "whyNow": {
+    "pixelWiretapSuit": { "label": "Active pixel/wiretap suit (CIPA or state wiretap)", "points": 30 },
+    "vppaSuit": { "label": "VPPA / video-tracking (Meta Pixel) suit", "points": 28 },
+    "ocrHealthcare": { "label": "HHS OCR tracking-tech exposure (patient-portal pixels)", "points": 26 },
+    "enforcementAction": { "label": "FTC / CPPA / state-AG action on tracking, consent, or data sharing", "points": 25 },
+    "sessionReplaySuit": { "label": "Session-replay / chat-intercept suit", "points": 18 },
+    "breachIncident": { "label": "Client-side / third-party-script compromise (Magecart, web-skimming, rogue tag)", "points": 16 },
+    "settlement": { "label": "Privacy/tracking settlement finalized (24mo)", "points": 15 },
+    "demandLetter": { "label": "Demand letter / pre-litigation notice", "points": 12 },
+    "complianceDeadline": { "label": "Dated deadline exposure (TCF 2.3, Consent Mode v2, EU AI Act, EAA accessibility)", "points": 12 },
+    "leadershipChange": { "label": "New CPO / GC / VP MarTech / VP Analytics (last 6 months)", "points": 10 },
+    "governanceHiring": { "label": "Hiring privacy / analytics-governance roles", "points": 8 },
+    "siteOrMerger": { "label": "Major site relaunch, M&A, or new tracking-heavy surface", "points": 8 }
+  },
+  "targetVerticals": [
+    "healthcare", "financial services", "insurance", "pharma", "media & streaming",
+    "retail & e-commerce", "higher education & government", "telecom", "travel & hospitality"
+  ],
+  "personaPriorityTitles": [
+    "Chief Privacy Officer / VP Privacy",
+    "VP Marketing Technology / Director MarTech",
+    "VP Digital Analytics / Head of Analytics",
+    "VP / Director Compliance or Legal (data-focused)",
+    "Director Marketing Operations"
+  ],
+  "triggerSources": [
+    "PACER docket search (CIPA, California Penal Code 631; VPPA 18 USC 2710; state wiretap acts)",
+    "Law360, Bloomberg Law, LawStreetMedia litigation trackers",
+    "ClassAction.org, Top Class Actions, Duane Morris class action review",
+    "DLA Piper / Davis Polk / Gibson Dunn / Baker McKenzie privacy-litigation reports",
+    "FTC, HHS OCR, CPPA, and state-AG enforcement actions and consent orders",
+    "IAB TCF 2.3 deadline, Google Consent Mode v2, European Accessibility Act / EU AI Act timelines",
+    "LinkedIn executive activity and job postings (privacy, MarTech, analytics governance)",
+    "Earnings calls and SEC filings (litigation reserves, remediation, privacy risk)"
+  ]
+}
