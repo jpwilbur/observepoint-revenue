@@ -15,7 +15,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-DARK, GREEN, AMBER, GRAY = "1E1E1E", "27A567", "E8B500", "D9D9D9"
+DARK, AMBER, GRAY = "1E1E1E", "E8B500", "D9D9D9"
 HDR_FONT = Font(bold=True, color="FFFFFF", size=11)
 CHIP_FILL = {"likely": AMBER, "possible": GRAY}
 

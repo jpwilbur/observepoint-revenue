@@ -17,6 +17,13 @@ Reverse-WHOIS / passive-DNS (SecurityTrails / WhoisXML / DomainTools) give regis
 and far better completeness. Wire via the documented env var; absent a key, the free path is used.
 (Implementation is a future extension; the free path is the v1 default.)
 
+## eTLD+1 limitation (PSL-lite)
+Domains are grouped by registrable domain (eTLD+1) using a bundled list of common two-label public
+suffixes (`co.uk`, `com.au`, …) in `discover_domains.py`. A seed under a multi-label suffix that isn't
+on that list groups by its last two labels and may mis-split — extend `_MULTI_SUFFIXES` or upgrade to
+a full Public Suffix List library. A bare public suffix / TLD seed (e.g. `co.uk`, `com`) is refused
+rather than over-matched.
+
 ## Confidence
 - **confirmed** — WHOIS registrant match; SEC Exhibit-21 subsidiary; listed on the org's own
   brand/footer page; or a subdomain of a confirmed apex.
