@@ -5,3 +5,6 @@ __pycache__/
 *.xlsx
 *.docx
 .claude/
+
+# transient browser-preview artifacts
+.playwright-mcp/
