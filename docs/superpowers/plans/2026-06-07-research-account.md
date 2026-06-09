@@ -533,8 +533,8 @@ def test_header_and_verdict():
     assert "Acme Health" in t
     assert "Account Research Dossier" in t
     assert "QUALIFIED" in t
-    assert "128" in t            # final score
-    assert "90" in t and "38" in t  # fit + why-now
+    assert "120" in t            # final score (fit 90 + why-now 30; this fixture has ONE trigger)
+    assert "90" in t and "30" in t  # fit + why-now
 
 
 def test_why_now_and_fit_sections():
@@ -1102,7 +1102,7 @@ subprocess.run([sys.executable, 'skills/research-account/scripts/build_dossier.p
 print('smoke ok ->', dx, 'final score', json.loads(sj.read_text())['score']['finalScore'])
 PY
 ```
-Expected: `smoke ok -> ...dossier.docx final score 128`.
+Expected: `smoke ok -> ...dossier.docx final score 120` (the build_dossier fixture has one trigger).
 
 - [ ] **Step 5: Plan self-review against the spec**
 
