@@ -63,13 +63,17 @@ keys and `whyNow` scoreKeys you must use).
 
 6. **Score it:**
    ```bash
-   python "$SKILL/scripts/score_account.py" /tmp/<slug>-classification.json /tmp/<slug>-scored.json
+   python3 "$SKILL/scripts/score_account.py" /tmp/<slug>-classification.json /tmp/<slug>-scored.json
    ```
 
 7. **Render the dossier:**
    ```bash
-   python "$SKILL/scripts/build_dossier.py" /tmp/<slug>-scored.json <out>.docx
+   python3 "$SKILL/scripts/build_dossier.py" /tmp/<slug>-scored.json "<out>.docx"
    ```
+   **Output location (uniform across the plugin):** if the rep named a folder, use it. Otherwise
+   default to `~/Documents/ObservePoint Revenue/Account Research/` — expand `~` to the home dir and
+   `mkdir -p` the folder first; never leave the deliverable in a temp dir. Name the file
+   `<Company> - research dossier.docx`.
 
 8. **Summarize in chat:** final score, QUALIFIED/NOT, dominant fit angle, the top trigger, number of
    sourced vs held-back contacts, and the `.docx` path.

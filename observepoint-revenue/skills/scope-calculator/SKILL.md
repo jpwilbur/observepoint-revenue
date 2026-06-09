@@ -22,7 +22,7 @@ The single entry point reps use to scope an ObservePoint contract end to end. Yo
      - `pricing` = `{recommended_price: recommended_contract.price, recommended_scans: recommended_contract.scans, range_low_price: range.low.price_total, range_high_price: range.high.price_total, price_by_band: anchor.price.breakdown, pricing_source, modeled_scans: anchor.predicted_scans, modeled_price: anchor.price.total}` — the recommended pair is the **clean price ↔ exact scans** that reconcile in the calculator.
      - `internal` = `{assumptions: <the assumptions-to-verify list>, implied_frequency: anchor.implied_blended_frequency, thresholds_swept}`.
      - plus `customer`, `prepared_by`, `date`, `use_case`, `domains`, `properties_note`, `regulations`, and a one-line `monitoring_summary` (keep internal terms out of `monitoring_summary` — the generator rejects them).
-   - Write both files to a **persistent, rep-accessible folder** (the current working directory or a clearly-named output folder — NOT a temp dir), and report their **absolute paths** alongside the rep-facing breakdown (from `size-and-price`, including the assumptions-to-verify list).
+   - **Output location (uniform across the plugin):** if the rep named a folder, use it. Otherwise default to `~/Documents/ObservePoint Revenue/Scoping & Pricing/` — expand `~` to the home dir and `mkdir -p` the folder first; never write to a temp dir. Name the files `<Customer> - proposal.docx` and `<Customer> - evidence appendix.xlsx`. Report their **absolute paths** alongside the rep-facing breakdown (from `size-and-price`, including the assumptions-to-verify list).
 
 ## The single-source consistency rule
 
