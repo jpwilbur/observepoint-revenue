@@ -13,6 +13,7 @@ import json
 import pathlib
 import subprocess
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -25,6 +26,8 @@ _MULTI_SUFFIXES = {
     "co.in", "co.kr", "co.id", "com.my", "com.ph", "com.tw", "co.il", "com.sa", "com.eg",
 }
 SAMPLE_CAP = 25  # max hosts shown in the compact summary; the full list goes to the sidecar file
+CRT_ATTEMPTS = 3  # crt.sh is frequently overloaded (503) — retry transient failures
+CRT_BACKOFF = 2.0  # seconds; multiplied by attempt number between retries
 
 
 def registrable_domain(host):
@@ -77,10 +80,16 @@ def enumerate_crt(apex, fetcher=None):
     if "." not in reg or reg in _MULTI_SUFFIXES:
         return set()
     url = "https://crt.sh/?q=" + urllib.parse.quote("%." + apex) + "&output=json"
-    try:
-        text = fetcher(url)
-    except Exception:
-        return set()
+    text = ""
+    for attempt in range(CRT_ATTEMPTS):  # crt.sh is flaky (503/empty); retry transient failures
+        try:
+            text = fetcher(url)
+        except Exception:
+            text = ""
+        if text:
+            break
+        if attempt < CRT_ATTEMPTS - 1:
+            time.sleep(CRT_BACKOFF * (attempt + 1))
     return {h for h in parse_crt_json(text) if registrable_domain(h) == reg}
 
 

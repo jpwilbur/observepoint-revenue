@@ -42,10 +42,29 @@ def test_enumerate_crt_filters_to_apex():
     assert hosts == {"ajg.com", "www.ajg.com", "jobs.ajg.com"}  # gallagherbassett.com excluded
 
 
-def test_enumerate_crt_network_failure_is_empty():
+def test_enumerate_crt_network_failure_is_empty(monkeypatch):
+    monkeypatch.setattr(dd.time, "sleep", lambda s: None)   # don't actually wait between retries
+    calls = {"n": 0}
+
     def boom(url):
+        calls["n"] += 1
         raise RuntimeError("network down")
     assert dd.enumerate_crt("ajg.com", fetcher=boom) == set()
+    assert calls["n"] == dd.CRT_ATTEMPTS                    # retried, not one-and-done
+
+
+def test_enumerate_crt_retries_then_succeeds(monkeypatch):
+    # crt.sh is flaky (503/empty); the first two attempts fail, the third returns data.
+    monkeypatch.setattr(dd.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+
+    def flaky(url):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise RuntimeError("503 Service Unavailable")
+        return CRT_SAMPLE
+    assert dd.enumerate_crt("ajg.com", fetcher=flaky) == {"ajg.com", "www.ajg.com", "jobs.ajg.com"}
+    assert calls["n"] == 3
 
 
 def test_enumerate_crt_refuses_bare_suffix_or_tld_apex():
