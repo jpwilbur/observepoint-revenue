@@ -57,7 +57,7 @@ The flow is **iterative** (discovery feeds research feeds discovery):
 
 3. **Render — `build_inventory.py`** (deterministic). Takes the assembled candidates JSON →
    - an **editable `.xlsx`** (§5),
-   - a plain **`<Org> - domains.txt`** of the in-scope apexes for scope-calculator.
+   - a plain **`<Org> - domains.txt`** of the **confirmed** apexes only, for scope-calculator.
 
 ---
 
@@ -126,22 +126,28 @@ property's `sample_hosts`.
 
 ## 5. Output `.xlsx` (editable; customer-confirmable)
 
-Sheet **Properties** (one row per registrable domain, sorted by type then confidence):
+Sheet **Confirmed Properties** — ONLY `confidence = confirmed` domains (the real owned set; these are
+what feed downstream). One row per registrable domain:
 
-| Domain | Type | Owned? (confidence) | Evidence | Source | Subdomains found | In scope? | Notes |
+| Domain | Type | Evidence | Source | Subdomains found | In scope? | Notes |
 
-- "Owned? (confidence)" is a colored chip-style cell (confirmed=green, likely=amber, possible=gray).
 - "In scope?" is **empty/fillable** — the customer confirms.
 - "Source" is a clickable hyperlink.
 
-Sheet **All hostnames** — every discovered host, its registrable domain, and source (the bulk list,
-for the thorough reviewer).
+Sheet **For Review (unconfirmed)** — domains we found but could NOT confirm ownership of (`likely` and
+`possible`), surfaced so the customer can confirm or reject them. Same columns **plus** a
+**Confidence** column (likely=amber / possible=gray chip) and a **Why flagged** note. These are
+deliberately kept OUT of the downstream feed — *we do not scope on guesses.*
+
+Sheet **All hostnames** — every discovered host under the **confirmed** apexes, its registrable
+domain, and source (the bulk list for the thorough reviewer).
 
 Sheet **Methodology & sources** — how the footprint was built (crt.sh, WHOIS, SEC Exhibit 21, brand
 pages, optional paid APIs), the confidence definitions, and the owned-vs-observed guardrail.
 
-Plus **`<Org> - domains.txt`** — the in-scope (confirmed + likely) registrable domains, one per line,
-ready to paste into scope-calculator / derive-page-count.
+Plus **`<Org> - domains.txt`** — **confirmed registrable domains only**, one per line, ready to paste
+into scope-calculator / derive-page-count. Likely/possible domains are intentionally excluded — they
+stay in the *For Review* sheet until the customer confirms them.
 
 **Output location** (uniform, per-account): `~/Documents/ObservePoint Revenue/Owned Properties/<Org>/`
 → `<Org> - owned properties.xlsx` + `<Org> - domains.txt`. Rep override honored; `mkdir -p` first.
@@ -188,9 +194,11 @@ pivots and BuiltWith-style relationship graphs are deferred (optional future sou
   (lowercase, strip ports/wildcards), eTLD+1 grouping, subdomain→apex auto-classification, the compact
   summary shape, and graceful failure (network error → empty hosts, no crash). The optional-paid path
   is exercised only when a key is present (skipif).
-- **`test_build_inventory.py`** — assert the three sheets, the confidence chips, the empty "In scope?"
-  column, clickable sources, the `excluded` handling, and the `domains.txt` contents (confirmed+likely
-  apexes only).
+- **`test_build_inventory.py`** — assert the four sheets (**Confirmed Properties**, **For Review
+  (unconfirmed)**, **All hostnames**, **Methodology & sources**); that confirmed domains land ONLY on
+  the Confirmed sheet and likely/possible land ONLY on the For Review sheet (with the Confidence
+  chip); the empty "In scope?" column; clickable sources; `excluded` handling; and that `domains.txt`
+  contains **confirmed apexes only** (no likely/possible).
 - **`SKILL.md`** authored via the writing-skills TDD loop; trigger-only frontmatter (CSO-compliant),
   consistent with the other skills; red-flags table (no fabricated domains; observed≠owned; don't list
   vendor/CDN domains; classify confidence honestly).
