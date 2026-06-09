@@ -11,8 +11,9 @@ account-detail screen) plus a .pdf frozen from it. PDF engine, in order of prefe
 The dossier is read, not edited, so a frozen PDF is the right format (the editable proposal stays .docx).
 
 CLI:  build_dossier.py <scored.json> <out.pdf>
-      Writes <out>.pdf (if an engine is available) and <out>.html beside it; prints the PDF path
-      (or the HTML path if no PDF engine was found).
+      Writes ONLY <out>.pdf to the output folder (the HTML is rendered from a temp file and discarded).
+      If no PDF engine is available, falls back to writing <out>.html so there is still a deliverable.
+      Prints the path it produced.
 """
 import html as _html
 import json
@@ -21,6 +22,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import tempfile
 
 # ---------- palette (dark, NERD-like) ----------
 BG, PANEL, PANEL2, BORDER = "#14151a", "#1e2027", "#262932", "#313440"
@@ -278,12 +280,24 @@ def main(argv):
         sys.exit("usage: build_dossier.py <scored.json> <out.pdf>")
     data = json.loads(pathlib.Path(argv[1]).read_text())
     out_pdf = pathlib.Path(argv[2])
-    out_html = out_pdf.with_suffix(".html")
-    out_html.write_text(build_html(data), encoding="utf-8")
-    engine = to_pdf(str(out_html), str(out_pdf))
+    html = build_html(data)
+    # Render from a TEMP html so only the .pdf lands in the rep's output folder.
+    fd, tmp_html = tempfile.mkstemp(suffix=".html")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(html)
+        engine = to_pdf(tmp_html, str(out_pdf))
+    finally:
+        try:
+            os.unlink(tmp_html)
+        except OSError:
+            pass
     if engine:
-        print(str(out_pdf))
+        print(str(out_pdf))   # only the PDF remains in the output folder
     else:
+        # No PDF engine — keep the HTML as the deliverable so the rep can still print it.
+        out_html = out_pdf.with_suffix(".html")
+        out_html.write_text(html, encoding="utf-8")
         sys.stderr.write("no PDF engine found (Chrome/weasyprint); wrote HTML only — open it and Print to PDF\n")
         print(str(out_html))
 

@@ -106,19 +106,19 @@ def test_html_escapes_injected_markup():
     assert "&lt;script&gt;" in h                       # escaped instead
 
 
-def test_cli_writes_html_and_pdf(tmp_path):
+def test_cli_writes_pdf_only(tmp_path):
     f = tmp_path / "scored.json"; f.write_text(json.dumps(SCORED))
     out = tmp_path / "dossier.pdf"
     res = subprocess.run([sys.executable, str(SCRIPT), str(f), str(out)],
                          capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
-    html = out.with_suffix(".html")
-    assert html.exists()
-    assert "Acme Health" in html.read_text(encoding="utf-8")
-    # PDF is best-effort (depends on a Chrome/weasyprint engine being present). If the CLI printed a
-    # .pdf path, that file must be a real non-empty PDF; otherwise it falls back to the HTML path.
     printed = res.stdout.strip()
+    html = out.with_suffix(".html")
+    # PDF is best-effort (depends on a Chrome/weasyprint engine). When one is present, ONLY the .pdf
+    # should land in the output folder — no .html beside it. Without an engine, the HTML is the fallback.
     if printed.endswith(".pdf"):
         assert pathlib.Path(printed).exists() and pathlib.Path(printed).stat().st_size > 0
+        assert not html.exists()
     else:
         assert printed == str(html)
+        assert html.exists() and "Acme Health" in html.read_text(encoding="utf-8")
