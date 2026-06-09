@@ -5,7 +5,10 @@ This is an INTERNAL AE artifact. The "best opening angle" is labeled internal st
 legal framing belongs to the AE's strategy, never to prospect-facing copy — that is the future
 sequence-contacts skill's job, under the tone governor).
 
-Theming mirrors ObservePoint's brand (Montserrat / #1E1E1E / #F2CD14), matching build_proposal.py.
+Theming mirrors ObservePoint's NERD-app account-detail screen: score badge + status chip header,
+color-coded why-now category chips with clickable source hyperlinks, dark section header bars
+(card feel), a left-border callout for the opening angle, and green/red verification chips on
+contacts. Page stays light/printable.
 
 CLI:  build_dossier.py <scored.json> <out.docx>   (prints the output path)
 """
@@ -25,11 +28,18 @@ DARK = RGBColor(0x1E, 0x1E, 0x1E)
 GRAY = RGBColor(0x5C, 0x5C, 0x5C)
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 RED = RGBColor(0xF3, 0x41, 0x46)
+GREEN = RGBColor(0x1F, 0x9D, 0x55)
 DARK_HEX, YELLOW_HEX, LIGHT_HEX = "1E1E1E", "F2CD14", "F2F2F2"
+RED_HEX, GREEN_HEX, MIDGRAY_HEX, LINK_HEX = "F34146", "1F9D55", "E2E2E2", "0563C1"
 LOGO = pathlib.Path(__file__).resolve().parent.parent / "assets" / "op-logo.png"
 
+# why-now category -> (chip fill hex, chip text color). High-severity red, medium yellow, else gray.
+_CAT_CHIP = {
+    "litigation": (RED_HEX, WHITE), "enforcement": (RED_HEX, WHITE), "incident": (RED_HEX, WHITE),
+    "leadership": (YELLOW_HEX, DARK), "hiring": (YELLOW_HEX, DARK), "earnings": (YELLOW_HEX, DARK),
+}
 
-# ---------- theming helpers (mirrored from build_proposal.py) ----------
+
 def _run(p, text, *, bold=False, size=10.5, color=DARK):
     r = p.add_run(text)
     r.font.name, r.font.bold, r.font.size, r.font.color.rgb = FONT, bold, Pt(size), color
@@ -37,11 +47,70 @@ def _run(p, text, *, bold=False, size=10.5, color=DARK):
 
 
 def _shade(cell, hex_fill):
-    tcPr = cell._tc.get_or_add_tcPr()
     shd = OxmlElement("w:shd")
     shd.set(qn("w:val"), "clear")
     shd.set(qn("w:fill"), hex_fill)
-    tcPr.append(shd)
+    cell._tc.get_or_add_tcPr().append(shd)
+
+
+def _no_borders(t):
+    """Strip default table borders for a clean card/badge look."""
+    tblPr = t._tbl.tblPr
+    b = OxmlElement("w:tblBorders")
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        e = OxmlElement(f"w:{edge}")
+        e.set(qn("w:val"), "none")
+        b.append(e)
+    tblPr.append(b)
+
+
+def _left_accent(cell, hex_color=YELLOW_HEX, sz="24"):
+    """A thick colored left border — the NERD 'callout' accent."""
+    tcPr = cell._tc.get_or_add_tcPr()
+    borders = tcPr.find(qn("w:tcBorders"))
+    if borders is None:
+        borders = OxmlElement("w:tcBorders")
+        tcPr.append(borders)
+    el = OxmlElement("w:left")
+    for k, v in (("w:val", "single"), ("w:sz", sz), ("w:space", "0"), ("w:color", hex_color)):
+        el.set(qn(k), v)
+    borders.append(el)
+
+
+def _hyperlink(paragraph, url, text, *, size=9):
+    """A real clickable Word hyperlink (blue, underlined)."""
+    r_id = paragraph.part.relate_to(
+        url, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+        is_external=True)
+    link = OxmlElement("w:hyperlink")
+    link.set(qn("r:id"), r_id)
+    r = OxmlElement("w:r")
+    rPr = OxmlElement("w:rPr")
+    rf = OxmlElement("w:rFonts")
+    rf.set(qn("w:ascii"), FONT)
+    rf.set(qn("w:hAnsi"), FONT)
+    rPr.append(rf)
+    sz_el = OxmlElement("w:sz")
+    sz_el.set(qn("w:val"), str(int(size * 2)))
+    rPr.append(sz_el)
+    col = OxmlElement("w:color")
+    col.set(qn("w:val"), LINK_HEX)
+    rPr.append(col)
+    u = OxmlElement("w:u")
+    u.set(qn("w:val"), "single")
+    rPr.append(u)
+    r.append(rPr)
+    t = OxmlElement("w:t")
+    t.text = text
+    r.append(t)
+    link.append(r)
+    paragraph._p.append(link)
+    return link
+
+
+def _set_base_style(doc):
+    st = doc.styles["Normal"]
+    st.font.name, st.font.size, st.font.color.rgb = FONT, Pt(10.5), DARK
 
 
 def _yellow_bar(doc):
@@ -56,11 +125,19 @@ def _yellow_bar(doc):
     return p
 
 
-def _heading(doc, text, *, color=DARK, size=13):
-    p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(12)
-    _run(p, text, bold=True, size=size, color=color)
-    _yellow_bar(doc)
+def _section(doc, title):
+    """Dark 'card header' bar with white title — the NERD panel-header feel. Replaces _heading."""
+    t = doc.add_table(rows=1, cols=1)
+    t.alignment = WD_TABLE_ALIGNMENT.LEFT
+    _no_borders(t)
+    c = t.rows[0].cells[0]
+    _shade(c, DARK_HEX)
+    p = c.paragraphs[0]
+    p.paragraph_format.space_before = Pt(2)
+    p.paragraph_format.space_after = Pt(2)
+    _run(p, title.upper(), bold=True, size=11, color=WHITE)
+    doc.add_paragraph().paragraph_format.space_after = Pt(2)
+    return t
 
 
 def _para(doc, text, *, size=10.5, color=DARK, bold=False):
@@ -69,44 +146,18 @@ def _para(doc, text, *, size=10.5, color=DARK, bold=False):
     return p
 
 
-def _table(doc, headers, rows):
-    t = doc.add_table(rows=1, cols=len(headers))
-    t.style = "Table Grid"
-    t.alignment = WD_TABLE_ALIGNMENT.LEFT
-    for i, h in enumerate(headers):
-        c = t.rows[0].cells[i]
-        _shade(c, DARK_HEX)
-        _run(c.paragraphs[0], h, bold=True, size=9, color=WHITE)
-    for ri, row in enumerate(rows):
-        cells = t.add_row().cells
-        for i, val in enumerate(row):
-            if ri % 2 == 1:
-                _shade(cells[i], LIGHT_HEX)
-            # Dossier rows render plainly — no **bold** convention (build_proposal._table has one).
-            _run(cells[i].paragraphs[0], str(val), size=9)
-    return t
-
-
-def _highlight(doc, text, fill=YELLOW_HEX, color=DARK):
-    t = doc.add_table(rows=1, cols=1)
-    t.alignment = WD_TABLE_ALIGNMENT.CENTER
-    c = t.rows[0].cells[0]
-    _shade(c, fill)
-    p = c.paragraphs[0]
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _run(p, text, bold=True, size=15, color=color)
-    return t
-
-
-def _set_base_style(doc):
-    st = doc.styles["Normal"]
-    st.font.name, st.font.size, st.font.color.rgb = FONT, Pt(10.5), DARK
-
-
 def _bullets(doc, items):
     for it in items or []:
         p = doc.add_paragraph(style="List Bullet")
         _run(p, str(it), size=10)
+
+
+def _chip(cell, text, fill_hex, text_color=WHITE, size=8):
+    """Style a table cell as a colored chip."""
+    _shade(cell, fill_hex)
+    p = cell.paragraphs[0]
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _run(p, text, bold=True, size=size, color=text_color)
 
 
 # ---------- builder ----------
@@ -118,7 +169,7 @@ def build_dossier(data):
     doc = Document()
     _set_base_style(doc)
 
-    # Header
+    # 1. Header
     if LOGO.exists():
         try:
             doc.add_picture(str(LOGO), width=Inches(2.0))
@@ -132,41 +183,96 @@ def build_dossier(data):
     if sub:
         _run(doc.add_paragraph(), "  ·  ".join(sub), size=9, color=GRAY)
 
-    # Verdict band
+    # 2. Verdict block (score badge + status chip + scores breakdown)
+    vt = doc.add_table(rows=1, cols=3)
+    _no_borders(vt)
+    cells = vt.rows[0].cells
+    # col0: score badge
+    _chip(cells[0], str(score.get("finalScore", 0)), YELLOW_HEX, DARK, size=26)
+    cells[0].width = Inches(0.9)
+    # col1: qualified chip
     qualified = score.get("qualified")
-    verdict = (f"{'QUALIFIED' if qualified else 'NOT QUALIFIED'}   ·   "
-               f"Score {score.get('finalScore', 0)}  "
-               f"(fit {score.get('fitScore', 0)} + why-now {score.get('whyNowScore', 0)})")
-    _highlight(doc, verdict, fill=(YELLOW_HEX if qualified else "F2F2F2"))
+    _chip(cells[1],
+          "QUALIFIED" if qualified else "NOT QUALIFIED",
+          GREEN_HEX if qualified else MIDGRAY_HEX,
+          WHITE if qualified else DARK,
+          size=11)
+    cells[1].width = Inches(1.7)
+    # col2: scores breakdown (plain, no chip)
+    cells[2].width = Inches(4.0)
+    p2 = cells[2].paragraphs[0]
+    _run(p2, f"fit {score.get('fitScore', 0)} · why-now {score.get('whyNowScore', 0)}", size=10, color=GRAY)
     if score.get("lowFitHighTrigger"):
-        _para(doc, "Qualified on the why-now trigger override despite sub-gate fit — a timing play.",
-              size=9, color=RED)
+        p3 = cells[2].add_paragraph()
+        _run(p3, "Qualified on the trigger override despite sub-gate fit — a timing play.", size=9, color=RED)
     if data.get("rationale"):
         _para(doc, data["rationale"], size=10, color=GRAY)
 
-    # Why now (all triggers; points from the scored breakdown, 0 if unscored)
-    _heading(doc, "Why now")
+    # 3. Why now
+    _section(doc, "Why now")
     # `or 0` guards against a null/absent points value (dict.get's default only covers a MISSING key,
     # not a key mapped to None) so the sort key below never compares None to int.
     pts_by_desc = {b.get("description"): (b.get("points") or 0) for b in score.get("whyNowBreakdown", [])}
     trigs = sorted(data.get("triggers", []) or [],
                    key=lambda t: pts_by_desc.get(t.get("description"), 0), reverse=True)
     if trigs:
-        _table(doc, ["Trigger", "Date", "Category", "Source", "Points"],
-               [[t.get("description", ""), t.get("date", "—"), t.get("category", ""),
-                 t.get("sourceUrl", ""), pts_by_desc.get(t.get("description"), 0)] for t in trigs])
+        trig_t = doc.add_table(rows=1, cols=5)
+        trig_t.style = "Table Grid"
+        trig_t.alignment = WD_TABLE_ALIGNMENT.LEFT
+        # Header row
+        headers = ["", "Trigger", "Date", "Points", "Source"]
+        for i, h in enumerate(headers):
+            hc = trig_t.rows[0].cells[i]
+            _shade(hc, DARK_HEX)
+            _run(hc.paragraphs[0], h, bold=True, size=9, color=WHITE)
+        # Data rows
+        for ri, trig in enumerate(trigs):
+            row_cells = trig_t.add_row().cells
+            # col0: category chip
+            category = (trig.get("category") or "").lower()
+            (fill, tcolor) = _CAT_CHIP.get(category, (MIDGRAY_HEX, DARK))
+            _chip(row_cells[0], (trig.get("category") or "—").upper(), fill, tcolor)
+            # cols 1-4: zebra shading on odd rows (not on chip cell col0)
+            if ri % 2 == 1:
+                for ci in (1, 2, 3, 4):
+                    _shade(row_cells[ci], LIGHT_HEX)
+            # col1: description
+            _run(row_cells[1].paragraphs[0], trig.get("description", ""), size=9)
+            # col2: date
+            _run(row_cells[2].paragraphs[0], trig.get("date", "—"), size=9)
+            # col3: points
+            _run(row_cells[3].paragraphs[0], str(pts_by_desc.get(trig.get("description"), 0)), size=9)
+            # col4: source hyperlink or dash
+            if trig.get("sourceUrl"):
+                _hyperlink(row_cells[4].paragraphs[0], trig["sourceUrl"], "source")
+            else:
+                _run(row_cells[4].paragraphs[0], "—", size=9)
     else:
         _para(doc, "No acute web-tracking trigger event found. A strong fit with no trigger is a "
                    "valid, honest result.", size=10, color=GRAY)
 
-    # ICP fit
-    _heading(doc, "ICP fit")
-    _table(doc, ["Criterion", "Met?", "Points", "Evidence"],
-           [[b["label"], "Yes" if b["met"] else "No", b["points"], b.get("evidence") or "—"]
-            for b in score.get("fitBreakdown", [])])
+    # 4. ICP fit
+    _section(doc, "ICP fit")
+    fit_t = doc.add_table(rows=1, cols=4)
+    fit_t.style = "Table Grid"
+    fit_t.alignment = WD_TABLE_ALIGNMENT.LEFT
+    fit_headers = ["Criterion", "Met?", "Points", "Evidence"]
+    for i, h in enumerate(fit_headers):
+        hc = fit_t.rows[0].cells[i]
+        _shade(hc, DARK_HEX)
+        _run(hc.paragraphs[0], h, bold=True, size=9, color=WHITE)
+    for b in score.get("fitBreakdown", []):
+        row_cells = fit_t.add_row().cells
+        _run(row_cells[0].paragraphs[0], b["label"], size=9)
+        if b["met"]:
+            _chip(row_cells[1], "✓ MET", GREEN_HEX, WHITE)
+        else:
+            _chip(row_cells[1], "—", MIDGRAY_HEX, DARK)
+        _run(row_cells[2].paragraphs[0], str(b["points"]), bold=True, size=9)
+        _run(row_cells[3].paragraphs[0], b.get("evidence") or "—", size=9)
 
-    # Account overview
-    _heading(doc, "Account overview")
+    # 5. Account overview
+    _section(doc, "Account overview")
     if research.get("companyOverview"):
         _para(doc, research["companyOverview"])
     if research.get("painHypotheses"):
@@ -190,32 +296,57 @@ def build_dossier(data):
         line += "  |  Measured on-site: " + "; ".join(measured) + "."
     _para(doc, line, size=10)
 
-    # Best opening angle (internal strategy)
-    _heading(doc, "Best opening angle")
-    _para(doc, "Internal strategy — not prospect-facing copy.", bold=True, size=9, color=RED)
-    _para(doc, research.get("bestOpeningAngle", ""))
+    # 6. Best opening angle — callout with yellow left accent
+    _section(doc, "Best opening angle")
+    callout_t = doc.add_table(rows=1, cols=1)
+    _no_borders(callout_t)
+    callout_cell = callout_t.rows[0].cells[0]
+    _shade(callout_cell, LIGHT_HEX)
+    _left_accent(callout_cell, YELLOW_HEX)
+    p_warn = callout_cell.paragraphs[0]
+    _run(p_warn, "Internal strategy — not prospect-facing copy.", bold=True, size=9, color=RED)
+    p_angle = callout_cell.add_paragraph()
+    _run(p_angle, research.get("bestOpeningAngle", ""), size=10)
 
-    # Contacts
-    _heading(doc, "Contacts")
-    rows = []
+    # 7. Contacts
+    _section(doc, "Contacts")
     held = 0
-    for c in data.get("contacts", []) or []:
-        verified = bool(c.get("sourceVerified")) and bool(c.get("sourceUrl"))
-        flag = "Yes" if verified else "⚠ held back — verify before outreach"
-        if not verified:
-            held += 1
-        rows.append([c.get("name", ""), c.get("title", ""), c.get("linkedin") or "—",
-                     flag, c.get("personalizationHook", ""), c.get("avoid", "")])
-    if rows:
-        _table(doc, ["Name", "Title", "LinkedIn", "Verified?", "Hook", "Avoid"], rows)
+    contact_rows_exist = False
+    contacts = data.get("contacts", []) or []
+    if contacts:
+        contact_t = doc.add_table(rows=1, cols=6)
+        contact_t.style = "Table Grid"
+        contact_t.alignment = WD_TABLE_ALIGNMENT.LEFT
+        contact_headers = ["Name", "Title", "LinkedIn", "Verified?", "Hook", "Avoid"]
+        for i, h in enumerate(contact_headers):
+            hc = contact_t.rows[0].cells[i]
+            _shade(hc, DARK_HEX)
+            _run(hc.paragraphs[0], h, bold=True, size=9, color=WHITE)
+        for c in contacts:
+            verified = bool(c.get("sourceVerified")) and bool(c.get("sourceUrl"))
+            if not verified:
+                held += 1
+            row_cells = contact_t.add_row().cells
+            _run(row_cells[0].paragraphs[0], c.get("name", ""), size=9)
+            _run(row_cells[1].paragraphs[0], c.get("title", ""), size=9)
+            _run(row_cells[2].paragraphs[0], c.get("linkedin") or "—", size=9)
+            if verified:
+                _chip(row_cells[3], "✓ VERIFIED", GREEN_HEX, WHITE)
+            else:
+                _chip(row_cells[3], "⚠ HELD BACK", RED_HEX, WHITE)
+            _run(row_cells[4].paragraphs[0], c.get("personalizationHook", ""), size=9)
+            _run(row_cells[5].paragraphs[0], c.get("avoid", ""), size=9)
+        contact_rows_exist = True
     if held:
         _para(doc, f"{held} contact(s) held back: missing source verification. Confirm the person and "
                    f"current title before any outreach (no fabricated or unverified contacts ship).",
               size=9, color=RED)
 
-    # Sources & method
-    _heading(doc, "Sources & method")
-    _bullets(doc, research.get("researchSources", []))
+    # 8. Sources & method
+    _section(doc, "Sources & method")
+    for source_url in research.get("researchSources", []) or []:
+        p = doc.add_paragraph()
+        _hyperlink(p, source_url, source_url)
     _para(doc, "Method: public web research + an ObservePoint CMP/tag scan of the live site. "
                "The score is computed deterministically from ObservePoint's ICP weights "
                "(reproducible; not a model guess).", size=9, color=GRAY)

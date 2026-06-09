@@ -62,7 +62,17 @@ def _text(doc):
         for row in t.rows:
             for c in row.cells:
                 parts.append(c.text)
+                # Also recurse into nested tables (chips live inside table cells)
+                for nested in c.tables:
+                    for nr in nested.rows:
+                        for nc in nr.cells:
+                            parts.append(nc.text)
     return "\n".join(parts)
+
+
+def _hyperlink_targets(doc):
+    return [rel.target_ref for rel in doc.part.rels.values()
+            if "hyperlink" in rel.reltype]
 
 
 def test_header_and_verdict():
@@ -76,11 +86,17 @@ def test_header_and_verdict():
 
 def test_why_now_and_fit_sections():
     t = _text(bd.build_dossier(SCORED))
-    assert "Why now" in t
+    assert "WHY NOW" in t.upper()
     assert "CIPA class action" in t
-    assert "https://example.com/cipa" in t
+    # Source URL is now a real hyperlink, not plain paragraph text — checked separately
     assert "Privacy & consent surface" in t        # a fit-criterion label
     assert "confirmed via ObservePoint scan" in t  # measured evidence folded in
+    assert "MET" in t                              # ICP fit chip
+
+
+def test_source_is_a_clickable_hyperlink():
+    doc = bd.build_dossier(SCORED)
+    assert "https://example.com/cipa" in _hyperlink_targets(doc)
 
 
 def test_overview_and_internal_strategy_label():
@@ -94,7 +110,8 @@ def test_overview_and_internal_strategy_label():
 def test_contacts_table_and_held_back_gate():
     t = _text(bd.build_dossier(SCORED))
     assert "Dana Rivera" in t and "Sam Okonkwo" in t
-    assert "held back" in t.lower()                # Sam is unverified -> flagged, not hidden
+    assert "HELD BACK" in t.upper()               # Sam is unverified -> flagged, not hidden
+    assert "VERIFIED" in t.upper()                # Dana is verified -> verified chip
 
 
 def test_not_qualified_verdict():
