@@ -3,20 +3,18 @@
 A living backlog for the revenue-team plugin. Tags: **[you]** requested by Jarrod ·
 **[deferred]** explicitly punted earlier · **[idea]** suggestion. Check items off as they ship.
 
-**Shipped so far:** `scope-calculator` (+ `derive-page-count`, `size-and-price`) → proposal `.docx` +
-evidence `.xlsx`; `research-account` → dark NERD-styled HTML→PDF dossier. Uniform output under
-`~/Documents/ObservePoint Revenue/<tool>/<Account>/`. Plugin at v0.7.2.
+**Shipped so far:** `owned-properties` → domain-footprint discovery (crt.sh + WHOIS + web research →
+confirmable `.xlsx` + confirmed `domains.txt`); `scope-calculator` (+ `derive-page-count`,
+`size-and-price`) → proposal `.docx` + evidence `.xlsx`; `research-account` → dark NERD-styled
+HTML→PDF dossier. Uniform output under `~/Documents/ObservePoint Revenue/<tool>/<Account>/`. Plugin at v0.8.0.
 
 ---
 
-## ▶ Next up
-- [ ] **owned-properties (domain-footprint discovery)** **[you]** — given an org (name or seed
-  domain), discover *all* owned web properties: subsidiaries/brands, ccTLDs, acquired companies,
-  microsites. Mostly free public data: certificate transparency (crt.sh), reverse-WHOIS, DNS,
-  `ads.txt`/`sellers.json`, SEC/10-K subsidiary exhibits, trademark records, `site:` sweeps, the
-  org's own brand/footer pages. Output: a deduped, categorized, evidence-tagged domain inventory
-  that feeds Site Census / scope-calculator / research-account. *Closes the "they don't know what
-  they own" gap.* Low external dependency.
+## ✅ Recently shipped
+- [x] **owned-properties (domain-footprint discovery)** **[you]** — org/seed → crt.sh + WHOIS
+  (+ optional paid) + SEC Exhibit-21 / brand-page web research → confidence-tiered, evidence-tagged
+  inventory (Confirmed vs For-Review sheets) + a **confirmed-only** `domains.txt` that feeds
+  scope-calculator. Shipped in v0.8.0.
 
 ## Top-of-funnel / discovery
 - [ ] **find-accounts (Discovery)** **[deferred]** — NERD discovery stage: in-territory, ICP-fit,
