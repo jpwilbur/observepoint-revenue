@@ -1,15 +1,20 @@
 # observepoint-revenue
 
-Claude Code plugin (and marketplace) for the ObservePoint revenue team.
+A growing suite of Claude Code tools for the **ObservePoint revenue team** — packaged as a plugin
+(and marketplace) so any rep can run them from Claude.
 
-**First capability:** a contract **scope calculator** — derive a defensible page count, size annual
-usage, price it against ObservePoint's *live* pricing, and produce a customer proposal plus an
-evidence appendix.
+## Capabilities
 
-> **Status:** Plan 1 (the deterministic engine) is **complete and tested** (33 passing tests, live
-> pricing verified). Plan 2 (the rep-facing skill orchestration — the `SKILL.md` files + `.docx`
-> proposal + Site Census wiring) is **not yet built**. Until Plan 2 lands, the repo installs as a
-> plugin but does not yet surface rep-facing skills.
+1. **scope-calculator** — *size and price a contract.* Derive a defensible page count (Site Census),
+   size annual page-scan usage from geographies × scenarios × environments × test cadences, price it
+   against ObservePoint's *live* pricing, and produce a customer **proposal (`.docx`)** plus an
+   **evidence workbook (`.xlsx`)**. Sub-skills: `derive-page-count`, `size-and-price`.
+2. **research-account** — *research and qualify a named prospect.* Runs a light ObservePoint scan
+   (CMP detection + a homepage tag/pixel inventory) and public web research, scores the account
+   against ObservePoint's ICP **deterministically**, and produces a scored, evidence-backed
+   **dossier (`.docx`)** with dated/sourced "why-now" triggers and real, source-verified contacts.
+
+More revenue tooling (account discovery, outreach sequencing, enrichment) is planned.
 
 ## Install (private repo)
 
@@ -37,11 +42,11 @@ export GH_TOKEN=...        # or GITHUB_TOKEN
 
 - `observepoint-revenue/` — the plugin (skills, scripts, tests)
 - `.claude-plugin/marketplace.json` — marketplace manifest (makes the repo installable)
-- `docs/superpowers/specs/` — the design spec (methodology, pricing model, contracts)
-- `docs/superpowers/plans/` — the implementation plans
+- `docs/superpowers/specs/` — design specs (methodology, pricing model, contracts, research-account)
+- `docs/superpowers/plans/` — implementation plans
 
-## Run the engine tests
+## Tests
 
 ```
-python3 -m pytest observepoint-revenue/tests -q
+python3 -m pytest observepoint-revenue/tests -q     # 63 passing
 ```
