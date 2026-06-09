@@ -2,7 +2,14 @@
 
 **Plugin:** `observepoint-revenue` (sibling of `scope-calculator`, `derive-page-count`,
 `size-and-price`, `research-account`).
-**Status:** approved design. **Date:** 2026-06-09.
+**Status:** approved design (built, v0.8.0). **Date:** 2026-06-09.
+
+> **Amendment (v0.8.1):** the standalone `<Org> - domains.txt` file was dropped for output-folder
+> cleanliness. The confirmed registrable domains now live only on the workbook's **Confirmed
+> Properties** sheet and are **printed to stdout** by `build_inventory.py` (copy-pasteable into
+> scope-calculator). Wherever this spec says a `domains.txt` file is written, read it as "the
+> confirmed-domains list is printed." The CLI signature is `build_inventory.py <candidates.json>
+> <out.xlsx>` (no third arg).
 
 ---
 

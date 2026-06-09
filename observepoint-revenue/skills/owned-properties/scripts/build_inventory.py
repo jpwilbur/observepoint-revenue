@@ -114,14 +114,18 @@ def confirmed_domains(data):
 
 
 def main(argv):
-    if len(argv) < 4:
-        sys.exit("usage: build_inventory.py <candidates.json> <out.xlsx> <out_domains.txt>")
+    if len(argv) < 3:
+        sys.exit("usage: build_inventory.py <candidates.json> <out.xlsx>")
     data = json.loads(pathlib.Path(argv[1]).read_text())
     build_workbook(data).save(argv[2])
-    content = "\n".join(confirmed_domains(data))
-    pathlib.Path(argv[3]).write_text(content + "\n" if content else "")
+    # The .xlsx is the only file written (it carries the confirmed set on its Confirmed Properties
+    # sheet). The confirmed domains are also PRINTED here, copy-pasteable into scope-calculator —
+    # no separate domains.txt cluttering the deliverable folder.
+    domains = confirmed_domains(data)
     print(argv[2])
-    print(argv[3])
+    print(f"\nConfirmed domains ({len(domains)}) — ready for scope-calculator:")
+    for d in domains:
+        print(f"  {d}")
 
 
 if __name__ == "__main__":

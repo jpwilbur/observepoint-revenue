@@ -39,14 +39,17 @@ Set `SKILL=${CLAUDE_PLUGIN_ROOT}/skills/owned-properties`.
 
 6. **Render:**
    ```bash
-   python3 "$SKILL/scripts/build_inventory.py" /tmp/<org>-candidates.json "<out>.xlsx" "<domains>.txt"
+   python3 "$SKILL/scripts/build_inventory.py" /tmp/<org>-candidates.json "<out>.xlsx"
    ```
+   The `.xlsx` is the only file written; the script also **prints the confirmed registrable domains**
+   to stdout (copy-pasteable into scope-calculator) — capture them for the summary.
    **Output location (uniform across the plugin) — one folder per account:** default to
    `~/Documents/ObservePoint Revenue/Owned Properties/<Org>/` (rep override honored; `mkdir -p` first).
-   Name them `<Org> - owned properties.xlsx` and `<Org> - domains.txt`.
+   Name the file `<Org> - owned properties.xlsx`.
 
 7. **Summarize in chat:** # confirmed properties, # for-review, total hostnames under confirmed apexes,
-   and the two output paths. Note that `domains.txt` (confirmed only) is ready for scope-calculator.
+   the `.xlsx` path, and the **confirmed domains list** (from the script's stdout) — note it's ready to
+   paste into scope-calculator.
 
 ## Red flags — stop and fix
 

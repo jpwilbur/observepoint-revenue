@@ -91,11 +91,15 @@ def test_all_hostnames_reads_all_hosts_file(tmp_path):
     assert "api.ajg.com" in t and "vpn.ajg.com" in t   # full list from the file, not just sample_hosts
 
 
-def test_cli_writes_xlsx_and_domains(tmp_path):
+def test_cli_writes_only_xlsx_and_prints_confirmed_domains(tmp_path):
     f = tmp_path / "c.json"; f.write_text(json.dumps(DATA))
-    xlsx = tmp_path / "out.xlsx"; dom = tmp_path / "domains.txt"
-    res = subprocess.run([sys.executable, str(SCRIPT), str(f), str(xlsx), str(dom)],
+    xlsx = tmp_path / "out.xlsx"
+    res = subprocess.run([sys.executable, str(SCRIPT), str(f), str(xlsx)],
                          capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
     assert xlsx.exists()
-    assert dom.read_text().split() == ["ajg.com", "gallagherbassett.com"]
+    # ONLY the .xlsx is written — no stray .txt cluttering the deliverable folder.
+    assert list(tmp_path.glob("*.txt")) == []
+    # confirmed domains are printed (copy-pasteable for scope-calculator); unconfirmed are not.
+    assert "ajg.com" in res.stdout and "gallagherbassett.com" in res.stdout
+    assert "ajginternational.com" not in res.stdout and "gallagher-maybe.com" not in res.stdout
