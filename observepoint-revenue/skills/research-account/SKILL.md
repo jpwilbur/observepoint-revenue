@@ -74,10 +74,12 @@ keys and `whyNow` scoreKeys you must use).
    account-detail screen) and freezes it to `<out>.pdf` — via headless Chrome if present, else
    weasyprint; if neither is available it writes the HTML only and the rep prints it. The script
    prints the path it produced.
-   **Output location (uniform across the plugin):** if the rep named a folder, use it. Otherwise
-   default to `~/Documents/ObservePoint Revenue/Account Research/` — expand `~` to the home dir and
-   `mkdir -p` the folder first; never leave the deliverable in a temp dir. Name the file
-   `<Company> - research dossier.pdf` (the `.html` lands beside it).
+   **Output location (uniform across the plugin) — one folder per account:** if the rep named a base
+   folder use it, otherwise default to `~/Documents/ObservePoint Revenue/Account Research/`. Create a
+   **per-account subfolder** inside it and write the deliverable there — i.e.
+   `~/Documents/ObservePoint Revenue/Account Research/<Company>/<Company> - research dossier.pdf`.
+   Expand `~` to the home dir and `mkdir -p` the per-account folder first; never leave the deliverable
+   in a temp dir. (Only the `.pdf` is written; see the script.)
 
 8. **Summarize in chat:** final score, QUALIFIED/NOT, dominant fit angle, the top trigger, number of
    sourced vs held-back contacts, and the `.pdf` path.
