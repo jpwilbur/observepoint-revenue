@@ -1,5 +1,5 @@
 {
   "name": "observepoint-revenue",
-  "version": "0.4.2",
-  "description": "ObservePoint revenue-team tooling. First capability: a contract scope calculator that derives a defensible page count, sizes annual usage, prices it against ObservePoint's live pricing, and produces a customer proposal plus an evidence appendix."
+  "version": "0.5.0",
+  "description": "ObservePoint revenue-team tooling suite. Capabilities: scope-calculator (derive a defensible page count, size annual usage, price against ObservePoint's live pricing, and produce a customer proposal + evidence workbook) and research-account (research and qualify a named prospect into a scored, evidence-backed ICP dossier). More revenue tools to come."
 }

@@ -8,7 +8,7 @@
     {
       "name": "observepoint-revenue",
       "source": "./observepoint-revenue",
-      "description": "ObservePoint revenue-team tooling. First capability: a contract scope calculator (page count -> annual usage -> live price -> customer proposal + evidence appendix)."
+      "description": "ObservePoint revenue-team tooling suite — scope-calculator (page count -> usage -> live price -> proposal + evidence workbook) and research-account (qualify a prospect into a scored ICP dossier with why-now triggers and sourced contacts). More revenue tools to come."
     }
   ]
 }

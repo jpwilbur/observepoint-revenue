@@ -8,5 +8,6 @@ for rel in (
     "skills/size-and-price/scripts",
     "skills/derive-page-count/scripts",
     "skills/scope-calculator/scripts",
+    "skills/research-account/scripts",
 ):
     sys.path.insert(0, str(ROOT / rel))
