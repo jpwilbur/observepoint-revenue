@@ -1,365 +1,291 @@
-"""ObservePoint-themed account research dossier (.docx) for research-account.
+"""Dark, NERD-styled account research dossier — self-contained HTML rendered to PDF.
 
-Input: a scored.json object (the classification object + a `score` block from score_account.py).
-This is an INTERNAL AE artifact. The "best opening angle" is labeled internal strategy (the sharp
-legal framing belongs to the AE's strategy, never to prospect-facing copy — that is the future
-sequence-contacts skill's job, under the tone governor).
+Input: a scored.json object (classification + a `score` block from score_account.py).
+INTERNAL AE artifact. The "best opening angle" is internal strategy, never prospect-facing copy.
 
-Theming mirrors ObservePoint's NERD-app account-detail screen: score badge + status chip header,
-color-coded why-now category chips with clickable source hyperlinks, dark section header bars
-(card feel), a left-border callout for the opening angle, and green/red verification chips on
-contacts. Page stays light/printable.
+Output: a single self-contained .html (inline CSS, opens in any browser and looks like the NERD
+account-detail screen) plus a .pdf frozen from it. PDF engine, in order of preference:
+  1) headless Chrome / Chromium / Edge / Brave  (`--print-to-pdf`)  — highest fidelity, no Python deps
+  2) weasyprint                                                     — if importable
+  3) HTML only                                                      — always written; open + Print-to-PDF
+The dossier is read, not edited, so a frozen PDF is the right format (the editable proposal stays .docx).
 
-CLI:  build_dossier.py <scored.json> <out.docx>   (prints the output path)
+CLI:  build_dossier.py <scored.json> <out.pdf>
+      Writes <out>.pdf (if an engine is available) and <out>.html beside it; prints the PDF path
+      (or the HTML path if no PDF engine was found).
 """
+import html as _html
 import json
+import os
 import pathlib
+import shutil
+import subprocess
 import sys
 
-from docx import Document
-from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml import OxmlElement
-from docx.oxml.ns import qn
-from docx.shared import Inches, Pt, RGBColor
+# ---------- palette (dark, NERD-like) ----------
+BG, PANEL, PANEL2, BORDER = "#14151a", "#1e2027", "#262932", "#313440"
+TEXT, MUTED = "#e8e9ec", "#9aa1ad"
+YELLOW, RED, GREEN, LINK = "#F2CD14", "#F34146", "#27a567", "#7cb8ff"
+GRAYCHIP = "#3a3e49"
 
-FONT = "Montserrat"
-DARK = RGBColor(0x1E, 0x1E, 0x1E)
-GRAY = RGBColor(0x5C, 0x5C, 0x5C)
-WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-RED = RGBColor(0xF3, 0x41, 0x46)
-GREEN = RGBColor(0x1F, 0x9D, 0x55)
-DARK_HEX, YELLOW_HEX, LIGHT_HEX = "1E1E1E", "F2CD14", "F2F2F2"
-RED_HEX, GREEN_HEX, MIDGRAY_HEX, LINK_HEX = "F34146", "1F9D55", "E2E2E2", "0563C1"
-LOGO = pathlib.Path(__file__).resolve().parent.parent / "assets" / "op-logo.png"
-
-# why-now category -> (chip fill hex, chip text color). High-severity red, medium yellow, else gray.
-_CAT_CHIP = {
-    "litigation": (RED_HEX, WHITE), "enforcement": (RED_HEX, WHITE), "incident": (RED_HEX, WHITE),
-    "leadership": (YELLOW_HEX, DARK), "hiring": (YELLOW_HEX, DARK), "earnings": (YELLOW_HEX, DARK),
+# why-now category -> (chip bg, chip text color)
+_CAT = {
+    "litigation": (RED, "#fff"), "enforcement": (RED, "#fff"), "incident": (RED, "#fff"),
+    "leadership": (YELLOW, "#1a1a1a"), "hiring": (YELLOW, "#1a1a1a"),
+    "earnings": (YELLOW, "#1a1a1a"), "settlement": (YELLOW, "#1a1a1a"),
 }
 
 
-def _run(p, text, *, bold=False, size=10.5, color=DARK):
-    r = p.add_run(text)
-    r.font.name, r.font.bold, r.font.size, r.font.color.rgb = FONT, bold, Pt(size), color
-    return r
+def _e(x):
+    return _html.escape("" if x is None else str(x))
 
 
-def _shade(cell, hex_fill):
-    shd = OxmlElement("w:shd")
-    shd.set(qn("w:val"), "clear")
-    shd.set(qn("w:fill"), hex_fill)
-    cell._tc.get_or_add_tcPr().append(shd)
+def _chip(text, bg, fg, *, big=False):
+    pad = "4px 12px" if big else "2px 9px"
+    fs = "12px" if big else "10.5px"
+    return (f'<span class="chip" style="background:{bg};color:{fg};padding:{pad};'
+            f'font-size:{fs}">{_e(text)}</span>')
 
 
-def _no_borders(t):
-    """Strip default table borders for a clean card/badge look."""
-    tblPr = t._tbl.tblPr
-    b = OxmlElement("w:tblBorders")
-    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
-        e = OxmlElement(f"w:{edge}")
-        e.set(qn("w:val"), "none")
-        b.append(e)
-    tblPr.append(b)
+def _link(url, text=None):
+    return f'<a href="{_e(url)}" target="_blank">{_e(text or url)}</a>'
 
 
-def _left_accent(cell, hex_color=YELLOW_HEX, sz="24"):
-    """A thick colored left border — the NERD 'callout' accent."""
-    tcPr = cell._tc.get_or_add_tcPr()
-    borders = tcPr.find(qn("w:tcBorders"))
-    if borders is None:
-        borders = OxmlElement("w:tcBorders")
-        tcPr.append(borders)
-    el = OxmlElement("w:left")
-    for k, v in (("w:val", "single"), ("w:sz", sz), ("w:space", "0"), ("w:color", hex_color)):
-        el.set(qn(k), v)
-    borders.append(el)
+# ---------- HTML builder ----------
+def build_html(data):
+    score = data.get("score", {}) or {}
+    research = data.get("research", {}) or {}
+    scan = data.get("scan", {}) or {}
+    qualified = bool(score.get("qualified"))
+
+    # --- header ---
+    sub = " · ".join(_e(b) for b in (data.get("date"),
+                                     ("Prepared by " + data["prepared_by"]) if data.get("prepared_by") else None,
+                                     data.get("domain")) if b)
+    head = f"""
+    <div class="brand"><span class="op">ObservePoint</span><span class="bar">|</span>
+      <span class="kicker">Account Research Dossier</span></div>
+    <h1>{_e(data.get('account', ''))}</h1>
+    <div class="sub">{sub}</div>
+    """
+
+    # --- verdict ---
+    vchip = _chip("QUALIFIED" if qualified else "NOT QUALIFIED",
+                  GREEN if qualified else GRAYCHIP, "#fff", big=True)
+    lowfit = ('<div class="note red">Qualified on the why-now trigger override despite sub-gate '
+              'fit — a timing play.</div>' if score.get("lowFitHighTrigger") else "")
+    rationale = f'<div class="rationale">{_e(data.get("rationale"))}</div>' if data.get("rationale") else ""
+    verdict = f"""
+    <div class="verdict">
+      <div class="badge">{_e(score.get('finalScore', 0))}</div>
+      <div class="vmeta">
+        <div>{vchip}</div>
+        <div class="vmath">fit {_e(score.get('fitScore', 0))} &nbsp;·&nbsp; why-now {_e(score.get('whyNowScore', 0))}</div>
+      </div>
+    </div>{lowfit}{rationale}
+    """
+
+    # --- why now ---
+    pts = {b.get("description"): (b.get("points") or 0) for b in score.get("whyNowBreakdown", [])}
+    trigs = sorted(data.get("triggers", []) or [],
+                   key=lambda t: pts.get(t.get("description"), 0), reverse=True)
+    if trigs:
+        whynow = ""
+        for t in trigs:
+            cat = (t.get("category") or "").lower()
+            bg, fg = _CAT.get(cat, (GRAYCHIP, TEXT))
+            p = pts.get(t.get("description"), 0)
+            src = _link(t["sourceUrl"], "source ↗") if t.get("sourceUrl") else ""
+            whynow += f"""
+            <div class="trigger">
+              <div class="trow">{_chip((t.get('category') or '—').upper(), bg, fg)}
+                <span class="tdate">{_e(t.get('date', '—'))}</span>
+                <span class="tpts">+{_e(p)}</span></div>
+              <div class="tdesc">{_e(t.get('description', ''))}</div>
+              <div class="tsrc">{src}</div>
+            </div>"""
+    else:
+        whynow = ('<div class="empty">No acute web-tracking trigger event found. A strong fit with '
+                  'no trigger is a valid, honest result.</div>')
+
+    # --- ICP fit ---
+    fit_rows = ""
+    for b in score.get("fitBreakdown", []):
+        chip = _chip("✓ MET", GREEN, "#fff") if b.get("met") else _chip("—", GRAYCHIP, MUTED)
+        fit_rows += f"""
+        <tr><td class="fcrit">{_e(b.get('label'))}</td>
+            <td class="fmet">{chip}</td>
+            <td class="fpts">{_e(b.get('points'))}</td>
+            <td class="fev">{_e(b.get('evidence') or '—')}</td></tr>"""
+
+    # --- account overview ---
+    ov = ""
+    if research.get("companyOverview"):
+        ov += f"<p>{_e(research['companyOverview'])}</p>"
+    if research.get("painHypotheses"):
+        ov += '<div class="lbl">Why ObservePoint matters here</div><ul>'
+        ov += "".join(f"<li>{_e(x)}</li>" for x in research["painHypotheses"]) + "</ul>"
+    if research.get("competitorIntel"):
+        ov += f'<p><span class="lbl-inline">Competitor intel:</span> {_e(research["competitorIntel"])}</p>'
+    measured = []
+    if scan.get("cmp"):
+        measured.append("CMP: " + _e(scan["cmp"]) + (" (ObservePoint-supported)" if scan.get("cmp_supported") else ""))
+    if scan.get("tags"):
+        measured.append("Tags/pixels: " + _e(", ".join(scan["tags"])))
+    if scan.get("site_census"):
+        measured.append("Site Census pages: " + _e(scan["site_census"]))
+    tech = _e(research.get("techStackNotes", ""))
+    if measured:
+        tech += '<div class="measured"><span class="lbl-inline">Measured on-site:</span> ' + "; ".join(measured) + ".</div>"
+    if tech:
+        ov += f"<p>{tech}</p>"
+
+    # --- contacts ---
+    cards, held = "", 0
+    for c in data.get("contacts", []) or []:
+        verified = bool(c.get("sourceVerified")) and bool(c.get("sourceUrl"))
+        if not verified:
+            held += 1
+        vc = _chip("✓ VERIFIED", GREEN, "#fff") if verified else _chip("⚠ HELD BACK", RED, "#fff")
+        li = f' · {_link(c["linkedin"], "LinkedIn ↗")}' if c.get("linkedin") else ""
+        src = f' · {_link(c["sourceUrl"], "source ↗")}' if c.get("sourceUrl") else ""
+        cards += f"""
+        <div class="contact">
+          <div class="crow"><span class="cname">{_e(c.get('name'))}</span>
+            <span class="ctitle">{_e(c.get('title'))}</span>{vc}</div>
+          <div class="chook"><span class="lbl-inline">Hook:</span> {_e(c.get('personalizationHook') or '—')}</div>
+          <div class="cavoid"><span class="lbl-inline">Avoid:</span> {_e(c.get('avoid') or '—')}</div>
+          <div class="clinks">{li}{src}</div>
+        </div>"""
+    held_note = (f'<div class="note red">{held} contact(s) held back — missing source verification. '
+                 f'Confirm the person and current title before any outreach (no fabricated or '
+                 f'unverified contacts ship).</div>' if held else "")
+
+    srcs = "".join(f"<li>{_link(u)}</li>" for u in research.get("researchSources", []))
+    angle = _e(research.get("bestOpeningAngle", ""))
+
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>{_e(data.get('account',''))} — Account Research Dossier</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap');
+*{{box-sizing:border-box}}
+html{{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+body{{margin:0;background:{BG};color:{TEXT};
+  font-family:"Montserrat",-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5}}
+.page{{max-width:840px;margin:0 auto;padding:34px 40px 56px}}
+a{{color:{LINK};text-decoration:none}} a:hover{{text-decoration:underline}}
+.brand{{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.3px}}
+.brand .op{{color:#fff}} .brand .bar{{color:{YELLOW};font-weight:700}}
+.brand .kicker{{color:{MUTED};font-weight:700;font-size:12px;letter-spacing:1.5px;text-transform:uppercase}}
+h1{{font-size:30px;font-weight:800;margin:10px 0 4px;color:#fff}}
+.sub{{color:{MUTED};font-size:12px;border-bottom:3px solid {YELLOW};padding-bottom:14px;margin-bottom:20px}}
+.verdict{{display:flex;align-items:center;gap:18px;margin-bottom:6px}}
+.badge{{background:{YELLOW};color:#15161a;font-weight:800;font-size:34px;line-height:1;
+  border-radius:14px;padding:16px 20px;min-width:84px;text-align:center}}
+.vmeta{{display:flex;flex-direction:column;gap:8px}}
+.vmath{{color:{MUTED};font-size:13px}}
+.chip{{display:inline-block;border-radius:999px;font-weight:700;letter-spacing:.4px;
+  text-transform:uppercase;white-space:nowrap}}
+.rationale{{color:{MUTED};margin:10px 0 4px;font-style:italic}}
+.note.red{{color:{RED};font-size:12px;margin:8px 0;font-weight:600}}
+section{{background:{PANEL};border:1px solid {BORDER};border-radius:14px;padding:6px 20px 18px;margin:18px 0}}
+section>h2{{font-size:12px;letter-spacing:1.6px;text-transform:uppercase;color:{MUTED};
+  font-weight:800;border-bottom:1px solid {BORDER};padding:14px 0 10px;margin:0 0 14px}}
+.trigger{{background:{PANEL2};border-radius:10px;padding:11px 14px;margin:10px 0;
+  border-left:4px solid {YELLOW}}}
+.trow{{display:flex;align-items:center;gap:12px;margin-bottom:5px}}
+.tdate{{color:{MUTED};font-size:11px}} .tpts{{margin-left:auto;color:{YELLOW};font-weight:800;font-size:13px}}
+.tdesc{{color:{TEXT}}} .tsrc{{margin-top:4px;font-size:12px}}
+.empty{{color:{MUTED};font-style:italic}}
+table{{width:100%;border-collapse:collapse}}
+td{{padding:9px 8px;border-bottom:1px solid {BORDER};vertical-align:top;font-size:12.5px}}
+.fcrit{{font-weight:600;width:34%}} .fmet{{width:78px}} .fpts{{width:48px;color:{YELLOW};font-weight:700}}
+.fev{{color:{MUTED}}}
+.lbl{{color:{YELLOW};font-weight:700;text-transform:uppercase;letter-spacing:.6px;font-size:11px;margin:12px 0 6px}}
+.lbl-inline{{color:{MUTED};font-weight:700}}
+ul{{margin:6px 0;padding-left:20px}} li{{margin:4px 0}}
+.measured{{margin-top:8px;color:{TEXT}}}
+.callout{{background:{PANEL2};border-left:5px solid {YELLOW};border-radius:10px;padding:13px 16px}}
+.callout .intern{{color:{RED};font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}}
+.contact{{background:{PANEL2};border-radius:10px;padding:12px 15px;margin:10px 0}}
+.crow{{display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin-bottom:6px}}
+.cname{{font-weight:700;color:#fff;font-size:14px}} .ctitle{{color:{MUTED}}}
+.chook,.cavoid{{font-size:12.5px;margin:3px 0}} .clinks{{margin-top:6px;font-size:12px}}
+.method{{color:{MUTED};font-size:12px;margin-top:10px}}
+@page{{size:A4;margin:14mm}}
+</style></head>
+<body><div class="page">
+  {head}
+  {verdict}
+  <section><h2>Why now</h2>{whynow}</section>
+  <section><h2>ICP fit</h2><table><tbody>{fit_rows}</tbody></table></section>
+  <section><h2>Account overview</h2>{ov}</section>
+  <section><h2>Best opening angle</h2>
+    <div class="callout"><div class="intern">Internal strategy — not prospect-facing copy</div>{angle}</div>
+  </section>
+  <section><h2>Contacts</h2>{cards}{held_note}</section>
+  <section><h2>Sources &amp; method</h2><ul>{srcs}</ul>
+    <div class="method">Method: public web research + an ObservePoint CMP/tag scan of the live site.
+    The score is computed deterministically from ObservePoint's ICP weights (reproducible; not a model guess).</div>
+  </section>
+</div></body></html>"""
 
 
-def _hyperlink(paragraph, url, text, *, size=9):
-    """A real clickable Word hyperlink (blue, underlined)."""
-    r_id = paragraph.part.relate_to(
-        url, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
-        is_external=True)
-    link = OxmlElement("w:hyperlink")
-    link.set(qn("r:id"), r_id)
-    r = OxmlElement("w:r")
-    rPr = OxmlElement("w:rPr")
-    rf = OxmlElement("w:rFonts")
-    rf.set(qn("w:ascii"), FONT)
-    rf.set(qn("w:hAnsi"), FONT)
-    rPr.append(rf)
-    sz_el = OxmlElement("w:sz")
-    sz_el.set(qn("w:val"), str(int(size * 2)))
-    rPr.append(sz_el)
-    col = OxmlElement("w:color")
-    col.set(qn("w:val"), LINK_HEX)
-    rPr.append(col)
-    u = OxmlElement("w:u")
-    u.set(qn("w:val"), "single")
-    rPr.append(u)
-    r.append(rPr)
-    t = OxmlElement("w:t")
-    t.text = text
-    r.append(t)
-    link.append(r)
-    paragraph._p.append(link)
-    return link
+# ---------- PDF rendering ----------
+def _find_chrome():
+    cands = [
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    ]
+    for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser",
+                 "brave-browser", "microsoft-edge"):
+        p = shutil.which(name)
+        if p:
+            cands.insert(0, p)
+    for c in cands:
+        if c and os.path.exists(c):
+            return c
+    return None
 
 
-def _set_base_style(doc):
-    st = doc.styles["Normal"]
-    st.font.name, st.font.size, st.font.color.rgb = FONT, Pt(10.5), DARK
-
-
-def _yellow_bar(doc):
-    p = doc.add_paragraph()
-    p.paragraph_format.space_after = Pt(6)
-    pbdr = OxmlElement("w:pBdr")
-    bottom = OxmlElement("w:bottom")
-    for k, v in (("w:val", "single"), ("w:sz", "18"), ("w:space", "1"), ("w:color", YELLOW_HEX)):
-        bottom.set(qn(k), v)
-    pbdr.append(bottom)
-    p._p.get_or_add_pPr().append(pbdr)
-    return p
-
-
-def _section(doc, title):
-    """Dark 'card header' bar with white title — the NERD panel-header feel. Replaces _heading."""
-    t = doc.add_table(rows=1, cols=1)
-    t.alignment = WD_TABLE_ALIGNMENT.LEFT
-    _no_borders(t)
-    c = t.rows[0].cells[0]
-    _shade(c, DARK_HEX)
-    p = c.paragraphs[0]
-    p.paragraph_format.space_before = Pt(2)
-    p.paragraph_format.space_after = Pt(2)
-    _run(p, title.upper(), bold=True, size=11, color=WHITE)
-    doc.add_paragraph().paragraph_format.space_after = Pt(2)
-    return t
-
-
-def _para(doc, text, *, size=10.5, color=DARK, bold=False):
-    p = doc.add_paragraph()
-    _run(p, text, size=size, color=color, bold=bold)
-    return p
-
-
-def _bullets(doc, items):
-    for it in items or []:
-        p = doc.add_paragraph(style="List Bullet")
-        _run(p, str(it), size=10)
-
-
-def _chip(cell, text, fill_hex, text_color=WHITE, size=8):
-    """Style a table cell as a colored chip."""
-    _shade(cell, fill_hex)
-    p = cell.paragraphs[0]
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _run(p, text, bold=True, size=size, color=text_color)
-
-
-# ---------- builder ----------
-def build_dossier(data):
-    score = data.get("score", {})
-    research = data.get("research", {})
-    scan = data.get("scan", {})
-
-    doc = Document()
-    _set_base_style(doc)
-
-    # 1. Header
-    if LOGO.exists():
+def to_pdf(html_path, pdf_path):
+    """Render html_path -> pdf_path. Returns the engine name used, or None if none worked."""
+    chrome = _find_chrome()
+    if chrome:
         try:
-            doc.add_picture(str(LOGO), width=Inches(2.0))
+            subprocess.run(
+                [chrome, "--headless=new", "--disable-gpu", "--no-pdf-header-footer",
+                 f"--print-to-pdf={pdf_path}", pathlib.Path(html_path).resolve().as_uri()],
+                check=True, capture_output=True, timeout=90)
+            if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                return "chrome"
         except Exception:
             pass
-    _run(doc.add_paragraph(), f"Account Research Dossier — {data.get('account', '')}", bold=True, size=20)
-    _yellow_bar(doc)
-    sub = [b for b in (data.get("date"),
-                       ("Prepared by " + data["prepared_by"]) if data.get("prepared_by") else None,
-                       data.get("domain")) if b]
-    if sub:
-        _run(doc.add_paragraph(), "  ·  ".join(sub), size=9, color=GRAY)
-
-    # 2. Verdict block (score badge + status chip + scores breakdown)
-    vt = doc.add_table(rows=1, cols=3)
-    _no_borders(vt)
-    cells = vt.rows[0].cells
-    # col0: score badge
-    _chip(cells[0], str(score.get("finalScore", 0)), YELLOW_HEX, DARK, size=26)
-    cells[0].width = Inches(0.9)
-    # col1: qualified chip
-    qualified = score.get("qualified")
-    _chip(cells[1],
-          "QUALIFIED" if qualified else "NOT QUALIFIED",
-          GREEN_HEX if qualified else MIDGRAY_HEX,
-          WHITE if qualified else DARK,
-          size=11)
-    cells[1].width = Inches(1.7)
-    # col2: scores breakdown (plain, no chip)
-    cells[2].width = Inches(4.0)
-    p2 = cells[2].paragraphs[0]
-    _run(p2, f"fit {score.get('fitScore', 0)} · why-now {score.get('whyNowScore', 0)}", size=10, color=GRAY)
-    if score.get("lowFitHighTrigger"):
-        p3 = cells[2].add_paragraph()
-        _run(p3, "Qualified on the trigger override despite sub-gate fit — a timing play.", size=9, color=RED)
-    if data.get("rationale"):
-        _para(doc, data["rationale"], size=10, color=GRAY)
-
-    # 3. Why now
-    _section(doc, "Why now")
-    # `or 0` guards against a null/absent points value (dict.get's default only covers a MISSING key,
-    # not a key mapped to None) so the sort key below never compares None to int.
-    pts_by_desc = {b.get("description"): (b.get("points") or 0) for b in score.get("whyNowBreakdown", [])}
-    trigs = sorted(data.get("triggers", []) or [],
-                   key=lambda t: pts_by_desc.get(t.get("description"), 0), reverse=True)
-    if trigs:
-        trig_t = doc.add_table(rows=1, cols=5)
-        trig_t.style = "Table Grid"
-        trig_t.alignment = WD_TABLE_ALIGNMENT.LEFT
-        # Header row
-        headers = ["", "Trigger", "Date", "Points", "Source"]
-        for i, h in enumerate(headers):
-            hc = trig_t.rows[0].cells[i]
-            _shade(hc, DARK_HEX)
-            _run(hc.paragraphs[0], h, bold=True, size=9, color=WHITE)
-        # Data rows
-        for ri, trig in enumerate(trigs):
-            row_cells = trig_t.add_row().cells
-            # col0: category chip
-            category = (trig.get("category") or "").lower()
-            (fill, tcolor) = _CAT_CHIP.get(category, (MIDGRAY_HEX, DARK))
-            _chip(row_cells[0], (trig.get("category") or "—").upper(), fill, tcolor)
-            # cols 1-4: zebra shading on odd rows (not on chip cell col0)
-            if ri % 2 == 1:
-                for ci in (1, 2, 3, 4):
-                    _shade(row_cells[ci], LIGHT_HEX)
-            # col1: description
-            _run(row_cells[1].paragraphs[0], trig.get("description", ""), size=9)
-            # col2: date
-            _run(row_cells[2].paragraphs[0], trig.get("date", "—"), size=9)
-            # col3: points
-            _run(row_cells[3].paragraphs[0], str(pts_by_desc.get(trig.get("description"), 0)), size=9)
-            # col4: source hyperlink or dash
-            if trig.get("sourceUrl"):
-                _hyperlink(row_cells[4].paragraphs[0], trig["sourceUrl"], "source")
-            else:
-                _run(row_cells[4].paragraphs[0], "—", size=9)
-    else:
-        _para(doc, "No acute web-tracking trigger event found. A strong fit with no trigger is a "
-                   "valid, honest result.", size=10, color=GRAY)
-
-    # 4. ICP fit
-    _section(doc, "ICP fit")
-    fit_t = doc.add_table(rows=1, cols=4)
-    fit_t.style = "Table Grid"
-    fit_t.alignment = WD_TABLE_ALIGNMENT.LEFT
-    fit_headers = ["Criterion", "Met?", "Points", "Evidence"]
-    for i, h in enumerate(fit_headers):
-        hc = fit_t.rows[0].cells[i]
-        _shade(hc, DARK_HEX)
-        _run(hc.paragraphs[0], h, bold=True, size=9, color=WHITE)
-    for b in score.get("fitBreakdown", []):
-        row_cells = fit_t.add_row().cells
-        _run(row_cells[0].paragraphs[0], b["label"], size=9)
-        if b["met"]:
-            _chip(row_cells[1], "✓ MET", GREEN_HEX, WHITE)
-        else:
-            _chip(row_cells[1], "—", MIDGRAY_HEX, DARK)
-        _run(row_cells[2].paragraphs[0], str(b["points"]), bold=True, size=9)
-        _run(row_cells[3].paragraphs[0], b.get("evidence") or "—", size=9)
-
-    # 5. Account overview
-    _section(doc, "Account overview")
-    if research.get("companyOverview"):
-        _para(doc, research["companyOverview"])
-    if research.get("painHypotheses"):
-        _para(doc, "Why ObservePoint matters here:", bold=True, size=10)
-        _bullets(doc, research["painHypotheses"])
-    if research.get("competitorIntel"):
-        _para(doc, "Competitor intel: " + research["competitorIntel"], size=10)
-    # Tech stack + the measured scan inventory
-    tech = research.get("techStackNotes", "")
-    tags = ", ".join(scan.get("tags") or [])
-    cmp_line = scan.get("cmp")
-    measured = []
-    if cmp_line:
-        measured.append(f"CMP: {cmp_line}" + (" (ObservePoint-supported)" if scan.get("cmp_supported") else ""))
-    if tags:
-        measured.append(f"Tags/pixels: {tags}")
-    if scan.get("site_census"):
-        measured.append(f"Site Census page count: {scan['site_census']}")
-    line = "Tech stack: " + tech
-    if measured:
-        line += "  |  Measured on-site: " + "; ".join(measured) + "."
-    _para(doc, line, size=10)
-
-    # 6. Best opening angle — callout with yellow left accent
-    _section(doc, "Best opening angle")
-    callout_t = doc.add_table(rows=1, cols=1)
-    _no_borders(callout_t)
-    callout_cell = callout_t.rows[0].cells[0]
-    _shade(callout_cell, LIGHT_HEX)
-    _left_accent(callout_cell, YELLOW_HEX)
-    p_warn = callout_cell.paragraphs[0]
-    _run(p_warn, "Internal strategy — not prospect-facing copy.", bold=True, size=9, color=RED)
-    p_angle = callout_cell.add_paragraph()
-    _run(p_angle, research.get("bestOpeningAngle", ""), size=10)
-
-    # 7. Contacts
-    _section(doc, "Contacts")
-    held = 0
-    contact_rows_exist = False
-    contacts = data.get("contacts", []) or []
-    if contacts:
-        contact_t = doc.add_table(rows=1, cols=6)
-        contact_t.style = "Table Grid"
-        contact_t.alignment = WD_TABLE_ALIGNMENT.LEFT
-        contact_headers = ["Name", "Title", "LinkedIn", "Verified?", "Hook", "Avoid"]
-        for i, h in enumerate(contact_headers):
-            hc = contact_t.rows[0].cells[i]
-            _shade(hc, DARK_HEX)
-            _run(hc.paragraphs[0], h, bold=True, size=9, color=WHITE)
-        for c in contacts:
-            verified = bool(c.get("sourceVerified")) and bool(c.get("sourceUrl"))
-            if not verified:
-                held += 1
-            row_cells = contact_t.add_row().cells
-            _run(row_cells[0].paragraphs[0], c.get("name", ""), size=9)
-            _run(row_cells[1].paragraphs[0], c.get("title", ""), size=9)
-            _run(row_cells[2].paragraphs[0], c.get("linkedin") or "—", size=9)
-            if verified:
-                _chip(row_cells[3], "✓ VERIFIED", GREEN_HEX, WHITE)
-            else:
-                _chip(row_cells[3], "⚠ HELD BACK", RED_HEX, WHITE)
-            _run(row_cells[4].paragraphs[0], c.get("personalizationHook", ""), size=9)
-            _run(row_cells[5].paragraphs[0], c.get("avoid", ""), size=9)
-        contact_rows_exist = True
-    if held:
-        _para(doc, f"{held} contact(s) held back: missing source verification. Confirm the person and "
-                   f"current title before any outreach (no fabricated or unverified contacts ship).",
-              size=9, color=RED)
-
-    # 8. Sources & method
-    _section(doc, "Sources & method")
-    for source_url in research.get("researchSources", []) or []:
-        p = doc.add_paragraph()
-        _hyperlink(p, source_url, source_url)
-    _para(doc, "Method: public web research + an ObservePoint CMP/tag scan of the live site. "
-               "The score is computed deterministically from ObservePoint's ICP weights "
-               "(reproducible; not a model guess).", size=9, color=GRAY)
-
-    return doc
+    try:
+        from weasyprint import HTML  # type: ignore
+        HTML(filename=html_path).write_pdf(pdf_path)
+        if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+            return "weasyprint"
+    except Exception:
+        pass
+    return None
 
 
 def main(argv):
     if len(argv) < 3:
-        sys.exit("usage: build_dossier.py <scored.json> <out.docx>")
+        sys.exit("usage: build_dossier.py <scored.json> <out.pdf>")
     data = json.loads(pathlib.Path(argv[1]).read_text())
-    build_dossier(data).save(argv[2])
-    print(argv[2])
+    out_pdf = pathlib.Path(argv[2])
+    out_html = out_pdf.with_suffix(".html")
+    out_html.write_text(build_html(data), encoding="utf-8")
+    engine = to_pdf(str(out_html), str(out_pdf))
+    if engine:
+        print(str(out_pdf))
+    else:
+        sys.stderr.write("no PDF engine found (Chrome/weasyprint); wrote HTML only — open it and Print to PDF\n")
+        print(str(out_html))
 
 
 if __name__ == "__main__":

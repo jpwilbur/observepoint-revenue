@@ -3,8 +3,6 @@ import pathlib
 import subprocess
 import sys
 
-from docx import Document
-
 import build_dossier as bd
 import score_account as sa
 
@@ -56,81 +54,71 @@ CLASSIFICATION = {
 SCORED = sa.score(CLASSIFICATION, AS_OF)
 
 
-def _text(doc):
-    parts = [p.text for p in doc.paragraphs]
-    for t in doc.tables:
-        for row in t.rows:
-            for c in row.cells:
-                parts.append(c.text)
-                # Also recurse into nested tables (chips live inside table cells)
-                for nested in c.tables:
-                    for nr in nested.rows:
-                        for nc in nr.cells:
-                            parts.append(nc.text)
-    return "\n".join(parts)
-
-
-def _hyperlink_targets(doc):
-    return [rel.target_ref for rel in doc.part.rels.values()
-            if "hyperlink" in rel.reltype]
-
-
 def test_header_and_verdict():
-    t = _text(bd.build_dossier(SCORED))
-    assert "Acme Health" in t
-    assert "Account Research Dossier" in t
-    assert "QUALIFIED" in t
-    assert "120" in t            # final score (fit 90 + why-now 30)
-    assert "90" in t and "30" in t  # fit + why-now
+    h = bd.build_html(SCORED)
+    assert "Acme Health" in h
+    assert "Account Research Dossier" in h
+    assert "QUALIFIED" in h
+    assert ">120<" in h                       # final-score badge (fit 90 + why-now 30)
+    assert "fit 90" in h and "why-now 30" in h
 
 
-def test_why_now_and_fit_sections():
-    t = _text(bd.build_dossier(SCORED))
-    assert "WHY NOW" in t.upper()
-    assert "CIPA class action" in t
-    # Source URL is now a real hyperlink, not plain paragraph text — checked separately
-    assert "Privacy & consent surface" in t        # a fit-criterion label
-    assert "confirmed via ObservePoint scan" in t  # measured evidence folded in
-    assert "MET" in t                              # ICP fit chip
+def test_why_now_card_chip_and_clickable_source():
+    h = bd.build_html(SCORED)
+    assert "Why now" in h
+    assert "CIPA class action" in h
+    assert "LITIGATION" in h                   # colored category chip
+    assert 'href="https://example.com/cipa"' in h   # clickable source link
 
 
-def test_source_is_a_clickable_hyperlink():
-    doc = bd.build_dossier(SCORED)
-    assert "https://example.com/cipa" in _hyperlink_targets(doc)
+def test_fit_overview_and_internal_strategy():
+    h = bd.build_html(SCORED)
+    assert "Privacy &amp; consent surface" in h     # fit-criterion label (HTML-escaped &)
+    assert "✓ MET" in h                             # ICP fit chip
+    assert "confirmed via ObservePoint scan" in h   # measured evidence folded in
+    assert "consumer healthcare web property" in h
+    assert "tear sheet" in h                         # best opening angle
+    assert "Internal strategy" in h                  # strategy-vs-copy label
+    assert "Meta Pixel" in h                         # measured tag inventory
 
 
-def test_overview_and_internal_strategy_label():
-    t = _text(bd.build_dossier(SCORED))
-    assert "consumer healthcare web property" in t
-    assert "tear sheet" in t                       # best opening angle text
-    assert "Internal strategy" in t                # the strategy-vs-copy label
-    assert "Meta Pixel" in t                       # measured tag inventory surfaced
-
-
-def test_contacts_table_and_held_back_gate():
-    t = _text(bd.build_dossier(SCORED))
-    assert "Dana Rivera" in t and "Sam Okonkwo" in t
-    assert "HELD BACK" in t.upper()               # Sam is unverified -> flagged, not hidden
-    assert "VERIFIED" in t.upper()                # Dana is verified -> verified chip
+def test_contacts_verified_and_held_back():
+    h = bd.build_html(SCORED)
+    assert "Dana Rivera" in h and "Sam Okonkwo" in h
+    assert "VERIFIED" in h                           # Dana verified
+    assert "HELD BACK" in h                          # Sam unverified -> flagged, not hidden
 
 
 def test_not_qualified_verdict():
     data = {**SCORED, "score": {**SCORED["score"], "qualified": False}}
-    t = _text(bd.build_dossier(data))
-    assert "NOT QUALIFIED" in t
+    assert "NOT QUALIFIED" in bd.build_html(data)
 
 
 def test_empty_triggers_renders_graceful_note():
     data = {**SCORED, "triggers": [], "score": {**SCORED["score"], "whyNowBreakdown": []}}
-    t = _text(bd.build_dossier(data))
-    assert "No acute web-tracking trigger event found" in t
+    assert "No acute web-tracking trigger event found" in bd.build_html(data)
 
 
-def test_cli_writes_docx(tmp_path):
+def test_html_escapes_injected_markup():
+    data = {**SCORED, "account": "<script>alert(1)</script>"}
+    h = bd.build_html(data)
+    assert "<script>alert(1)</script>" not in h       # not rendered raw
+    assert "&lt;script&gt;" in h                       # escaped instead
+
+
+def test_cli_writes_html_and_pdf(tmp_path):
     f = tmp_path / "scored.json"; f.write_text(json.dumps(SCORED))
-    out = tmp_path / "dossier.docx"
+    out = tmp_path / "dossier.pdf"
     res = subprocess.run([sys.executable, str(SCRIPT), str(f), str(out)],
                          capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
-    assert res.stdout.strip() == str(out)
-    assert "Acme Health" in _text(Document(out))
+    html = out.with_suffix(".html")
+    assert html.exists()
+    assert "Acme Health" in html.read_text(encoding="utf-8")
+    # PDF is best-effort (depends on a Chrome/weasyprint engine being present). If the CLI printed a
+    # .pdf path, that file must be a real non-empty PDF; otherwise it falls back to the HTML path.
+    printed = res.stdout.strip()
+    if printed.endswith(".pdf"):
+        assert pathlib.Path(printed).exists() and pathlib.Path(printed).stat().st_size > 0
+    else:
+        assert printed == str(html)

@@ -66,17 +66,21 @@ keys and `whyNow` scoreKeys you must use).
    python3 "$SKILL/scripts/score_account.py" /tmp/<slug>-classification.json /tmp/<slug>-scored.json
    ```
 
-7. **Render the dossier:**
+7. **Render the dossier (dark, NERD-styled HTML → PDF):**
    ```bash
-   python3 "$SKILL/scripts/build_dossier.py" /tmp/<slug>-scored.json "<out>.docx"
+   python3 "$SKILL/scripts/build_dossier.py" /tmp/<slug>-scored.json "<out>.pdf"
    ```
+   This writes a self-contained `<out>.html` (opens in any browser, looks like the NERD
+   account-detail screen) and freezes it to `<out>.pdf` — via headless Chrome if present, else
+   weasyprint; if neither is available it writes the HTML only and the rep prints it. The script
+   prints the path it produced.
    **Output location (uniform across the plugin):** if the rep named a folder, use it. Otherwise
    default to `~/Documents/ObservePoint Revenue/Account Research/` — expand `~` to the home dir and
    `mkdir -p` the folder first; never leave the deliverable in a temp dir. Name the file
-   `<Company> - research dossier.docx`.
+   `<Company> - research dossier.pdf` (the `.html` lands beside it).
 
 8. **Summarize in chat:** final score, QUALIFIED/NOT, dominant fit angle, the top trigger, number of
-   sourced vs held-back contacts, and the `.docx` path.
+   sourced vs held-back contacts, and the `.pdf` path.
 
 ## Red flags — stop and fix
 
