@@ -41,7 +41,9 @@ DARK = RGBColor(0x1E, 0x1E, 0x1E)
 GRAY = RGBColor(0x5C, 0x5C, 0x5C)
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 RED = RGBColor(0xF3, 0x41, 0x46)
+GREEN = RGBColor(0x1F, 0x9D, 0x55)
 DARK_HEX, YELLOW_HEX, LIGHT_HEX = "1E1E1E", "F2CD14", "F2F2F2"
+RED_HEX, GREEN_HEX, MIDGRAY_HEX, LINK_HEX = "F34146", "1F9D55", "E2E2E2", "0563C1"
 LOGO = pathlib.Path(__file__).resolve().parent.parent / "assets" / "op-logo.png"
 
 _NARRATIVE_FIELDS = ("monitoring_summary",)
@@ -76,6 +78,69 @@ def _shade(cell, hex_fill):
     tcPr.append(shd)
 
 
+def _no_borders(t):
+    """Strip default table borders for a clean card/badge look."""
+    tblPr = t._tbl.tblPr
+    b = OxmlElement("w:tblBorders")
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        e = OxmlElement(f"w:{edge}")
+        e.set(qn("w:val"), "none")
+        b.append(e)
+    tblPr.append(b)
+
+
+def _left_accent(cell, hex_color=YELLOW_HEX, sz="24"):
+    """A thick colored left border — the NERD 'callout' accent."""
+    tcPr = cell._tc.get_or_add_tcPr()
+    borders = tcPr.find(qn("w:tcBorders"))
+    if borders is None:
+        borders = OxmlElement("w:tcBorders")
+        tcPr.append(borders)
+    el = OxmlElement("w:left")
+    for k, v in (("w:val", "single"), ("w:sz", sz), ("w:space", "0"), ("w:color", hex_color)):
+        el.set(qn(k), v)
+    borders.append(el)
+
+
+def _hyperlink(paragraph, url, text, *, size=9):
+    """A real clickable Word hyperlink (blue, underlined)."""
+    r_id = paragraph.part.relate_to(
+        url, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+        is_external=True)
+    link = OxmlElement("w:hyperlink")
+    link.set(qn("r:id"), r_id)
+    r = OxmlElement("w:r")
+    rPr = OxmlElement("w:rPr")
+    rf = OxmlElement("w:rFonts")
+    rf.set(qn("w:ascii"), FONT)
+    rf.set(qn("w:hAnsi"), FONT)
+    rPr.append(rf)
+    sz_el = OxmlElement("w:sz")
+    sz_el.set(qn("w:val"), str(int(size * 2)))
+    rPr.append(sz_el)
+    col = OxmlElement("w:color")
+    col.set(qn("w:val"), LINK_HEX)
+    rPr.append(col)
+    u = OxmlElement("w:u")
+    u.set(qn("w:val"), "single")
+    rPr.append(u)
+    r.append(rPr)
+    t = OxmlElement("w:t")
+    t.text = text
+    r.append(t)
+    link.append(r)
+    paragraph._p.append(link)
+    return link
+
+
+def _chip(cell, text, fill_hex, text_color=WHITE, size=8):
+    """Style a table cell as a colored chip."""
+    _shade(cell, fill_hex)
+    p = cell.paragraphs[0]
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _run(p, text, bold=True, size=size, color=text_color)
+
+
 def _yellow_bar(doc):
     p = doc.add_paragraph()
     p.paragraph_format.space_after = Pt(6)
@@ -93,6 +158,20 @@ def _heading(doc, text, *, color=DARK, size=13):
     p.paragraph_format.space_before = Pt(12)
     _run(p, text, bold=True, size=size, color=color)
     _yellow_bar(doc)
+
+
+def _section(doc, title, *, fill=DARK_HEX, text_color=WHITE):
+    t = doc.add_table(rows=1, cols=1)
+    t.alignment = WD_TABLE_ALIGNMENT.LEFT
+    _no_borders(t)
+    c = t.rows[0].cells[0]
+    _shade(c, fill)
+    p = c.paragraphs[0]
+    p.paragraph_format.space_before = Pt(2)
+    p.paragraph_format.space_after = Pt(2)
+    _run(p, title, bold=True, size=12, color=text_color)   # NOTE: preserve case — do NOT .upper()
+    doc.add_paragraph().paragraph_format.space_after = Pt(2)
+    return t
 
 
 def _para(doc, text, *, size=10.5, color=DARK, bold=False):
@@ -173,7 +252,7 @@ def build_proposal(data):
         _run(doc.add_paragraph(), "  ·  ".join(sub_bits), size=9, color=GRAY)
 
     # §1 Footprint
-    _heading(doc, "1. Your web footprint")
+    _section(doc, "1. Your web footprint")
     _para(doc, f"We scanned your web properties to establish how many real pages ObservePoint "
                f"would monitor. Your validated footprint is approximately "
                f"{_int(_round_k(pc['anchor']))} pages "
@@ -186,16 +265,27 @@ def build_proposal(data):
                "and its page count), Sample Pages (real example pages we found on each), Annual "
                "Usage Breakdown (how the page-scan total is built), and Methodology (how the count "
                "was validated).", size=9.5, color=GRAY)
+    # Footprint badge + confidence chip
+    badge_t = doc.add_table(rows=1, cols=2)
+    _no_borders(badge_t)
+    badge_cells = badge_t.rows[0].cells
+    badge_cells[0].width = Inches(1.6)
+    badge_cells[1].width = Inches(2.4)
+    _chip(badge_cells[0], _int(_round_k(pc["anchor"])) + " pages", YELLOW_HEX, DARK, size=14)
+    confidence = str(pc.get("confidence", "MEDIUM")).upper()
+    conf_fill = {"HIGH": GREEN_HEX, "MEDIUM": YELLOW_HEX}.get(confidence, MIDGRAY_HEX)
+    conf_tcolor = WHITE if confidence == "HIGH" else DARK
+    _chip(badge_cells[1], "CONFIDENCE: " + confidence, conf_fill, conf_tcolor, size=10)
 
     # §2 What we monitor
-    _heading(doc, "2. What ObservePoint will monitor")
+    _section(doc, "2. What ObservePoint will monitor")
     _para(doc, data.get("monitoring_summary", ""))
     _para(doc, "Delivered through ObservePoint Web Audits (automated page scanning), Tag & Variable "
                "Rules (validation of what fires and what must not), and scheduled re-scans — "
                "continuous evidence that your site behaves the way it should.")
 
     # §3 Derivation
-    _heading(doc, "3. How your annual usage is calculated")
+    _section(doc, "3. How your annual usage is calculated")
     _para(doc, "A page scan = one page checked one time. Scanning your pages once is one pass; "
                "checking them on a recurring schedule multiplies that into annual usage.", size=9.5, color=GRAY)
     _table(doc, ["From pages to one full sweep", "", "Pages"], [
@@ -213,16 +303,23 @@ def build_proposal(data):
     _table(doc, ["What's monitored", "How often", "Pages each run", "Runs/yr", "Page scans/yr"], cadence_rows)
 
     # §4 Investment
-    _heading(doc, "4. Recommended contract & investment")
+    _section(doc, "4. Recommended contract & investment")
     _highlight(doc, f"{_int(pr['recommended_scans'])} page scans   ·   {_usd(pr['recommended_price'])} / year")
-    _para(doc, "Usage-based pricing at ObservePoint's published rates. The two figures above "
-               "reconcile exactly in ObservePoint's pricing calculator.", size=9.5, color=GRAY)
+    # NERD callout for the reconcile note
+    callout_t = doc.add_table(rows=1, cols=1)
+    _no_borders(callout_t)
+    callout_cell = callout_t.rows[0].cells[0]
+    _shade(callout_cell, LIGHT_HEX)
+    _left_accent(callout_cell, YELLOW_HEX)
+    p_note = callout_cell.paragraphs[0]
+    _run(p_note, "Usage-based pricing at ObservePoint's published rates. The two figures above "
+                 "reconcile exactly in ObservePoint's pricing calculator.", size=9.5, color=GRAY)
     if pr.get("range_low_price") and pr.get("range_high_price"):
         _para(doc, f"As your property list and monitoring cadence are confirmed, expect a range of "
                    f"{_usd(pr['range_low_price'])}–{_usd(pr['range_high_price'])} per year.")
 
     # §5 To finalize
-    _heading(doc, "5. To finalize")
+    _section(doc, "5. To finalize")
     for item in ("Confirm the in-scope property list (see the evidence workbook).",
                  f"Confirm applicable regulations and consent states ({', '.join(data.get('regulations', []) or ['TBD'])}).",
                  "Confirm the monitoring cadence above matches your risk tolerance.",
@@ -232,7 +329,7 @@ def build_proposal(data):
 
     # [INTERNAL] — rep-only, delete before sending
     doc.add_page_break()
-    _heading(doc, "[INTERNAL — REMOVE BEFORE SENDING TO CUSTOMER]", color=RED, size=13)
+    _section(doc, "[INTERNAL — REMOVE BEFORE SENDING TO CUSTOMER]", fill=RED_HEX)
     _para(doc, "Everything below is rep-only context for how this scope was built. Delete this "
                "section before sharing the proposal.", size=9, color=RED, bold=True)
 
@@ -272,7 +369,13 @@ def build_proposal(data):
 
     src = pr.get("pricing_source", "")
     if src:
-        _para(doc, f"Pricing source: {src}", size=8, color=GRAY)
+        if "http" in src:
+            url = src[src.index("http"):].strip()
+            p = doc.add_paragraph()
+            _run(p, "Pricing source: ", size=8, color=GRAY)
+            _hyperlink(p, url, url, size=8)
+        else:
+            _para(doc, f"Pricing source: {src}", size=8, color=GRAY)
     if internal.get("thresholds_swept"):
         _para(doc, f"Spiral threshold sweep: {internal['thresholds_swept']}", size=8, color=GRAY)
 
