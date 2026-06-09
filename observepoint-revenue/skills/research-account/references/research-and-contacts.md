@@ -45,10 +45,11 @@ company blog. Keep research targeted to signals relevant to ObservePoint's value
 
 When an account has CIPA or similar state-wiretap exposure, the primary pain hypothesis is that the
 company needs to continuously audit what fires on its web properties and prove consent state per page,
-because that is what the litigation hinges on. The `best_opening_angle` should anchor on that risk
-substantively, but note: this angle informs the AE's strategy, it is NOT the prospect-facing copy. The
-Sequencer stage applies a strict tone governor so the outreach itself is never threatening. Keep the
-sharp legal framing here in the dossier; let the email be consultative.
+because that is what the litigation hinges on. The `bestOpeningAngle` should anchor on that risk
+substantively, but note: this angle informs the AE's strategy, it is NOT the prospect-facing copy. A
+later outreach step (not part of this skill) applies a strict tone governor so the outreach itself is
+never threatening. Keep the sharp legal framing here in the dossier; let any future email be
+consultative.
 
 ## Contact identification (real contacts only, no placeholders, ever)
 
@@ -67,14 +68,14 @@ sourced detail (press release, podcast, conference talk, job posting, LinkedIn a
 mention, news coverage).
 
 Per-contact source evidence (required):
-- `source_verified`: set `true` only when you have confirmed from a public source that this person
+- `sourceVerified`: set `true` only when you have confirmed from a public source that this person
   currently holds the stated title at the target company. Any doubt → `false`.
-- `source_url`: a single non-empty URL confirming the current title (their LinkedIn profile, the
+- `sourceUrl`: a single non-empty URL confirming the current title (their LinkedIn profile, the
   company leadership/team page, an SEC filing, or a press release). A generic news article that does
   not name the role is not acceptable. The URL must be real; never fabricate one.
 
-The desktop app enforces a confidence gate at publish: any contact lacking `source_verified: true` or
-a non-empty `source_url` is held back for the AE to resolve rather than silently shipped.
+The dossier enforces a confidence gate: any contact lacking `sourceVerified: true` or a non-empty
+`sourceUrl` is flagged "held back" for the AE to resolve rather than silently shipped.
 
 Forbidden placeholder patterns (never allowed): `insert here`; bracketed placeholders like `[Name]`,
 `[Title]`, `[Company]`; `TBD` / `TBA` / `TK`; `(name)` / `(title)`; `FIRST_NAME` / `{{name}}` or any
@@ -90,8 +91,9 @@ analytics to a privacy officer").
 
 ## Output
 
-Call the structured-output tool with the research summary (company overview, key triggers, pain
-hypotheses, competitor intel, tech-stack notes, best opening angle, research sources) and the
-`contacts` array (each with name, title, linkedin, source_verified, source_url, personalization_hook,
-tone_guidance, avoid). Enrichment (email, phone, current-employment check) is added by a later stage;
-do not invent contact emails or phone numbers here.
+Emit this as part of the skill's classification JSON: a `research` object (`companyOverview`,
+`keyTriggers`, `painHypotheses`, `competitorIntel`, `techStackNotes`, `bestOpeningAngle`,
+`researchSources`) and a `contacts` array (each with `name`, `title`, `linkedin`, `sourceVerified`,
+`sourceUrl`, `personalizationHook`, `toneGuidance`, `avoid`). Enrichment (email, phone,
+current-employment check) is out of scope for this skill; do not invent contact emails or phone
+numbers.

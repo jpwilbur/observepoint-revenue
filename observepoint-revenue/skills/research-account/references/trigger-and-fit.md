@@ -15,9 +15,9 @@ you do two things: (1) **classify** it against ObservePoint's ICP, and (2) surfa
 valuable output you produce; be specific, dated, and sourced.
 
 **You do not compute scores.** You classify which fit criteria are met and which trigger events apply
-(with their scoreKey). The desktop app computes the fit score, the why-now score, and the qualify
-decision from your classification using weights it controls. Return everything by calling the
-structured-output tool. Do not write files or manage any external queue.
+(with their scoreKey). The skill's `score_account.py` computes the fit score, the why-now score, and
+the qualify decision from your classification using the weights in `scoring-config.json`. Emit your
+classification as the skill's JSON contract; do not invent numeric scores.
 
 ## Writing style
 
