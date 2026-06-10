@@ -3,22 +3,22 @@
 A living backlog for the revenue-team plugin. Tags: **[you]** requested by Jarrod ·
 **[deferred]** explicitly punted earlier · **[idea]** suggestion. Check items off as they ship.
 
-**Shipped so far:** `owned-properties` → domain-footprint discovery (crt.sh + WHOIS + web research →
-confirmable `.xlsx` + confirmed `domains.txt`); `scope-calculator` (+ `derive-page-count`,
+**Shipped so far:** `find-accounts` → territory discovery (in-territory triggered prospects, ranked, seen-log dedup); `owned-properties` → domain-footprint discovery (crt.sh + WHOIS + web research →
+confirmable `.xlsx` + confirmed domains printed for scoping); `scope-calculator` (+ `derive-page-count`,
 `size-and-price`) → proposal `.docx` + evidence `.xlsx`; `research-account` → dark NERD-styled
-HTML→PDF dossier. Uniform output under `~/Documents/ObservePoint Revenue/<tool>/<Account>/`. Plugin at v0.8.0.
+HTML→PDF dossier. Uniform output under `~/Documents/ObservePoint Revenue/<tool>/<Account>/`. Plugin at v0.9.0.
 
 ---
 
 ## ✅ Recently shipped
+- [x] **find-accounts (territory discovery)** **[deferred→shipped]** — NERD Stage-0 ported:
+  in-territory, ICP-fit, *triggered* accounts not already in pipeline; ranked with the shared
+  trigger weights + recency decay; seen-log so re-runs only surface new names; chat-first with an
+  optional `.xlsx` discovery radar. Shipped in v0.9.0.
 - [x] **owned-properties (domain-footprint discovery)** **[you]** — org/seed → crt.sh + WHOIS
   (+ optional paid) + SEC Exhibit-21 / brand-page web research → confidence-tiered, evidence-tagged
   inventory (Confirmed vs For-Review sheets) + a **confirmed-only** `domains.txt` that feeds
   scope-calculator. Shipped in v0.8.0.
-
-## Top-of-funnel / discovery
-- [ ] **find-accounts (Discovery)** **[deferred]** — NERD discovery stage: in-territory, ICP-fit,
-  *triggered* accounts not already in pipeline. Reuses the ported trigger/fit engine.
 
 ## Research & pre-call
 - [ ] **free-scan "tear sheet" generator** **[idea]** — the live "what's firing vs. captured consent
