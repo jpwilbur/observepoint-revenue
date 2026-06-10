@@ -2,10 +2,11 @@
 
 Input: a candidates JSON (org + properties[] each with registrable/type/confidence/evidence/source/
 host_count/sample_hosts/[all_hosts_file] + an excluded[] list). Output: an editable .xlsx with four
-sheets (Confirmed Properties / For Review (unconfirmed) / All hostnames / Methodology & sources) and
-a domains.txt of CONFIRMED registrable domains only (we do not scope on guesses).
+sheets (Confirmed Properties / For Review (unconfirmed) / All hostnames / Methodology & sources);
+the CONFIRMED registrable domains are printed to stdout for scope-calculator (we do not scope on
+guesses — and no separate domains.txt cluttering the deliverable folder).
 
-CLI:  build_inventory.py <candidates.json> <out.xlsx> <out_domains.txt>
+CLI:  build_inventory.py <candidates.json> <out.xlsx>
 """
 import json
 import pathlib
