@@ -29,7 +29,7 @@ def _cand(name, key="pixelWiretapSuit", date="2026-06-01", url="https://example.
 def test_recency_decay_parity_with_score_account():
     now_ms = sa._parse_ms(AS_OF)
     for d in ["2026-05-20", "2026-03-09", "2025-06-09", "2025-03-16", "2024-01-15",
-              "2023-12-01", None, "2026", "2025-08"]:
+              "2023-12-01", None, "2026", "2025-08", "2025-08-15T12:00:00Z", "notadate"]:
         assert rc.recency_factor(d, CONFIG["recency"], now_ms) == \
             sa.recency_factor(d, CONFIG["recency"], now_ms), f"decay mismatch for {d!r}"
 
@@ -216,3 +216,32 @@ def test_normalize_name_word_level_article_strip():
     # ...but names that merely START with 'the' as one word are untouched.
     assert rc.normalize_name("Theranos") == "theranos"
     assert rc.normalize_name("Theranos") != rc.normalize_name("Ranos")
+
+
+def test_normalize_name_keeps_unicode_letters():
+    assert rc.normalize_name("Nestlé Health Science") == "nestléhealthscience"
+
+
+def test_missing_or_article_only_name_is_hard_error():
+    import pytest
+    with pytest.raises(ValueError, match="name"):
+        rc.rank(_data([_cand(None)]), CONFIG)
+    with pytest.raises(ValueError, match="name"):
+        rc.rank(_data([_cand("The")]), CONFIG)
+
+
+def test_in_run_duplicate_logged_once():
+    ranked, dropped, new = rc.rank(_data([_cand("Alpha Co"), _cand("Alpha Co")]), CONFIG)
+    assert len(ranked) == 2          # within-run dup judgment belongs to the model
+    assert [n["name"] for n in new] == ["Alpha Co"]   # but the log gets one entry
+
+
+def test_xlsx_failure_leaves_seen_log_unwritten(tmp_path):
+    # Artifacts before state: if the radar write fails, nothing may land in the seen-log,
+    # otherwise a naive re-run would silently drop every just-logged candidate.
+    seen = tmp_path / "seen.json"
+    blocker = tmp_path / "blocker"; blocker.write_text("")   # a FILE where a dir is needed
+    res = _run_cli(tmp_path, _data([_cand("Alpha Co")]), "--seen", str(seen),
+                   "--xlsx", str(blocker / "out.xlsx"))
+    assert res.returncode != 0
+    assert not seen.exists()

@@ -64,8 +64,9 @@ def recency_factor(date_str, recency, now_ms):
 
 def normalize_name(name):
     """'The Example Health-System, Inc.' == 'example health system inc' for dedup purposes.
-    Lowercases, drops a leading standalone 'the' article, then strips non-alphanumerics."""
-    tokens = re.findall(r"[a-z0-9]+", (name or "").lower())
+    Lowercases, drops a leading standalone 'the' article, then strips punctuation/whitespace.
+    Unicode letters and digits are kept ('Nestlé' stays 'nestlé')."""
+    tokens = re.findall(r"[^\W_]+", (name or "").lower())
     if tokens and tokens[0] == "the":
         tokens = tokens[1:]
     return "".join(tokens)
@@ -99,7 +100,12 @@ def rank(data, config, seen=None, include_seen=False):
                     for c in (seen or {}).get("candidates", [])}
 
     ranked, new_entries, dropped = [], [], 0
+    logged_this_run = set()
     for c in data.get("candidates", []) or []:
+        norm = normalize_name(c.get("name"))
+        if not norm:
+            raise ValueError(f"missing or empty candidate name: {c.get('name')!r} — "
+                             "every candidate needs a real company name")
         key = c.get("triggerKey")
         if key not in why:
             raise ValueError(f"unknown triggerKey {key!r} for {c.get('name')!r} — "
@@ -107,7 +113,7 @@ def rank(data, config, seen=None, include_seen=False):
         if not (c.get("sourceUrl") or "").strip():
             raise ValueError(f"missing sourceUrl for {c.get('name')!r} — "
                              "every candidate needs a real source")
-        prior = seen_by_name.get(normalize_name(c.get("name")))
+        prior = seen_by_name.get(norm)
         if prior and not include_seen:
             dropped += 1
             continue
@@ -117,7 +123,8 @@ def rank(data, config, seen=None, include_seen=False):
             why[key]["points"] * recency_factor(c.get("triggerDate"), recency, now_ms))
         if prior:
             entry["firstSeen"] = prior.get("firstSeen")
-        else:
+        elif norm not in logged_this_run:
+            logged_this_run.add(norm)
             new_entries.append({"name": c.get("name"), "firstSeen": data.get("date"),
                                 "triggerKey": key, "sourceUrl": c.get("sourceUrl")})
         ranked.append(entry)
@@ -190,17 +197,25 @@ def main(argv=None):
         ranked, dropped, new_entries = rank(data, config, seen, a.include_seen)
     except ValueError as e:
         sys.exit(str(e))
+    print(render_chat(ranked, dropped))
+    if a.xlsx:
+        try:
+            wb = build_radar(ranked)
+        except ImportError:
+            sys.exit("openpyxl is required for --xlsx (pip install openpyxl)")
+        out = pathlib.Path(a.xlsx)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        wb.save(out)
+        print(f"\n{out}")
+    # State last, atomically: artifacts before log, so a failed run never strands names in
+    # the log (a name that resurfaces next run is safe; a logged-but-never-shown one is not).
     if a.seen and new_entries:
         p = pathlib.Path(a.seen)
         p.parent.mkdir(parents=True, exist_ok=True)
         seen["candidates"].extend(new_entries)
-        p.write_text(json.dumps(seen, indent=2))
-    if a.xlsx:
-        out = pathlib.Path(a.xlsx)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        build_radar(ranked).save(out)
-        print(f"{out}\n")
-    print(render_chat(ranked, dropped))
+        tmp = p.with_name(p.name + ".tmp")
+        tmp.write_text(json.dumps(seen, indent=2))
+        tmp.replace(p)
 
 
 if __name__ == "__main__":
