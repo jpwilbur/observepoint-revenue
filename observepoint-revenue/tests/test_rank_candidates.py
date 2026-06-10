@@ -1,0 +1,85 @@
+import json
+import pathlib
+import subprocess
+import sys
+
+import rank_candidates as rc
+import score_account as sa
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+SCRIPT = ROOT / "skills" / "find-accounts" / "scripts" / "rank_candidates.py"
+CONFIG_PATH = ROOT / "skills" / "research-account" / "references" / "scoring-config.json"
+CONFIG = json.loads(CONFIG_PATH.read_text())
+
+AS_OF = "2026-06-09"
+
+
+def _data(candidates, date=AS_OF):
+    return {"territory": {"region": "US West", "verticals": ["healthcare"]},
+            "prepared_by": "Test", "date": date, "requested": 5, "candidates": candidates}
+
+
+def _cand(name, key="pixelWiretapSuit", date="2026-06-01", url="https://example.org/x", **kw):
+    c = {"name": name, "vertical": "healthcare", "reason": f"{name} reason",
+         "triggerKey": key, "triggerDate": date, "sourceUrl": url}
+    c.update(kw)
+    return c
+
+
+def test_recency_decay_parity_with_score_account():
+    now_ms = sa._parse_ms(AS_OF)
+    for d in ["2026-05-20", "2026-03-09", "2025-06-09", "2025-03-16", "2024-01-15",
+              "2023-12-01", None, "2026", "2025-08"]:
+        assert rc.recency_factor(d, CONFIG["recency"], now_ms) == \
+            sa.recency_factor(d, CONFIG["recency"], now_ms), f"decay mismatch for {d!r}"
+
+
+def test_round_half_up_matches_js_not_bankers():
+    assert rc._round_half_up(2.5) == 3        # Python round(2.5) == 2 — we need JS Math.round
+    assert rc._round_half_up(12.5) == 13
+    assert rc._round_half_up(12.4) == 12
+
+
+def test_half_up_rounding_applied_to_points():
+    # enforcementAction = 25 pts; 2025-03-16 is exactly 450 days = 15.0 months before 2026-06-09
+    # → factor 1 - (15-6)/18 = 0.5 → 12.5 → half-up 13 (banker's would give 12).
+    ranked, dropped, new = rc.rank(_data([_cand("A", key="enforcementAction",
+                                                date="2025-03-16")]), CONFIG)
+    assert ranked[0]["effectivePoints"] == 13
+
+
+def test_ranks_by_effective_points_decay_can_flip_order():
+    # settlement 15 pts recent (→15) beats pixelWiretapSuit 30 pts from 2023 (>24mo → ×0.1 → 3).
+    ranked, dropped, new = rc.rank(_data([
+        _cand("OldSuit Co", key="pixelWiretapSuit", date="2023-01-01"),
+        _cand("FreshSettle Co", key="settlement", date="2026-06-01"),
+    ]), CONFIG)
+    assert [e["name"] for e in ranked] == ["FreshSettle Co", "OldSuit Co"]
+    assert ranked[0]["effectivePoints"] == 15 and ranked[1]["effectivePoints"] == 3
+
+
+def test_tiebreak_newer_first_undated_last():
+    # All pixelWiretapSuit (30): A 2026-06-01 (30), B 2026-05-01 (30); C 2025-05-09 is 13.2mo
+    # → ×0.6 → 18, D undated → ×0.6 → 18. Expect A, B (newer dated first), then C before D.
+    ranked, dropped, new = rc.rank(_data([
+        _cand("D", date=None), _cand("C", date="2025-05-09"),
+        _cand("B", date="2026-05-01"), _cand("A", date="2026-06-01"),
+    ]), CONFIG)
+    assert [e["name"] for e in ranked] == ["A", "B", "C", "D"]
+
+
+def test_unknown_trigger_key_is_hard_error():
+    import pytest
+    with pytest.raises(ValueError, match="bipaOnly"):
+        rc.rank(_data([_cand("X", key="bipaOnly")]), CONFIG)
+
+
+def test_missing_source_url_is_hard_error():
+    import pytest
+    with pytest.raises(ValueError, match="sourceUrl"):
+        rc.rank(_data([_cand("X", url="  ")]), CONFIG)
+
+
+def test_trigger_label_attached_from_config():
+    ranked, _, _ = rc.rank(_data([_cand("A")]), CONFIG)
+    assert ranked[0]["triggerLabel"] == CONFIG["whyNow"]["pixelWiretapSuit"]["label"]
