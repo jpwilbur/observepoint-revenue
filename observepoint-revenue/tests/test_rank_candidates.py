@@ -120,3 +120,59 @@ def test_load_seen_missing_and_corrupt_treated_empty(tmp_path):
     wrong = tmp_path / "wrong.json"; wrong.write_text(json.dumps({"candidates": "oops"}))
     assert rc.load_seen(wrong) == {"candidates": []}
     assert rc.load_seen(None) == {"candidates": []}
+
+
+# ── Task 3: Chat output + CLI ─────────────────────────────────────────────────
+
+def _run_cli(tmp_path, data, *extra):
+    f = tmp_path / "cands.json"; f.write_text(json.dumps(data))
+    return subprocess.run([sys.executable, str(SCRIPT), str(f), str(CONFIG_PATH), *extra],
+                          capture_output=True, text=True)
+
+
+def test_cli_prints_ranked_order_and_sources(tmp_path):
+    res = _run_cli(tmp_path, _data([_cand("Beta Co", key="settlement"),
+                                    _cand("Alpha Co", key="pixelWiretapSuit")]))
+    assert res.returncode == 0, res.stderr
+    out = res.stdout
+    assert out.index("1. Alpha Co") < out.index("2. Beta Co")   # 30 pts before 15 pts
+    assert "https://example.org/x" in out
+    assert CONFIG["whyNow"]["pixelWiretapSuit"]["label"] in out
+
+
+def test_cli_seen_log_appends_and_excludes(tmp_path):
+    seen = tmp_path / "seen.json"
+    res1 = _run_cli(tmp_path, _data([_cand("Alpha Co")]), "--seen", str(seen))
+    assert res1.returncode == 0, res1.stderr
+    logged = json.loads(seen.read_text())["candidates"]
+    assert [(c["name"], c["firstSeen"]) for c in logged] == [("Alpha Co", AS_OF)]
+    # second run: Alpha excluded with a note; Beta appended.
+    res2 = _run_cli(tmp_path, _data([_cand("Alpha Co"), _cand("Beta Co")]), "--seen", str(seen))
+    assert "Beta Co" in res2.stdout and "1 previously-seen" in res2.stdout
+    assert "1. Alpha Co" not in res2.stdout
+    names = [c["name"] for c in json.loads(seen.read_text())["candidates"]]
+    assert names == ["Alpha Co", "Beta Co"]
+
+
+def test_cli_include_seen_shows_annotation(tmp_path):
+    seen = tmp_path / "seen.json"
+    _run_cli(tmp_path, _data([_cand("Alpha Co")]), "--seen", str(seen))
+    res = _run_cli(tmp_path, _data([_cand("Alpha Co")]), "--seen", str(seen), "--include-seen")
+    assert "Alpha Co" in res.stdout and f"[seen {AS_OF}]" in res.stdout
+
+
+def test_cli_validation_error_exits_nonzero(tmp_path):
+    res = _run_cli(tmp_path, _data([_cand("X", key="notAKey")]))
+    assert res.returncode != 0
+    assert "notAKey" in res.stderr
+
+
+def test_cli_empty_candidates_is_valid(tmp_path):
+    res = _run_cli(tmp_path, _data([]))
+    assert res.returncode == 0, res.stderr
+    assert "Ranked candidates (0)" in res.stdout
+
+
+def test_cli_writes_no_files_without_xlsx_flag(tmp_path):
+    _run_cli(tmp_path, _data([_cand("Alpha Co")]))
+    assert list(tmp_path.glob("*.xlsx")) == [] and list(tmp_path.glob("*.txt")) == []
