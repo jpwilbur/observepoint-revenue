@@ -17,7 +17,7 @@ HTML→PDF dossier. Uniform output under `~/Documents/ObservePoint Revenue/<tool
   optional `.xlsx` discovery radar. Shipped in v0.9.0.
 - [x] **owned-properties (domain-footprint discovery)** **[you]** — org/seed → crt.sh + WHOIS
   (+ optional paid) + SEC Exhibit-21 / brand-page web research → confidence-tiered, evidence-tagged
-  inventory (Confirmed vs For-Review sheets) + a **confirmed-only** `domains.txt` that feeds
+  inventory (Confirmed vs For-Review sheets) + a **confirmed-only** domains list (stdout since v0.8.1) that feeds
   scope-calculator. Shipped in v0.8.0.
 
 ## Research & pre-call

@@ -65,7 +65,7 @@ def recency_factor(date_str, recency, now_ms):
 def normalize_name(name):
     """'The Example Health-System, Inc.' == 'example health system inc' for dedup purposes.
     Lowercases, drops a leading standalone 'the' article, then strips punctuation/whitespace.
-    Unicode letters and digits are kept ('Nestlé' stays 'nestlé')."""
+    Unicode letters and digits are kept ('Café' stays 'café')."""
     tokens = re.findall(r"[^\W_]+", (name or "").lower())
     if tokens and tokens[0] == "the":
         tokens = tokens[1:]
@@ -134,9 +134,9 @@ def rank(data, config, seen=None, include_seen=False):
 
 
 RADAR_HEADERS = ["Rank", "Company", "Vertical", "Trigger", "Trigger date", "Why now",
-                 "Source", "Pursue?", "Notes"]
+                 "Source", "First seen", "Pursue?", "Notes"]
 RADAR_WIDTHS = {"Rank": 6, "Company": 30, "Vertical": 20, "Trigger": 36, "Trigger date": 12,
-                "Why now": 60, "Source": 44, "Pursue?": 10, "Notes": 30}
+                "Why now": 60, "Source": 44, "First seen": 12, "Pursue?": 10, "Notes": 30}
 DARK = "1E1E1E"
 
 
@@ -156,7 +156,8 @@ def build_radar(ranked):
         ws.column_dimensions[get_column_letter(i)].width = RADAR_WIDTHS[h]
     for i, e in enumerate(ranked, 1):
         ws.append([i, e.get("name", ""), e.get("vertical", ""), e.get("triggerLabel", ""),
-                   e.get("triggerDate", ""), e.get("reason", ""), e.get("sourceUrl", ""), "", ""])
+                   e.get("triggerDate", ""), e.get("reason", ""), e.get("sourceUrl", ""),
+                   e.get("firstSeen", ""), "", ""])
         src = ws.cell(row=ws.max_row, column=7)
         src.hyperlink = e.get("sourceUrl", "")
         src.font = Font(color="0563C1", underline="single")  # explicit (avoid named-style dependency)
@@ -190,8 +191,11 @@ def main(argv=None):
     ap.add_argument("--xlsx", help="also write the discovery-radar workbook here")
     a = ap.parse_args(argv)
 
-    data = json.loads(pathlib.Path(a.candidates).read_text())
-    config = json.loads(pathlib.Path(a.config).read_text())
+    try:
+        data = json.loads(pathlib.Path(a.candidates).read_text())
+        config = json.loads(pathlib.Path(a.config).read_text())
+    except (OSError, ValueError) as e:
+        sys.exit(f"could not read inputs: {e}")
     seen = load_seen(a.seen)
     try:
         ranked, dropped, new_entries = rank(data, config, seen, a.include_seen)
@@ -204,8 +208,11 @@ def main(argv=None):
         except ImportError:
             sys.exit("openpyxl is required for --xlsx (pip install openpyxl)")
         out = pathlib.Path(a.xlsx)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        wb.save(out)
+        try:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            wb.save(out)
+        except OSError as e:
+            sys.exit(f"could not write {out}: {e}")
         print(f"\n{out}")
     # State last, atomically: artifacts before log, so a failed run never strands names in
     # the log (a name that resurfaces next run is safe; a logged-but-never-shown one is not).

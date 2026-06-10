@@ -190,13 +190,13 @@ def test_xlsx_radar_columns_hyperlink_fillable(tmp_path):
     ws = wb["Discovery radar"]
     hdr = [c.value for c in ws[1]]
     assert hdr == ["Rank", "Company", "Vertical", "Trigger", "Trigger date", "Why now",
-                   "Source", "Pursue?", "Notes"]
+                   "Source", "First seen", "Pursue?", "Notes"]
     assert ws.cell(row=2, column=1).value == 1
     assert ws.cell(row=2, column=2).value == "Alpha Co"
     src = ws.cell(row=2, column=7)
     assert src.hyperlink is not None and src.hyperlink.target == "https://example.org/x"
-    assert ws.cell(row=2, column=8).value in (None, "")    # Pursue? fillable
-    assert ws.cell(row=2, column=9).value in (None, "")    # Notes fillable
+    assert ws.cell(row=2, column=9).value in (None, "")    # Pursue? fillable
+    assert ws.cell(row=2, column=10).value in (None, "")   # Notes fillable
 
 
 def test_xlsx_rows_follow_rank_order(tmp_path):
@@ -213,13 +213,13 @@ def test_normalize_name_word_level_article_strip():
     # leading standalone 'The' is dropped...
     assert rc.normalize_name("The Example Health-System, Inc.") == \
         rc.normalize_name("Example Health System Inc")
-    # ...but names that merely START with 'the' as one word are untouched.
-    assert rc.normalize_name("Theranos") == "theranos"
-    assert rc.normalize_name("Theranos") != rc.normalize_name("Ranos")
+    # ...but names that merely START with 'Themis' as one word are untouched.
+    assert rc.normalize_name("Themis Diagnostics") == "themisdiagnostics"
+    assert rc.normalize_name("Themis Diagnostics") != rc.normalize_name("Mis Diagnostics")
 
 
 def test_normalize_name_keeps_unicode_letters():
-    assert rc.normalize_name("Nestlé Health Science") == "nestléhealthscience"
+    assert rc.normalize_name("Café Médical Group") == "cafémédicalgroup"
 
 
 def test_missing_or_article_only_name_is_hard_error():
@@ -245,3 +245,16 @@ def test_xlsx_failure_leaves_seen_log_unwritten(tmp_path):
                    "--xlsx", str(blocker / "out.xlsx"))
     assert res.returncode != 0
     assert not seen.exists()
+
+
+def test_xlsx_first_seen_marks_previously_seen_rows(tmp_path):
+    seen = tmp_path / "seen.json"
+    _run_cli(tmp_path, _data([_cand("Alpha Co")]), "--seen", str(seen))
+    out = tmp_path / "radar.xlsx"
+    _run_cli(tmp_path, _data([_cand("Alpha Co"), _cand("Beta Co")]), "--seen", str(seen),
+             "--include-seen", "--xlsx", str(out))
+    from openpyxl import load_workbook
+    rows = {r[1]: r[7] for r in load_workbook(out)["Discovery radar"]
+            .iter_rows(min_row=2, values_only=True)}      # Company -> First seen
+    assert rows["Alpha Co"] == AS_OF                       # previously seen → marked
+    assert rows["Beta Co"] in (None, "")                   # new this run → blank

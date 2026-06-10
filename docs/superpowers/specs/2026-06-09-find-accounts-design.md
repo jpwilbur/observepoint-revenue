@@ -122,8 +122,8 @@ rank_candidates.py <candidates.json> <scoring-config.json>
 ```
 
 Name matching is normalized: lowercase, drop a leading standalone "the" article, strip all
-non-alphanumerics ("The Example Health-System, Inc." ≡ "example health system inc"; "Theranos"
-stays intact).
+non-alphanumerics ("The Example Health-System, Inc." ≡ "example health system inc"; "Themis"
+stays intact — a name merely starting with "the" as one word is not mangled).
 
 ### Ranking math (parity with research-account)
 
