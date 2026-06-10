@@ -83,3 +83,40 @@ def test_missing_source_url_is_hard_error():
 def test_trigger_label_attached_from_config():
     ranked, _, _ = rc.rank(_data([_cand("A")]), CONFIG)
     assert ranked[0]["triggerLabel"] == CONFIG["whyNow"]["pixelWiretapSuit"]["label"]
+
+
+# ── Task 2: Seen-log ──────────────────────────────────────────────────────────
+
+SEEN = {"candidates": [{"name": "The Example Health-System, Inc.", "firstSeen": "2026-05-01",
+                        "triggerKey": "pixelWiretapSuit", "sourceUrl": "https://example.org/old"}]}
+
+
+def test_seen_dedup_normalized_name_match():
+    ranked, dropped, new = rc.rank(_data([_cand("Example Health System Inc"),
+                                          _cand("Brand New Co")]), CONFIG, seen=SEEN)
+    assert [e["name"] for e in ranked] == ["Brand New Co"]
+    assert dropped == 1
+    assert [n["name"] for n in new] == ["Brand New Co"]   # only NEW names get log entries
+
+
+def test_include_seen_keeps_and_annotates_without_relogging():
+    ranked, dropped, new = rc.rank(_data([_cand("Example Health System Inc")]), CONFIG,
+                                   seen=SEEN, include_seen=True)
+    assert dropped == 0
+    assert ranked[0]["firstSeen"] == "2026-05-01"
+    assert new == []                                       # seen entry NOT re-appended
+
+
+def test_new_entry_shape_uses_data_date():
+    _, _, new = rc.rank(_data([_cand("Brand New Co")]), CONFIG, seen=SEEN)
+    assert new == [{"name": "Brand New Co", "firstSeen": AS_OF,
+                    "triggerKey": "pixelWiretapSuit", "sourceUrl": "https://example.org/x"}]
+
+
+def test_load_seen_missing_and_corrupt_treated_empty(tmp_path):
+    assert rc.load_seen(tmp_path / "nope.json") == {"candidates": []}
+    bad = tmp_path / "bad.json"; bad.write_text("{not json")
+    assert rc.load_seen(bad) == {"candidates": []}
+    wrong = tmp_path / "wrong.json"; wrong.write_text(json.dumps({"candidates": "oops"}))
+    assert rc.load_seen(wrong) == {"candidates": []}
+    assert rc.load_seen(None) == {"candidates": []}

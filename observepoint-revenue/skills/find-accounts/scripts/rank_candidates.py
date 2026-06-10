@@ -62,8 +62,12 @@ def recency_factor(date_str, recency, now_ms):
 
 
 def normalize_name(name):
-    """'The Example Health-System, Inc.' == 'example health system inc' for dedup purposes."""
-    return "".join(ch for ch in (name or "").lower() if ch.isalnum())
+    """'The Example Health-System, Inc.' == 'example health system inc' for dedup purposes.
+    Strips non-alphanumeric chars, lowercases, and removes a leading 'the' article."""
+    s = "".join(ch for ch in (name or "").lower() if ch.isalnum())
+    if s.startswith("the"):
+        s = s[3:]
+    return s
 
 
 def load_seen(path):
