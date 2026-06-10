@@ -16,6 +16,7 @@ import argparse
 import json
 import math
 import pathlib
+import re
 import sys
 from datetime import datetime, timezone
 
@@ -63,11 +64,11 @@ def recency_factor(date_str, recency, now_ms):
 
 def normalize_name(name):
     """'The Example Health-System, Inc.' == 'example health system inc' for dedup purposes.
-    Strips non-alphanumeric chars, lowercases, and removes a leading 'the' article."""
-    s = "".join(ch for ch in (name or "").lower() if ch.isalnum())
-    if s.startswith("the"):
-        s = s[3:]
-    return s
+    Lowercases, drops a leading standalone 'the' article, then strips non-alphanumerics."""
+    tokens = re.findall(r"[a-z0-9]+", (name or "").lower())
+    if tokens and tokens[0] == "the":
+        tokens = tokens[1:]
+    return "".join(tokens)
 
 
 def load_seen(path):

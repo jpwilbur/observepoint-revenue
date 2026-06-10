@@ -207,3 +207,12 @@ def test_xlsx_rows_follow_rank_order(tmp_path):
     ws = load_workbook(out)["Discovery radar"]
     assert [(r[0], r[1]) for r in ws.iter_rows(min_row=2, values_only=True)] == \
         [(1, "Alpha Co"), (2, "Beta Co")]
+
+
+def test_normalize_name_word_level_article_strip():
+    # leading standalone 'The' is dropped...
+    assert rc.normalize_name("The Example Health-System, Inc.") == \
+        rc.normalize_name("Example Health System Inc")
+    # ...but names that merely START with 'the' as one word are untouched.
+    assert rc.normalize_name("Theranos") == "theranos"
+    assert rc.normalize_name("Theranos") != rc.normalize_name("Ranos")
