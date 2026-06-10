@@ -176,3 +176,34 @@ def test_cli_empty_candidates_is_valid(tmp_path):
 def test_cli_writes_no_files_without_xlsx_flag(tmp_path):
     _run_cli(tmp_path, _data([_cand("Alpha Co")]))
     assert list(tmp_path.glob("*.xlsx")) == [] and list(tmp_path.glob("*.txt")) == []
+
+
+# ── Task 4: --xlsx discovery radar ───────────────────────────────────────────
+
+def test_xlsx_radar_columns_hyperlink_fillable(tmp_path):
+    from openpyxl import load_workbook
+    out = tmp_path / "radar.xlsx"
+    res = _run_cli(tmp_path, _data([_cand("Alpha Co")]), "--xlsx", str(out))
+    assert res.returncode == 0, res.stderr
+    assert out.exists() and str(out) in res.stdout
+    wb = load_workbook(out)
+    ws = wb["Discovery radar"]
+    hdr = [c.value for c in ws[1]]
+    assert hdr == ["Rank", "Company", "Vertical", "Trigger", "Trigger date", "Why now",
+                   "Source", "Pursue?", "Notes"]
+    assert ws.cell(row=2, column=1).value == 1
+    assert ws.cell(row=2, column=2).value == "Alpha Co"
+    src = ws.cell(row=2, column=7)
+    assert src.hyperlink is not None and src.hyperlink.target == "https://example.org/x"
+    assert ws.cell(row=2, column=8).value in (None, "")    # Pursue? fillable
+    assert ws.cell(row=2, column=9).value in (None, "")    # Notes fillable
+
+
+def test_xlsx_rows_follow_rank_order(tmp_path):
+    from openpyxl import load_workbook
+    out = tmp_path / "radar.xlsx"
+    _run_cli(tmp_path, _data([_cand("Beta Co", key="settlement"),
+                              _cand("Alpha Co", key="pixelWiretapSuit")]), "--xlsx", str(out))
+    ws = load_workbook(out)["Discovery radar"]
+    assert [(r[0], r[1]) for r in ws.iter_rows(min_row=2, values_only=True)] == \
+        [(1, "Alpha Co"), (2, "Beta Co")]
