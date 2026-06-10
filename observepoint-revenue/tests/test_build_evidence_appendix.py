@@ -9,7 +9,7 @@ from openpyxl import load_workbook
 import build_evidence_appendix as bea
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SCRIPT = ROOT / "skills" / "derive-page-count" / "scripts" / "build_evidence_appendix.py"
+SCRIPT = ROOT / "skills" / "scope-calculator" / "scripts" / "build_evidence_appendix.py"
 
 DATA = {
     "customer": "Acme Corp", "date": "2026-06-07",

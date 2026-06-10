@@ -3,10 +3,11 @@
 A living backlog for the revenue-team plugin. Tags: **[you]** requested by Jarrod ·
 **[deferred]** explicitly punted earlier · **[idea]** suggestion. Check items off as they ship.
 
-**Shipped so far:** `find-accounts` → territory discovery (in-territory triggered prospects, ranked, seen-log dedup); `owned-properties` → domain-footprint discovery (crt.sh + WHOIS + web research →
-confirmable `.xlsx` + confirmed domains printed for scoping); `scope-calculator` (+ `derive-page-count`,
-`size-and-price`) → proposal `.docx` + evidence `.xlsx`; `research-account` → dark NERD-styled
-HTML→PDF dossier. Uniform output under `~/Documents/ObservePoint Revenue/<tool>/<Account>/`. Plugin at v0.9.0.
+**Shipped so far (4 skills):** `find-accounts` → territory discovery (in-territory triggered prospects, ranked, seen-log dedup); `owned-properties` → domain-footprint discovery (crt.sh + WHOIS + web research →
+confirmable `.xlsx` + confirmed domains printed for scoping); `scope-calculator` → the single scope/price tool (3 internal stages: derive page count → size usage → price → proposal `.docx` + evidence `.xlsx`); `research-account` → dark NERD-styled
+HTML→PDF dossier. Uniform output under `~/Documents/ObservePoint Revenue/<tool>/<Account>/`. Plugin at v0.10.0.
+
+> **v0.10.0 — pricing skills consolidated.** `derive-page-count` and `size-and-price` were merged into `scope-calculator` (they were three front doors to one job). The deterministic engine is unchanged — `compute_scope.py`, `fetch_pricing.py`, `build_evidence_appendix.py` just moved under `scope-calculator/scripts/`; the SKILL.md now has three entry paths (full scope / known page count / count only). 111 tests still green.
 
 ---
 

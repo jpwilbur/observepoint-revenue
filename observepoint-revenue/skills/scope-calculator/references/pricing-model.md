@@ -1,6 +1,6 @@
 # Pricing model — ObservePoint's live graduated pricing
 
-Reference for the `size-and-price` skill. **The live ObservePoint pricing calculator is the sole
+Reference for scope-calculator's **usage + price stage** (Stage 2). **The live ObservePoint pricing calculator is the sole
 source of truth. There is no in-skill price override** — if a rep needs bespoke/negotiated pricing,
 they take this skill's output and adjust it themselves (uncommon).
 

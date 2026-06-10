@@ -1,6 +1,6 @@
 # Usage methodology — multipliers, cadence, and the consultative flow
 
-Reference for the `size-and-price` skill. Turns a defensible page count into an annual page-scan
+Reference for scope-calculator's **usage + price stage** (Stage 2). Turns a defensible page count into an annual page-scan
 usage number. The math is deterministic in `scripts/compute_scope.py`; this file is the judgment
 layer — how to choose the inputs and what to ask the customer.
 
@@ -12,7 +12,7 @@ annual_scans   = Σ over cadence layers c of ( use_case_pages × pct_c × runs_p
 purchased_scans = round( annual_scans × (1 + buffer_pct) )                                 # see pricing-model.md
 ```
 
-`base_pages` is the page count from `derive-page-count` (use the range low/anchor/high; the anchor is
+`base_pages` is the page count from Stage 1 (use the range low/anchor/high; the anchor is
 the planning number). Layers are **additive** — a page in the annual baseline can ALSO be in the
 weekly slice; percentages need not sum to 100%.
 

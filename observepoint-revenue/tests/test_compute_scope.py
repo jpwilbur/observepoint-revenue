@@ -73,7 +73,7 @@ def test_apply_buffer():
 
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-COMPUTE = ROOT / "skills" / "size-and-price" / "scripts" / "compute_scope.py"
+COMPUTE = ROOT / "skills" / "scope-calculator" / "scripts" / "compute_scope.py"
 
 BASE_INPUTS = {
     "customer": "Acme",
