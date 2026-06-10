@@ -145,9 +145,11 @@ last among ties).
 - **Optional `.xlsx` radar** (only when the rep says yes):
   `~/Documents/ObservePoint Revenue/Account Discovery/<YYYY-MM-DD> - discovery radar.xlsx`
   (rep override honored; `mkdir -p` first). One sheet, columns:
-  **Rank | Company | Vertical | Trigger | Trigger date | Why now | Source | Pursue? | Notes** —
+  **Rank | Company | Vertical | Trigger | Trigger date | Why now | Source | First seen | Pursue? | Notes** —
   Source is a clickable hyperlink (same explicit `Font(color="0563C1", underline="single")`
-  convention as build_inventory), **Pursue?/Notes empty and fillable**, dark `1E1E1E` header row,
+  convention as build_inventory), **First seen** filled only for previously-seen names resurfaced
+  via `--include-seen` (blank for new finds — so an exported radar can't silently mix in old
+  candidates unmarked), **Pursue?/Notes empty and fillable**, dark `1E1E1E` header row,
   per-header column widths.
 - **Seen-log:** `~/Documents/ObservePoint Revenue/Account Discovery/seen-candidates.json`
   (script-maintained state, not a deliverable).
