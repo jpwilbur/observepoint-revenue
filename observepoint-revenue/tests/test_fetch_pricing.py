@@ -7,7 +7,7 @@ import fetch_pricing as fp
 import compute_scope as cs
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-FETCH = ROOT / "skills" / "size-and-price" / "scripts" / "fetch_pricing.py"
+FETCH = ROOT / "skills" / "scope-calculator" / "scripts" / "fetch_pricing.py"
 
 # Representative snippet copied from the live bundle (app.observepoint.com/www-pricing/main.js).
 SAMPLE_JS = (

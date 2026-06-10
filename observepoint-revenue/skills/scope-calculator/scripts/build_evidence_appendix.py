@@ -26,7 +26,7 @@ from openpyxl.utils import get_column_letter
 FONT = "Montserrat"
 DARK, YELLOW, LIGHT, GRAY, WHITE = "1E1E1E", "F2CD14", "F2F2F2", "5C5C5C", "FFFFFF"
 FILL_COLS = ["Include in scope?", "Priority", "Notes"]  # customer-fillable, left empty
-LOGO = pathlib.Path(__file__).resolve().parents[2] / "scope-calculator" / "assets" / "op-logo.png"
+LOGO = pathlib.Path(__file__).resolve().parent.parent / "assets" / "op-logo.png"
 _FREQ = {1: "Annually", 4: "Quarterly", 12: "Monthly", 26: "Bi-weekly", 52: "Weekly", 365: "Daily"}
 
 _THIN = Side(style="thin", color="D9D9D9")

@@ -1,6 +1,6 @@
 # Site Census methodology — deriving a defensible page-count range
 
-Reference for the `derive-page-count` skill. Goal: given a customer (name and/or domains), return
+Reference for scope-calculator's **page-count stage** (Stage 1). Goal: given a customer (name and/or domains), return
 the count of distinct **real** web pages across their domains as a **narrow, defensible range +
 point estimate + confidence level**. The number drives usage-based contract sizing, so the bias is:
 **as large as is legitimately defensible, never inflated past what survives customer scrutiny.**
@@ -103,9 +103,9 @@ as the number grows (more crawled pages = more confidence).
   with a modest queue, or a borderline domain swinging the band. LOW = large queue, suspect-zero,
   heavy marginal load, or band hit the ceiling.
 
-## 5. Output contract (what `derive-page-count` returns)
+## 5. Output contract (what Stage 1 returns)
 
-A JSON object (consumed by `size-and-price` for pricing and by `build_evidence_appendix.py` for the
+A JSON object (consumed by the usage+price stage and by `build_evidence_appendix.py` for the
 customer workbook):
 
 ```
