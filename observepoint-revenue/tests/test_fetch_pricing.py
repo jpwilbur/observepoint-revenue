@@ -33,6 +33,30 @@ def test_parse_tiers_missing_returns_none():
     assert fp.parse_tiers("no pricing here") is None
 
 
+# The live bundle re-minified the tier var (Gt -> Yt, and it churns every build) and references
+# the array via a spread with a non-numeric sentinel limit. Parsing must be VAR-NAME-AGNOSTIC and
+# must NOT pick up the spread's `Number.MAX_SAFE_INTEGER` band. (This is the real 2026-06-10 break:
+# endpoint was up, but the Gt-pinned regex matched nothing → silent baked fallback.)
+CURRENT_BUNDLE = (
+    'e.MOONBEAM="moonbeam"))(Vn||{});var Yt=[{limit:1e3,pricePerPage:0},'
+    '{limit:5e4,pricePerPage:.17},{limit:5e5,pricePerPage:.12},{limit:1e6,pricePerPage:.06},'
+    '{limit:5e6,pricePerPage:.04},{limit:5e7,pricePerPage:.03}],Wn=t=>{};'
+    'function f(t,e,i){let r=[...Yt,{limit:Number.MAX_SAFE_INTEGER,pricePerPage:.03}];return r}'
+)
+
+
+def test_parse_tiers_is_var_name_agnostic_and_ignores_spread():
+    tiers = fp.parse_tiers(CURRENT_BUNDLE)
+    assert tiers == [
+        {"limit": 1_000, "pricePerPage": 0.0},
+        {"limit": 50_000, "pricePerPage": 0.17},
+        {"limit": 500_000, "pricePerPage": 0.12},
+        {"limit": 1_000_000, "pricePerPage": 0.06},
+        {"limit": 5_000_000, "pricePerPage": 0.04},
+        {"limit": 50_000_000, "pricePerPage": 0.03},
+    ]  # exactly the 6 numeric bands — the Number.MAX_SAFE_INTEGER spread band must not leak in
+
+
 def test_validate_tiers():
     assert fp.validate_tiers(cs.BAKED_TIERS) is True
     assert fp.validate_tiers(None) is False

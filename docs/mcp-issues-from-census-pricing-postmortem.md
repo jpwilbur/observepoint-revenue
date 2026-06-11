@@ -90,11 +90,12 @@ rather than returning a bare 403.
 
 ## Already handled / not MCP (no MCP action needed)
 
-- **Pricing-endpoint reachability is plugin/environment, NOT MCP.** `fetch_pricing.py`'s live fetch
-  from `app.observepoint.com/www-pricing/main.js` didn't resolve in the agent sandbox and fell back
-  to the baked table (4 days old, so fine). The fetch and the baked fallback both live in the plugin
-  and behaved exactly as designed — the MCP server isn't in this path at all. Plugin-side follow-up
-  only: keep the baked table on a refresh cadence (tracked in the plugin ROADMAP).
+- **Pricing fetch is plugin-side, NOT MCP — and it was a real plugin bug (now fixed).** The live
+  fetch from `app.observepoint.com/www-pricing/main.js` was silently falling back to the baked table
+  because the pricing bundle had renamed its tier variable (`Gt`→`Yt`) and the parser pinned the old
+  name. The endpoint was reachable the whole time. Fixed in plugin **v0.11.1** — the parser now
+  anchors on the `[{limit,pricePerPage},…]` array shape (var-name-agnostic). The MCP server isn't in
+  this path at all; no MCP action.
 
 - **Page-count rounding** (proposal read "approximately 0 pages" for TKO; Calix 4,722 and Gilead 5,398
   both collapsed to "5,000") — fixed plugin-side in v0.11.0 (`build_proposal._round_sig`, 2-sig-fig).
