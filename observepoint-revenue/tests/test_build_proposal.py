@@ -108,6 +108,35 @@ def test_clean_guard_allows_collision_identity():
     assert "Discount Tire Co" in t
 
 
+def _with_anchor(low, anchor, high):
+    d = json.loads(json.dumps(DATA))
+    d["page_count"].update(low=low, anchor=anchor, high=high)
+    return d
+
+
+def test_round_sig_preserves_small_and_distinguishes_neighbors():
+    # The bug: round-to-nearest-1000 turned ~80 pages into "0" and collided 4,722 & 5,398 at "5,000".
+    assert bp._round_sig(80) == 80          # was 0
+    assert bp._round_sig(4_722) == 4_700    # was 5,000
+    assert bp._round_sig(5_398) == 5_400    # was 5,000 (collided with 4,722)
+    assert bp._round_sig(95_721) == 96_000  # matches the methodology's 2-sig-fig example
+    assert bp._round_sig(108_155) == 110_000
+    assert bp._round_sig(0) == 0
+
+
+def test_small_footprint_not_zero():
+    t = _text(bp.build_proposal(_with_anchor(80, 80, 80)))
+    assert "80 pages" in t                       # the real count, not collapsed
+    assert "approximately 0 pages" not in t      # the bug symptom: round-to-1000 made ~80 read as 0
+    assert "range 0–0" not in t
+
+
+def test_neighbor_counts_render_distinctly():
+    tc = _text(bp.build_proposal(_with_anchor(4_722, 4_722, 4_722)))
+    tg = _text(bp.build_proposal(_with_anchor(5_398, 5_398, 5_398)))
+    assert "4,700 pages" in tc and "5,400 pages" in tg   # not both collapsed to "5,000 pages"
+
+
 def test_cli_writes_docx(tmp_path):
     f = tmp_path / "in.json"; f.write_text(json.dumps(DATA))
     out = tmp_path / "p.docx"

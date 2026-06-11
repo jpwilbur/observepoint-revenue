@@ -23,7 +23,8 @@ Set `SCRIPTS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts` and `REFS=${
 2. **Find the census.** `list_site_censuses({search:<customer surname/brand>})` (names are `[Rep][Rep] Customer`). One → proceed. Multiple → disambiguate. None → **cold start**: do NOT invent a number; offer to create + start one (behind the write gate), tell the rep a fresh crawl takes hours-to-days, never block waiting.
 3. **Size + sweep.** `size_site_census({censusId})` at default thresholds, then sweep (5000/1.3, 10000/1.5, 20000/2.0). Read per-hostname URLs/paths/spiral flags + the three totals.
 4. **Derive the range** per the reference: anchor = spiral-adjusted total; band from the sweep spread; HIGH gets the incompleteness uplift `urlsToVisit × pathFloor/visitedUrls`; clamp to the sanity ceiling; round to ~2 sig figs; assign confidence.
-5. **Emit `{rollup, per_domain[]}`** + the discounted-spiral transparency line. `size_site_census` itemizes only the top ~40 hostnames — on bigger accounts add a single labeled **tail-aggregate row** so `per_domain` sums to the anchor. Pull ~5–6 real sample pages per itemized domain into `url_samples` via the links grid (clean pages, never fabricated).
+5. **Artifact check (required before quoting).** "No spiral flagged" ≠ clean: in-path crawler junk (`%22`/escaped-quote/doubled-slash) inflates URLs and paths equally, so the spiral gate misses it (TKO: 306 raw → ~80 real, ~4×). Tell = `patterns` ≪ `raw_urls` at url/path ratio ~1. Pull a host sample **without** the `%22` filter and run `python3 "$SCRIPTS/check_artifacts.py" <urls.json>`; verdict `inflated` → quote the clean count (its `patterns` count), not the raw/spiral-adjusted total. See `$REFS/site-census-methodology.md`.
+6. **Emit `{rollup, per_domain[]}`** + the discounted-spiral transparency line. `size_site_census` itemizes only the top ~40 hostnames — on bigger accounts add a single labeled **tail-aggregate row** so `per_domain` sums to the anchor. Pull ~5–6 real sample pages per itemized domain into `url_samples` via the links grid (clean pages, never fabricated).
 
 **Spiral-adjusted rule:** `defensible_pages` per domain = **paths for spiral-flagged domains, distinct URLs otherwise.** A domain is a spiral only when BOTH gates trip (overage > threshold AND ratio > threshold). Substitute paths for a spiral domain — do not drop it, do not apply paths to non-spiral domains. Per-domain `defensible_pages` MUST sum to the anchor.
 
@@ -57,6 +58,7 @@ There is **one** Stage-1 object and it feeds BOTH pricing and the deliverables. 
 |---|---|
 | "No census yet, the rep needs a number — I'll estimate ~10k." | A fabricated count is the failure this tool prevents. Cold-start hand-off; return when the crawl completes. |
 | "Quote the raw URL total — it's the biggest number." | Query-param inflation; dies under scrutiny. Anchor = spiral-adjusted. |
+| "No spiral flagged, so the count is clean." | In-path `%22`/doubled-slash crawler junk defeats the spiral gate (inflates URLs and paths equally). `patterns` ≪ `raw_urls` at ratio ~1 is the tell — run `check_artifacts.py` before quoting. |
 | "That spiral domain isn't real pages — exclude it." | It has real pages (its paths). Spiral-ADJUST, don't exclude. |
 | "I'll add 20% headroom for safety/growth." | The range is data-driven (sweep + uplift + ceiling), not an invented percentage. |
 | "The rep's in a hurry — use the flat $0.135." | That rate is dead. The live graduated price from the scripts IS the quote; no in-skill override. |
