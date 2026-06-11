@@ -52,7 +52,9 @@ string. Use these exact keys:
 - **regulatoryExposure** — subject to HIPAA, CCPA/CPRA and the broader US state patchwork, GDPR, FERPA,
   GLBA, or COPPA.
 - **tagPixelDensity** — a real marketing-technology stack (GTM, Tealium, Adobe Launch, Segment) plus a
-  heavy third-party pixel/ad/analytics footprint.
+  heavy third-party pixel/ad/analytics footprint. Identify the stack from homepage script signatures:
+  GTM (`googletagmanager.com/gtm.js`), GA4 (`gtag`), Adobe Launch (`assets.adobedtm.com`), Tealium
+  (`tags.tiqcdn.com`), Segment (`cdn.segment.com`), Meta Pixel (`fbevents.js`).
 - **webScale** — a large, complex web estate: many pages, multiple domains or brands, single-page-app
   surfaces, login-gated areas.
 - **targetVertical** — in a target vertical (the app supplies the current list; healthcare, financial
