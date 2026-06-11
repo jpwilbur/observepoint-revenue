@@ -20,7 +20,6 @@ was found, and one census that the tooling would have over-scoped ~4× had it no
 5. **#A6** `%22` artifact detection in `size_site_census` (revenue-impacting; plugin now guards, but the data fix belongs here)
 6. **#A7** sticky impersonation during an active task
 7. **#A4** fresh-census name-index lag + `string_contains` bracket escaping
-8. **#A8** confirm pricing endpoint reachability from the agent sandbox
 
 ---
 
@@ -87,18 +86,15 @@ size call ran on the admin account → 403s, forcing repeated `login_as_account`
 window); at minimum, have census tools detect "you're no longer in 32527" and say so explicitly
 rather than returning a bare 403.
 
-## #A8 — confirm pricing endpoint reachability from the agent sandbox
-
-The plugin's `fetch_pricing.py` live fetch from `app.observepoint.com/www-pricing/main.js` didn't
-resolve in the agent's environment and fell back to the baked table (4 days old, so fine, but flagged
-per protocol). Not strictly an MCP-tool issue, but worth confirming the pricing endpoint is reachable
-from the agent's network sandbox.
-**Fix:** confirm reachability; if the sandbox can't reach it, consider exposing live pricing through an
-MCP tool so the agent has a first-class path that isn't network-restricted.
-
 ---
 
-## Already handled (no MCP action needed)
+## Already handled / not MCP (no MCP action needed)
+
+- **Pricing-endpoint reachability is plugin/environment, NOT MCP.** `fetch_pricing.py`'s live fetch
+  from `app.observepoint.com/www-pricing/main.js` didn't resolve in the agent sandbox and fell back
+  to the baked table (4 days old, so fine). The fetch and the baked fallback both live in the plugin
+  and behaved exactly as designed — the MCP server isn't in this path at all. Plugin-side follow-up
+  only: keep the baked table on a refresh cadence (tracked in the plugin ROADMAP).
 
 - **Page-count rounding** (proposal read "approximately 0 pages" for TKO; Calix 4,722 and Gilead 5,398
   both collapsed to "5,000") — fixed plugin-side in v0.11.0 (`build_proposal._round_sig`, 2-sig-fig).
