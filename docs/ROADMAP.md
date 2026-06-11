@@ -67,7 +67,8 @@ HTML→PDF dossier. Uniform output under `~/Documents/ObservePoint Revenue/<tool
   detection in `size_site_census`, sticky impersonation).
 - [ ] Update the **research-account spec doc** (still says `.docx`; it's now HTML→PDF).
 - [ ] Document the **PDF-engine fallback** (Chrome → weasyprint → HTML) / optional dep.
-- [ ] **Refresh the baked pricing table** on a cadence — `fetch_pricing.py`'s live fetch can fail in
-  an agent sandbox and fall back to the baked tiers (worked as designed; keep them recent). Plugin/
-  environment, not MCP.
+- [ ] **Keep the baked pricing table fresh** — it's the fallback when the live fetch fails. (The live
+  fetch itself was silently broken by a bundle var-name churn `Gt→Yt` and fixed in **v0.11.1** by
+  anchoring the parser on the tier-array *shape* instead of the var name; re-verify if ObservePoint
+  ever restructures the pricing bundle further.)
 - [ ] Optional **OP logo mark** in the dossier header (currently a text wordmark); dark/light tuning.

@@ -1,5 +1,5 @@
 {
   "name": "observepoint-revenue",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "ObservePoint revenue-team tooling suite. Capabilities: find-accounts (surface in-territory, ICP-fit, triggered prospects ranked by why-now strength), owned-properties (discover all the web properties an org owns into a confirmable inventory + a domain list for scoping), scope-calculator (derive a defensible page count, size annual usage, price against ObservePoint's live pricing, and produce a customer proposal + evidence workbook), and research-account (research and qualify a named prospect into a scored, evidence-backed ICP dossier). More revenue tools to come."
 }

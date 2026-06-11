@@ -12,18 +12,21 @@ import urllib.request
 from compute_scope import BAKED_TIERS, BAKED_AS_OF
 
 BUNDLE_URL = "https://app.observepoint.com/www-pricing/main.js"
-# Targets the minified (no-whitespace) bundle. The negative lookbehind keeps us from
-# matching a sibling minified var like `vGt=`. If the bundle is ever reformatted (added
-# whitespace) and this misses, fetch_pricing() degrades to the baked fallback (source
-# reports "fallback") rather than crashing or serving wrong data.
-_GT_RE = re.compile(r"(?<![A-Za-z_$])Gt=\[(\{limit:.*?\})\]")
+# Locate the graduated-tier array by its STABLE SHAPE, not the minified var name — that name churns
+# every build (it was `Gt=` in June 2026, became `Yt=`, and will change again). Anchor on
+# `=[{limit:N,pricePerPage:N},…]` and require >=5 bands so neither a 1-band sibling array nor a
+# `[...Yt,{limit:Number.MAX_SAFE_INTEGER,pricePerPage:…}]` spread (non-numeric limit) can match.
+# If the bundle is ever reformatted past this, fetch_pricing() degrades to the baked fallback
+# (source reports "fallback") rather than crashing or serving wrong data.
+_BAND = r"\{limit:[\deE.+-]+,pricePerPage:[\d.]+\}"
+_TIERS_RE = re.compile(r"=\[(" + _BAND + r"(?:," + _BAND + r"){4,})\]")
 _BAND_RE = re.compile(r"\{limit:([\deE.+-]+),pricePerPage:([\d.]+)\}")
 
 
 def parse_tiers(js_text):
-    """Extract the Gt=[...] tier array from bundle text → list of
-    {limit, pricePerPage}, or None if not found."""
-    m = _GT_RE.search(js_text)
+    """Extract the graduated-tier array (`<var>=[{limit,pricePerPage},…]`) from bundle text →
+    list of {limit, pricePerPage}, or None if not found. Var-name-agnostic by design."""
+    m = _TIERS_RE.search(js_text)
     if not m:
         return None
     bands = [
