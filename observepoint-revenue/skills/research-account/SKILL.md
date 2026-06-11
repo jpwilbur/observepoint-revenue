@@ -29,15 +29,11 @@ keys and `whyNow` scoreKeys you must use).
 1. **Resolve the domain.** Use the given domain, or find the prospect's primary domain via a quick
    `WebSearch`.
 
-2. **Default scan (always):**
-   - Call `detect_cmp({url: "https://<domain>/"})`. Record the CMP vendor (or none) and the
-     `supported` flag.
-   - **Tag/pixel inventory:** `WebFetch` the homepage (and 1–2 high-value pages) and identify the
-     MarTech/pixel stack from script signatures — GTM (`googletagmanager.com/gtm.js`), GA4 (`gtag`),
-     Adobe Launch (`assets.adobedtm.com`), Tealium (`tags.tiqcdn.com`), Segment, Meta Pixel
-     (`fbevents.js`), etc.
-   - **Caveat:** a POSITIVE finding is evidence; a NEGATIVE is inconclusive (static fetch misses
-     dynamically-injected tags / lazy CMPs). Never assert "no CMP / no tags" from a null scan.
+2. **Default scan (always):** `detect_cmp({url: "https://<domain>/"})` (record vendor or none + the
+   `supported` flag), then `WebFetch` the homepage (+ 1–2 key pages) for the MarTech/pixel stack via
+   the script signatures in `trigger-and-fit.md`. **Caveat:** a POSITIVE finding is evidence; a
+   NEGATIVE is inconclusive (static fetch misses dynamically-injected tags / lazy CMPs) — never
+   assert "no CMP / no tags" from a null scan.
 
 3. **`--deep-scan` only:** if the rep asked for it and a relevant Site Census exists, call
    `size_site_census` to measure `webScale` (real page count, multi-domain/SPA complexity); put the
@@ -52,14 +48,13 @@ keys and `whyNow` scoreKeys you must use).
      antitrust, product-safety).
    - Write the dossier fields (overview, pain hypotheses, competitor intel, tech-stack notes, best
      opening angle = INTERNAL strategy, research sources).
-   - Source **2–5 real, currently-employed** contacts: name, title, linkedin, `sourceVerified`,
-     `sourceUrl`, `personalizationHook`, `toneGuidance`, `avoid`. **No placeholders, no fabricated
-     people or sources.** If you cannot verify a person, set `sourceVerified:false` (the dossier
-     flags them as held back) — never invent.
+   - Source **2–5 real, currently-employed** contacts with the fields in `research-and-contacts.md`.
+     **Never fabricate a person or source** — if you can't verify someone, set `sourceVerified:false`
+     and the dossier flags them held back.
 
-5. **Write the classification JSON** to a temp file (e.g. `/tmp/<slug>-classification.json`) with
-   keys: `account`, `domain`, `prepared_by`, `date` (today's date), `scan{}`, `fit[]`,
-   `triggers[]`, `rationale`, `research{}`, `contacts[]`. (See the spec §4 for the exact shape.)
+5. **Write the classification JSON** (`/tmp/<slug>-classification.json`) with the shape in spec §4
+   (`account`, `domain`, `prepared_by`, `date`, `scan{}`, `fit[]`, `triggers[]`, `rationale`,
+   `research{}`, `contacts[]`).
 
 6. **Score it:**
    ```bash
@@ -70,16 +65,11 @@ keys and `whyNow` scoreKeys you must use).
    ```bash
    python3 "$SKILL/scripts/build_dossier.py" /tmp/<slug>-scored.json "<out>.pdf"
    ```
-   This writes a self-contained `<out>.html` (opens in any browser, looks like the NERD
-   account-detail screen) and freezes it to `<out>.pdf` — via headless Chrome if present, else
-   weasyprint; if neither is available it writes the HTML only and the rep prints it. The script
-   prints the path it produced.
-   **Output location (uniform across the plugin) — one folder per account:** if the rep named a base
-   folder use it, otherwise default to `~/Documents/ObservePoint Revenue/Account Research/`. Create a
-   **per-account subfolder** inside it and write the deliverable there — i.e.
-   `~/Documents/ObservePoint Revenue/Account Research/<Company>/<Company> - research dossier.pdf`.
-   Expand `~` to the home dir and `mkdir -p` the per-account folder first; never leave the deliverable
-   in a temp dir. (Only the `.pdf` is written; see the script.)
+   Freezes a self-contained dark dossier to `.pdf` (headless Chrome → weasyprint → HTML fallback;
+   the script prints the path). **Output location (uniform across the plugin) — one folder per
+   account:** rep-named base folder, else default `~/Documents/ObservePoint Revenue/Account Research/`;
+   create a **per-account subfolder** and write `<Company> - research dossier.pdf` there. Expand `~`,
+   `mkdir -p` first, never a temp dir. (Only the `.pdf` lands.)
 
 8. **Summarize in chat:** final score, QUALIFIED/NOT, dominant fit angle, the top trigger, number of
    sourced vs held-back contacts, and the `.pdf` path.
