@@ -26,6 +26,7 @@ Input schema (all keys tolerant; orchestrator assembles from derive-page-count +
 }
 """
 import json
+import math
 import pathlib
 import sys
 
@@ -56,8 +57,15 @@ def _int(n):
     return f"{int(round(n)):,}"
 
 
-def _round_k(n):
-    return int(round(n / 1000.0)) * 1000
+def _round_sig(n, sig=2):
+    """Round to ~2 significant figures for customer-facing display (matches the site-census
+    methodology). Round-to-nearest-1000 erased small footprints (80 -> 0) and collapsed neighbours
+    (4,722 & 5,398 -> 5,000); 2-sig-fig keeps 80 -> 80, 4,722 -> 4,700, 5,398 -> 5,400, 95,721 -> 96,000."""
+    n = float(n)
+    if n == 0:
+        return 0
+    d = sig - 1 - math.floor(math.log10(abs(n)))
+    return int(round(n, d))
 
 
 def _usd(n):
@@ -255,8 +263,8 @@ def build_proposal(data):
     _section(doc, "1. Your web footprint")
     _para(doc, f"We scanned your web properties to establish how many real pages ObservePoint "
                f"would monitor. Your validated footprint is approximately "
-               f"{_int(_round_k(pc['anchor']))} pages "
-               f"(range {_int(_round_k(pc['low']))}–{_int(_round_k(pc['high']))}; "
+               f"{_int(_round_sig(pc['anchor']))} pages "
+               f"(range {_int(_round_sig(pc['low']))}–{_int(_round_sig(pc['high']))}; "
                f"confidence {pc.get('confidence', 'MEDIUM')}).")
     if data.get("properties_note"):
         _para(doc, data["properties_note"] + " The full property list is in the attached evidence "
@@ -271,7 +279,7 @@ def build_proposal(data):
     badge_cells = badge_t.rows[0].cells
     badge_cells[0].width = Inches(1.6)
     badge_cells[1].width = Inches(2.4)
-    _chip(badge_cells[0], _int(_round_k(pc["anchor"])) + " pages", YELLOW_HEX, DARK, size=14)
+    _chip(badge_cells[0], _int(_round_sig(pc["anchor"])) + " pages", YELLOW_HEX, DARK, size=14)
     confidence = str(pc.get("confidence", "MEDIUM")).upper()
     conf_fill = {"HIGH": GREEN_HEX, "MEDIUM": YELLOW_HEX}.get(confidence, MIDGRAY_HEX)
     conf_tcolor = WHITE if confidence == "HIGH" else DARK

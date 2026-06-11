@@ -9,6 +9,10 @@ HTML→PDF dossier. Uniform output under `~/Documents/ObservePoint Revenue/<tool
 
 > **v0.10.0 — pricing skills consolidated.** `derive-page-count` and `size-and-price` were merged into `scope-calculator` (they were three front doors to one job). The deterministic engine is unchanged — `compute_scope.py`, `fetch_pricing.py`, `build_evidence_appendix.py` just moved under `scope-calculator/scripts/`; the SKILL.md now has three entry paths (full scope / known page count / count only). 111 tests still green.
 
+> **v0.10.1 — docs cleanup.** Added a dev-facing `CLAUDE.md`; trimmed the two long SKILLs by moving exhaustive detail into references.
+
+> **v0.11.0 — census-pricing post-mortem fixes.** (1) `build_proposal` page-count display rounded to the nearest 1,000, which read "approximately 0 pages" for a ~80-page prospect and collapsed 4,722 & 5,398 both to "5,000" — replaced with 2-sig-fig rounding (`_round_sig`) matching the methodology. (2) New `check_artifacts.py` + a **required pre-quote gate**: in-path `%22`/doubled-slash crawler junk defeats the spiral gate (it inflates URLs and paths equally), so a ~80-page census read as 306 (~4× over-scope); the tell is `patterns ≪ raw_urls` at url/path ratio ~1. 120 tests. MCP-side counterparts are catalogued in `docs/mcp-issues-from-census-pricing-postmortem.md` (for the OP_MCP repo).
+
 ---
 
 ## ✅ Recently shipped
@@ -55,6 +59,12 @@ HTML→PDF dossier. Uniform output under `~/Documents/ObservePoint Revenue/<tool
 - [ ] **journeys as a 2nd usage meter** in scope-calculator **[deferred]**.
 
 ## Hygiene / polish
+- [ ] **Sub-threshold prospect path** **[idea]** — a ~80-page prospect (TKO) lands in the free
+  page-scan band; consider a dedicated "below metered threshold / platform + Journeys" proposal
+  template instead of the standard volume proposal. (Raised in the census-pricing post-mortem.)
+- [ ] **MCP-side census/grid fixes** **[OP_MCP repo]** — see `docs/mcp-issues-from-census-pricing-postmortem.md`
+  (census→audit-id mapping, `analyze_site_census_blocking`, `pages`-entity hint, `%22` artifact
+  detection in `size_site_census`, sticky impersonation).
 - [ ] Update the **research-account spec doc** (still says `.docx`; it's now HTML→PDF).
 - [ ] Document the **PDF-engine fallback** (Chrome → weasyprint → HTML) / optional dep.
 - [ ] Optional **OP logo mark** in the dossier header (currently a text wordmark); dark/light tuning.

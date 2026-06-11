@@ -170,6 +170,24 @@ Notes (all learned from live use, read-only query):
   **server-side bulk endpoint** (one call returning a compact `{hostname: [urls]}` map) is the right
   tool — see the SKILL's note; until it exists, the top-N + spirals rule is the default.
 
+**Artifact check (REQUIRED before you quote a count).** The spiral gate is blind to junk that lives
+in the PATH. An unrendered crawler mis-parsing escaped-quote hrefs emits URLs like
+`/%22//news///%22`, which inflate distinct URLs AND distinct paths **equally** — so url/path ratio
+stays ~1, NO spiral flags, yet the raw total can be several× the real page count (TKO: 306 raw → ~80
+real, ~4×, which would have over-scoped the deal). The free tell is in data you already have:
+**`patterns` ≪ `raw_urls` while url/path ratio is ~1** (TKO `patterns`=79 vs `raw_urls`=306). When
+you see that — or as a gate on any account before quoting — confirm with a sample that does NOT
+filter the junk:
+
+- Pull a host sample with the SAME grid query but **drop the `%22` and asset exclusions** (keep the
+  `SITE_CENSUS_ID` + `//<hostname>` filters), `size` ~50–100, and write the returned `LINK_URL`s to a JSON list.
+- Run `python3 "$SCRIPTS/check_artifacts.py" <urls.json>` — it flags `%22`, literal quotes, and
+  doubled-slash paths. **Verdict `inflated`** (≥20% junk) means the raw/spiral-adjusted total for that
+  host is parser junk, not pages → quote the **clean** count for it (its `patterns` count, or
+  `raw_urls × (1 − artifact_pct)`), note it in the evidence, and lower confidence. **`clean`** → quote
+  as normal. This is the check the `%22`-excluding sample query above CANNOT do — that query hides the
+  junk by design, so it can't measure the junk rate.
+
 Also surface, in the rep-facing summary: the range (narrow, rounded), the anchor, a recommended
 quoting number within the band, confidence + one-line reason, the **inflation discounted**
 (e.g. "excluded ~388k query-param URLs across 6 domains; largest www.1stagency.com 266,042 → 761 real
@@ -183,6 +201,9 @@ used (census id/name, domains, thresholds swept).
   go-ahead, `confirm_account_plan`, act, then `stop_impersonation` when done.
 - **Never** quote the raw URL total as "the number." **Never** emit an absurd range — the ceiling
   prevents it. **Never** fabricate a count when no census exists — cold-start hand-off instead.
+- **Never quote a count without the artifact check (§5).** "No spiral flagged" does NOT mean clean —
+  in-path `%22`/doubled-slash crawler junk defeats the spiral gate (it inflates URLs and paths
+  equally). `patterns` ≪ `raw_urls` at url/path ratio ~1 is the tell; confirm with `check_artifacts.py`.
 - A single census can hold many starting URLs (Gallagher had ~240 domains under one census).
   Customers may be split across censuses — use `censusIds[]` to merge, or ask which to include.
 - On a final grid failure the tool falls back to kicking off a Links export (downloadable only in the
