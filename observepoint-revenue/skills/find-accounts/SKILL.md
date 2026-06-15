@@ -12,6 +12,9 @@ deep-research them.
 You judge (territory, triggers, evidence); `rank_candidates.py` does the mechanics (validation,
 seen-log dedup, ranking with research-account's trigger weights + recency decay).
 
+**Tool fence:** The sweep uses `WebSearch` (and `WebFetch` to read a specific result) ONLY. Do NOT
+open a browser / Playwright / Claude-in-Chrome or any page-rendering/scraping tool.
+
 Set `SKILL=${CLAUDE_PLUGIN_ROOT}/skills/find-accounts` and
 `SCORING=${CLAUDE_PLUGIN_ROOT}/skills/research-account/references/scoring-config.json`.
 Read first: `$SKILL/references/discovery-sources.md` (sources, hard rules) and the `whyNow` keys +
@@ -39,6 +42,14 @@ Read first: `$SKILL/references/discovery-sources.md` (sources, hard rules) and t
    A per-run override ("just healthcare this time") adjusts THIS run only — never rewrite the file
    for an override. Territory is a hard boundary: when in doubt, leave the company out.
 
+   **Shared-machine state guard.** This skill reads/writes per-home-dir state under
+   `~/Documents/ObservePoint Revenue/`. On a SHARED training laptop that cross-contaminates reps.
+   `territory.md` carries a rep name in its `# Territory — <rep name>` header: confirm WHOSE file
+   this is, and if the rep running differs from the file's owner, WARN and ASK before using or
+   overwriting it (offer a per-run override instead of a rewrite). Likewise the seen-log
+   (`Account Discovery/seen-candidates.json`) is per-machine and may hold another rep's history —
+   note that out loud so an "already seen" exclusion isn't mistaken for the current rep's own.
+
 2. **Exclusions.** Union of: (a) subfolder names under
    `~/Documents/ObservePoint Revenue/Account Research/` (already researched — `ls` it),
    (b) any rep-supplied pipeline list, (c) the seen-log (the script enforces that one). Also skip
@@ -60,11 +71,22 @@ Read first: `$SKILL/references/discovery-sources.md` (sources, hard rules) and t
    ```
 
    Add `--include-seen` only when the rep asked to refresh/re-include. The script drops
-   previously-seen names, appends new ones to the log, and prints the ranked list.
+   previously-seen names, appends new ones to the log, and prints the ranked list. It also
+   deprioritizes and flags off-ICP verticals (`⚠ off-ICP vertical: …`) — it never silently drops
+   them, so surface them too, clearly marked. Run the script with a Python that has openpyxl for
+   the `--xlsx` path (prefer `/opt/homebrew/bin/python3`).
 
-6. **Summarize in chat:** the ranked list (name, trigger, points, date, reason, source link), which
-   territory/verticals were used, and how many were excluded as previously seen. Then **offer**:
-   (a) the spreadsheet export, (b) a research-account run on the top pick.
+6. **Summarize in chat:** the ranked list (name, trigger, points, date, reason, source link),
+   off-ICP flags carried through, which territory/verticals were used, and how many were excluded
+   as previously seen. Then **offer**: (a) the spreadsheet export, (b) a research-account run on the
+   top pick.
+
+   **Reconciliation / quiet-territory signal.** The three state locations are distinct, don't
+   conflate them: `territory.md` (region + verticals), `Account Research/` subfolders (already-
+   researched exclusions), and `Account Discovery/seen-candidates.json` (already-surfaced
+   exclusions). When the list comes back thin, surface "territory looks quiet — only N strong leads
+   found across M sources swept" so the rep can tell a genuinely quiet territory from a shallow
+   sweep (and decide whether to widen the sweep or accept fewer).
 
 7. **Only if the rep wants the export**, rerun step 5 with
    `--xlsx "$HOME/Documents/ObservePoint Revenue/Account Discovery/<YYYY-MM-DD> - discovery radar.xlsx"`

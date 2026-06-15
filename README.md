@@ -47,6 +47,17 @@ Optional — for background auto-updates at startup against this private repo, s
 export GH_TOKEN=...        # or GITHUB_TOKEN
 ```
 
+## First 10 minutes (for a new rep)
+
+1. **Install + update** (above). Re-run `marketplace update` weekly — the plugin ships fixes often (e.g. the live-pricing parser).
+2. **Say one of these to start a skill** — Claude routes automatically:
+   - *"Find me accounts in my territory"* → **find-accounts** (first run asks your region + verticals once and saves them).
+   - *"Research Acme Corp"* / *"is Acme a good fit?"* → **research-account** (scored dossier PDF).
+   - *"What domains does Acme own?"* → **owned-properties** (confirmable inventory `.xlsx`).
+   - *"Scope Acme"* / *"what would 50k pages cost?"* → **scope-calculator** (proposal `.docx` + evidence `.xlsx`).
+3. **Where outputs land:** everything goes under `~/Documents/ObservePoint Revenue/<tool>/<Account>/`. Nothing is sent anywhere — these are local drafts you review before using.
+4. **Two things to know:** scope-calculator needs a Site Census to already exist for the account (if none does, it'll tell you and offer to start one — a fresh crawl takes hours-to-days); and pricing is always pulled live, so if you ever see a "FALLBACK — verify before sending" note, double-check the number before quoting.
+
 ## Layout
 
 - `observepoint-revenue/` — the plugin (skills, scripts, tests)
@@ -57,5 +68,5 @@ export GH_TOKEN=...        # or GITHUB_TOKEN
 ## Tests
 
 ```
-python3 -m pytest observepoint-revenue/tests -q     # 63 passing
+/opt/homebrew/bin/python3 -m pytest observepoint-revenue/tests -q     # 162 passing
 ```

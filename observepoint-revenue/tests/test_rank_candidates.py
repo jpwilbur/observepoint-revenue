@@ -258,3 +258,79 @@ def test_xlsx_first_seen_marks_previously_seen_rows(tmp_path):
             .iter_rows(min_row=2, values_only=True)}      # Company -> First seen
     assert rows["Alpha Co"] == AS_OF                       # previously seen → marked
     assert rows["Beta Co"] in (None, "")                   # new this run → blank
+
+
+# ── Hardening A: ICP-fit dimension in ranking ────────────────────────────────
+
+def test_on_icp_beats_off_icp_despite_more_points():
+    # Healthcare enterprise: enforcementAction 25 pts, 7mo old (2025-11-09 → ~7.0mo → decay) ≈ 24.
+    # "food service" micro-company: pixelWiretapSuit 30 pts, fresh (2026-06-01 → 30).
+    # On-ICP must rank FIRST even though it has fewer effective points; off-ICP is flagged.
+    ranked, dropped, new = rc.rank(_data([
+        _cand("Coffee LLC", key="pixelWiretapSuit", date="2026-06-01",
+              vertical="food service (NOT a target vertical)"),
+        _cand("Mercy Health Enterprise", key="enforcementAction", date="2025-11-09",
+              vertical="healthcare"),
+    ]), CONFIG)
+    assert [e["name"] for e in ranked] == ["Mercy Health Enterprise", "Coffee LLC"]
+    assert ranked[0].get("off_icp") in (False, None)
+    assert ranked[1]["off_icp"] is True
+    # sanity: the off-ICP one really does have more effective points
+    assert ranked[1]["effectivePoints"] > ranked[0]["effectivePoints"]
+
+
+def test_normalized_vertical_match_counts_as_on_icp():
+    # "retail & e-commerce" is a targetVertical; "retail" candidate should normalize-match it.
+    ranked, _, _ = rc.rank(_data([_cand("Shopify-ish Co", vertical="Retail")]), CONFIG)
+    assert ranked[0].get("off_icp") in (False, None)
+
+
+def test_off_icp_flag_present_and_chat_tags_it():
+    ranked, dropped = rc.rank(_data([_cand("Coffee LLC", vertical="food service")]), CONFIG)[:2]
+    assert ranked[0]["off_icp"] is True
+    chat = rc.render_chat(ranked, dropped)
+    assert "off-ICP" in chat
+    assert "food service" in chat
+
+
+def test_cli_tags_off_icp_in_stdout(tmp_path):
+    res = _run_cli(tmp_path, _data([_cand("Coffee LLC", vertical="food service")]))
+    assert res.returncode == 0, res.stderr
+    assert "off-ICP" in res.stdout
+
+
+# ── Hardening B: blank-radar export guard ────────────────────────────────────
+
+def test_xlsx_empty_ranked_set_warns_and_writes_no_file(tmp_path):
+    # Seed the seen-log with Alpha, then re-run WITHOUT --include-seen and request --xlsx:
+    # the ranked set is empty, so no header-only workbook may be silently written at exit 0.
+    seen = tmp_path / "seen.json"
+    _run_cli(tmp_path, _data([_cand("Alpha Co")]), "--seen", str(seen))
+    out = tmp_path / "radar.xlsx"
+    res = _run_cli(tmp_path, _data([_cand("Alpha Co")]), "--seen", str(seen), "--xlsx", str(out))
+    assert not out.exists(), "an empty header-only radar was silently written"
+    assert "include-seen" in res.stderr.lower()
+    # loud warning visible on stderr (not a clean exit-0 with no signal)
+    assert res.stderr.strip() != ""
+
+
+def test_xlsx_nonempty_export_still_writes(tmp_path):
+    # The guard must not break the normal non-empty export.
+    out = tmp_path / "radar.xlsx"
+    res = _run_cli(tmp_path, _data([_cand("Alpha Co")]), "--xlsx", str(out))
+    assert res.returncode == 0, res.stderr
+    assert out.exists() and str(out) in res.stdout
+
+
+# ── Hardening C: clear error if scoring-config path is missing ───────────────
+
+def test_cli_missing_config_path_friendly_error(tmp_path):
+    f = tmp_path / "cands.json"
+    f.write_text(json.dumps(_data([_cand("Alpha Co")])))
+    bogus = tmp_path / "does-not-exist-config.json"
+    res = subprocess.run([sys.executable, str(SCRIPT), str(f), str(bogus)],
+                         capture_output=True, text=True)
+    assert res.returncode != 0
+    assert "scoring-config" in res.stderr
+    assert "Traceback" not in res.stderr
+    assert str(bogus) in res.stderr

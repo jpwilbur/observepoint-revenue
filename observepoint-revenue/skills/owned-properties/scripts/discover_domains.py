@@ -71,14 +71,20 @@ def _default_whois(domain):
         return ""
 
 
-def enumerate_crt(apex, fetcher=None):
-    """All hostnames under `apex` (same registrable domain) seen in CT. Empty set on any failure."""
+def enumerate_crt_with_status(apex, fetcher=None):
+    """Like enumerate_crt, but ALSO reports whether crt.sh was reachable so callers can tell a
+    FETCH-FAILED apex (lost subdomains) apart from a TRULY-ZERO one (no certs).
+
+    Returns (hosts:set, crt_status:str) where crt_status is:
+      - "ok"          the fetch succeeded (a body came back), even if it parsed to 0 hosts;
+      - "unreachable" every attempt raised or returned empty after all retries.
+    A refused seed (bare public suffix / TLD) is "unreachable" — we never queried crt.sh."""
     fetcher = fetcher or _default_fetcher
     reg = registrable_domain(apex)
     # Refuse a bare public suffix / TLD as the seed (e.g. "co.uk", "com") — it would over-match every
     # unrelated domain under that suffix.
     if "." not in reg or reg in _MULTI_SUFFIXES:
-        return set()
+        return set(), "unreachable"
     url = "https://crt.sh/?q=" + urllib.parse.quote("%." + apex) + "&output=json"
     text = ""
     for attempt in range(CRT_ATTEMPTS):  # crt.sh is flaky (503/empty); retry transient failures
@@ -90,7 +96,15 @@ def enumerate_crt(apex, fetcher=None):
             break
         if attempt < CRT_ATTEMPTS - 1:
             time.sleep(CRT_BACKOFF * (attempt + 1))
-    return {h for h in parse_crt_json(text) if registrable_domain(h) == reg}
+    if not text:  # raised or empty on every attempt -> fetch failed, NOT a genuine zero
+        return set(), "unreachable"
+    return {h for h in parse_crt_json(text) if registrable_domain(h) == reg}, "ok"
+
+
+def enumerate_crt(apex, fetcher=None):
+    """All hostnames under `apex` (same registrable domain) seen in CT. Empty set on any failure."""
+    hosts, _status = enumerate_crt_with_status(apex, fetcher)
+    return hosts
 
 
 def whois_registrant(domain, whois_fn=None):
@@ -115,12 +129,16 @@ def whois_registrant(domain, whois_fn=None):
 def discover(apex, fetcher=None, whois_fn=None):
     """Returns (compact_summary, all_hosts). The bulk host list is the SECOND value so callers must
     opt into it explicitly — the summary alone is safe to hand to an LLM (no thousands of hostnames)."""
-    hosts = sorted(enumerate_crt(apex, fetcher))
+    host_set, crt_status = enumerate_crt_with_status(apex, fetcher)
+    hosts = sorted(host_set)
     registrant = whois_registrant(apex, whois_fn)
     sources = ["crt.sh"] + (["whois"] if registrant else [])
     summary = {
         "seed": apex, "registrable": registrable_domain(apex), "registrant": registrant,
         "host_count": len(hosts), "sample_hosts": hosts[:SAMPLE_CAP], "sources": sources,
+        # "ok" = crt.sh answered (0 hosts means genuinely no certs); "unreachable" = fetch failed
+        # after retries, so host_count:0 is a LOST enumeration, not a real zero — flag & re-run.
+        "crt_status": crt_status,
     }
     return summary, hosts
 

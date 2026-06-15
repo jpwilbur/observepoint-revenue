@@ -134,21 +134,23 @@ tail-aggregate row so the invariant still holds:
 This is honest (top domains in detail + a transparent tail) and keeps the per-domain sum exact.
 
 **`url_samples` — pull real sample pages from the links grid.** `size_site_census` doesn't return
-sample URLs, but you can fetch them with `op_api_call`:
+sample URLs. **Do NOT hand-author the grid filter JSON** — that POST body is the most error-prone
+manual step in Stage 1. Build it deterministically with `fetch_samples.py`, then call `op_api_call`
+with it and parse the response with `parse_samples`:
 
 ```
-POST /v3/reports/grid/links
-{ "columns":[{"columnId":"LINK_URL","groupBy":true}],
-  "filters":{"conditionMatchMode":"all","conditions":[
-     {"operator":"integer_in","filteredColumn":{"columnId":"SITE_CENSUS_ID"},"args":[<censusId>],"negated":false},
-     {"operator":"string_contains","filteredColumn":{"columnId":"LINK_URL"},"arg":"//<hostname>","wildcardStart":true,"wildcardEnd":true,"negated":false},
-     {"operator":"string_contains","filteredColumn":{"columnId":"LINK_URL"},"arg":"?","wildcardStart":true,"wildcardEnd":true,"negated":true},
-     {"operator":"string_contains","filteredColumn":{"columnId":"LINK_URL"},"arg":"%22","wildcardStart":true,"wildcardEnd":true,"negated":true},
-     {"operator":"string_contains","filteredColumn":{"columnId":"LINK_URL"},"arg":".pdf","wildcardStart":true,"wildcardEnd":true,"negated":true},
-     {"operator":"string_contains","filteredColumn":{"columnId":"LINK_URL"},"arg":".jpg","wildcardStart":true,"wildcardEnd":true,"negated":true}],
-   "allAccounts":false},
-  "page":0,"size":10 }
+# 1. build the exact POST body (normal mode: junk filtered out → clean real pages)
+python3 "$SCRIPTS/fetch_samples.py" <censusId> <hostname>
+# 2. call the grid endpoint with that body
+op_api_call(method="POST", path="/v3/reports/grid/links", body=<the JSON above>)
+# 3. parse the LINK_URLs out of the response (in Python, or copy the values):
+python3 -c "import json,sys,fetch_samples; print(fetch_samples.parse_samples(json.load(sys.stdin)))"
 ```
+
+`build_query(census_id, hostname)` returns the body for `POST /v3/reports/grid/links`: groupBy
+`LINK_URL`; `SITE_CENSUS_ID integer_in [censusId]`; `LINK_URL contains "//<hostname>"`; and (normal
+mode) negated-contains on `?`, `%22`, `.pdf`, `.jpg`. `parse_samples(response_json)` returns the list
+of `LINK_URL` values (empty on missing/empty). For the artifact check use `--raw` (below).
 
 Notes (all learned from live use, read-only query):
 - **Isolate the host with `LINK_URL contains "//<hostname>"`** (e.g. `//jobs.acme.com`) — this works for
@@ -179,8 +181,10 @@ real, ~4×, which would have over-scoped the deal). The free tell is in data you
 you see that — or as a gate on any account before quoting — confirm with a sample that does NOT
 filter the junk:
 
-- Pull a host sample with the SAME grid query but **drop the `%22` and asset exclusions** (keep the
-  `SITE_CENSUS_ID` + `//<hostname>` filters), `size` ~50–100, and write the returned `LINK_URL`s to a JSON list.
+- Build the RAW-mode query — `python3 "$SCRIPTS/fetch_samples.py" <censusId> <hostname> --raw` — which
+  keeps ONLY the `SITE_CENSUS_ID` + `//<hostname>` filters (the junk is NOT filtered, so it CAN be
+  measured; bump `size` if you want a wider sample). Call `op_api_call` with it, `parse_samples` the
+  response, and write the returned `LINK_URL`s to a JSON list.
 - Run `python3 "$SCRIPTS/check_artifacts.py" <urls.json>` — it flags `%22`, literal quotes, and
   doubled-slash paths. **Verdict `inflated`** (≥20% junk) means the raw/spiral-adjusted total for that
   host is parser junk, not pages → quote the **clean** count for it (its `patterns` count, or

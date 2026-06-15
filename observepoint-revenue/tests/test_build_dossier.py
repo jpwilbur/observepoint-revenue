@@ -59,8 +59,9 @@ def test_header_and_verdict():
     assert "Acme Health" in h
     assert "Account Research Dossier" in h
     assert "QUALIFIED" in h
-    assert ">120<" in h                       # final-score badge (fit 90 + why-now 30)
-    assert "fit 90" in h and "why-now 30" in h
+    # Badge shows the two components explicitly (fit 90 + why-now 30), not a bare 120 on a 0-100 scale.
+    assert "Fit" in h and "90" in h
+    assert "Why-now" in h and "30" in h
 
 
 def test_why_now_card_chip_and_clickable_source():
@@ -104,6 +105,74 @@ def test_html_escapes_injected_markup():
     h = bd.build_html(data)
     assert "<script>alert(1)</script>" not in h       # not rendered raw
     assert "&lt;script&gt;" in h                       # escaped instead
+
+
+def test_badge_shows_fit_and_whynow_as_labeled_components_not_bare_total():
+    # A multi-trigger account: fitScore 100 (all 6 ICP criteria met) + whyNowScore 42
+    # (pixelWiretapSuit 30 + complianceDeadline 12, both full strength) -> finalScore 142.
+    # 142 on a badge that reads as a 0-100 scale is misleading; the badge must label both components.
+    big = {
+        **CLASSIFICATION,
+        "fit": [
+            {"key": "privacyConsentSurface", "met": True, "evidence": "CMP."},
+            {"key": "regulatoryExposure", "met": True, "evidence": "HIPAA."},
+            {"key": "tagPixelDensity", "met": True, "evidence": "GTM."},
+            {"key": "webScale", "met": True, "evidence": "Many pages."},
+            {"key": "targetVertical", "met": True, "evidence": "Healthcare."},
+            {"key": "analyticsAccuracy", "met": True, "evidence": "GA4 reliance."},
+        ],
+        "triggers": [
+            {"description": "CIPA pixel suit.", "date": "2026-05-01", "sourceUrl": "https://x/a",
+             "category": "litigation", "scoreKey": "pixelWiretapSuit"},
+            {"description": "Consent Mode v2 deadline exposure.", "date": "2026-05-01",
+             "sourceUrl": "https://x/b", "category": "other", "scoreKey": "complianceDeadline"},
+        ],
+    }
+    scored = sa.score(big, AS_OF)
+    assert scored["score"]["fitScore"] == 100
+    assert scored["score"]["whyNowScore"] == 42
+    assert scored["score"]["finalScore"] == 142
+    h = bd.build_html(scored)
+    # Both components must appear as distinct labeled values.
+    assert "100" in h
+    assert "42" in h
+    assert "Fit" in h and "Why-now" in h
+    # The bare combined total must NOT be the lone number rendered as the score badge.
+    assert ">142<" not in h
+
+
+def test_whynow_renders_from_breakdown_not_description_join():
+    # Two triggers with IDENTICAL descriptions but different points/dates. The old code keyed points
+    # to triggers by free-text description, so it would collapse/mis-assign them. Rendering from
+    # whyNowBreakdown (which carries per-trigger points) must show BOTH with their correct points.
+    scored = {
+        **CLASSIFICATION,
+        "triggers": [
+            {"description": "Pixel litigation update.", "date": "2026-05-01",
+             "sourceUrl": "https://x/new", "category": "litigation", "scoreKey": "pixelWiretapSuit"},
+            {"description": "Pixel litigation update.", "date": "2021-01-01",
+             "sourceUrl": "https://x/old", "category": "litigation", "scoreKey": "settlement"},
+        ],
+        "score": {
+            "fitScore": 90, "whyNowScore": 32, "finalScore": 122, "qualified": True,
+            "lowFitHighTrigger": False, "fitBreakdown": [],
+            "whyNowBreakdown": [
+                {"key": "pixelWiretapSuit", "label": "Active pixel/wiretap suit", "basePoints": 30,
+                 "points": 30, "description": "Pixel litigation update.", "date": "2026-05-01",
+                 "sourceUrl": "https://x/new"},
+                {"key": "settlement", "label": "Settlement finalized", "basePoints": 15,
+                 "points": 2, "description": "Pixel litigation update.", "date": "2021-01-01",
+                 "sourceUrl": "https://x/old"},
+            ],
+        },
+    }
+    h = bd.build_html(scored)
+    # Both distinct point values must render — the description-join would have shown one twice.
+    assert "+30" in h
+    assert "+2" in h
+    # Both sources must render (they differ even though descriptions match).
+    assert 'href="https://x/new"' in h
+    assert 'href="https://x/old"' in h
 
 
 def test_cli_writes_pdf_only(tmp_path):

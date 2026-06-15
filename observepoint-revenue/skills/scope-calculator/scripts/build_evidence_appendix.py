@@ -254,6 +254,27 @@ def build_workbook(data):
     return wb
 
 
+_DOC_REF = "see references/deliverables-mapping.md"
+# Required top-level key → short expected-shape hint, surfaced in the friendly error.
+_REQUIRED = {
+    "rollup": "{spiral_adjusted_anchor, low, high, confidence, census_ids}",
+    "per_domain": "[{hostname, raw_urls, paths, defensible_pages, …}, …] (non-empty)",
+}
+
+
+def _validate(data):
+    """Friendly up-front validation so a malformed appendix JSON yields a one-line actionable
+    message instead of a raw KeyError traceback a rep can't decode."""
+    if not isinstance(data, dict):
+        sys.exit(f"scope-calculator: malformed appendix inputs — expected a JSON object; {_DOC_REF}")
+    for key, shape in _REQUIRED.items():
+        if key not in data or data[key] in (None, {}, []):
+            sys.exit(f"scope-calculator: missing/malformed '{key}' — expected {shape}; {_DOC_REF}")
+    if "spiral_adjusted_anchor" not in data["rollup"]:
+        sys.exit("scope-calculator: missing/malformed 'rollup' — expected "
+                 f"{_REQUIRED['rollup']}; {_DOC_REF}")
+
+
 def main(argv):
     if len(argv) > 1:
         with open(argv[1]) as fh:
@@ -261,7 +282,12 @@ def main(argv):
     else:
         raw = sys.stdin.read()
     out = argv[2] if len(argv) > 2 else "evidence-appendix.xlsx"
-    build_workbook(json.loads(raw)).save(out)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        sys.exit(f"scope-calculator: appendix inputs are not valid JSON ({e}); {_DOC_REF}")
+    _validate(data)
+    build_workbook(data).save(out)
     print(out)
 
 

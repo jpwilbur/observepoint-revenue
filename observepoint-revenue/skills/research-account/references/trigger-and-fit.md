@@ -111,6 +111,8 @@ activity and job postings; earnings calls and SEC filings.
 
 ## Output
 
-Call submit_fit with: `fit` (every criterion above, met true/false, with evidence), `triggers` (each
+Assemble your fit + trigger classification as part of the JSON object defined in the SKILL.md
+classification contract; the skill's scripts consume that file. There is no submit_fit tool in this
+plugin. Include: `fit` (every criterion above, met true/false, with evidence), `triggers` (each
 dated, sourced, and tagged with its scoreKey), and a short `rationale` that names the dominant fit
 angle (privacy vs. analytics) and the strongest why-now trigger. Do not output any numbers.

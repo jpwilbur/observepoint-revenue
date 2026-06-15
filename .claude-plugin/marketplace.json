@@ -8,7 +8,7 @@
     {
       "name": "observepoint-revenue",
       "source": "./observepoint-revenue",
-      "description": "ObservePoint revenue-team tooling suite — scope-calculator (page count -> usage -> live price -> proposal + evidence workbook) and research-account (qualify a prospect into a scored ICP dossier with why-now triggers and sourced contacts). More revenue tools to come."
+      "description": "ObservePoint revenue-team tooling suite. find-accounts (surface in-territory, ICP-fit, triggered prospects, ranked), research-account (qualify a prospect into a scored ICP dossier with why-now triggers and sourced contacts), owned-properties (discover all the web properties an org owns into a confirmable inventory + a domain list for scoping), and scope-calculator (page count -> usage -> live price -> customer proposal + evidence workbook). More revenue tools to come."
     }
   ]
 }

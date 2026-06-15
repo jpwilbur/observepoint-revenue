@@ -72,6 +72,28 @@ def normalize_name(name):
     return "".join(tokens)
 
 
+def _norm_vertical(s):
+    """Lowercase + drop non-alphanumerics so 'Retail & E-Commerce' ~ 'retail e commerce'.
+    Returns a space-collapsed token string for substring matching."""
+    return " ".join(re.findall(r"[^\W_]+", (s or "").lower()))
+
+
+def is_on_icp(vertical, target_verticals):
+    """True if `vertical` matches one of the config's targetVerticals (case-insensitive,
+    normalized substring match — 'retail' matches 'retail & e-commerce' and vice versa).
+    A blank/unknown vertical is treated as off-ICP (the rep still sees it, flagged)."""
+    cand = _norm_vertical(vertical)
+    if not cand:
+        return False
+    for tv in target_verticals or []:
+        target = _norm_vertical(tv)
+        if not target:
+            continue
+        if cand == target or target in cand or cand in target:
+            return True
+    return False
+
+
 def load_seen(path):
     """Read the seen-log; a missing, corrupt, or wrong-shaped file is just an empty log
     (it gets recreated on the next save). State must never block a discovery run."""
@@ -93,6 +115,7 @@ def rank(data, config, seen=None, include_seen=False):
     every NEW name yields a seen-log entry. Validation runs on every candidate, dropped or not.
     """
     why, recency = config["whyNow"], config["recency"]
+    target_verticals = config.get("targetVerticals", [])
     now_ms = _parse_ms(data.get("date"))
     if now_ms is None:
         raise ValueError("candidates JSON needs a 'date' (YYYY-MM-DD) to rank against")
@@ -121,6 +144,8 @@ def rank(data, config, seen=None, include_seen=False):
         entry["triggerLabel"] = why[key]["label"]
         entry["effectivePoints"] = _round_half_up(
             why[key]["points"] * recency_factor(c.get("triggerDate"), recency, now_ms))
+        on_icp = is_on_icp(c.get("vertical"), target_verticals)
+        entry["off_icp"] = not on_icp
         if prior:
             entry["firstSeen"] = prior.get("firstSeen")
         elif norm not in logged_this_run:
@@ -128,8 +153,11 @@ def rank(data, config, seen=None, include_seen=False):
             new_entries.append({"name": c.get("name"), "firstSeen": data.get("date"),
                                 "triggerKey": key, "sourceUrl": c.get("sourceUrl")})
         ranked.append(entry)
-    # points desc, then newer trigger first; undated (None→0) lands last among point-ties.
-    ranked.sort(key=lambda e: (-e["effectivePoints"], -(_parse_ms(e.get("triggerDate")) or 0)))
+    # on-ICP wins first (off_icp False<True), then points desc, then newer trigger first;
+    # undated (None→0) lands last among point-ties. An off-ICP candidate can never outrank an
+    # on-ICP one regardless of points — it's deprioritized and flagged, never silently dropped.
+    ranked.sort(key=lambda e: (e["off_icp"], -e["effectivePoints"],
+                               -(_parse_ms(e.get("triggerDate")) or 0)))
     return ranked, dropped, new_entries
 
 
@@ -171,6 +199,9 @@ def render_chat(ranked, dropped):
         lines.append(f"{i}. {e.get('name', '')} — {e['triggerLabel']} "
                      f"({e['effectivePoints']} pts, {e.get('triggerDate') or 'undated'})"
                      f"{seen_note}")
+        if e.get("off_icp"):
+            lines.append(f"   ⚠ off-ICP vertical: {e.get('vertical') or '(unspecified)'} "
+                         "— deprioritized; verify it's worth pursuing")
         lines.append(f"   {e.get('reason', '')}")
         lines.append(f"   {e.get('sourceUrl', '')}")
     if dropped:
@@ -193,16 +224,27 @@ def main(argv=None):
 
     try:
         data = json.loads(pathlib.Path(a.candidates).read_text())
-        config = json.loads(pathlib.Path(a.config).read_text())
     except (OSError, ValueError) as e:
-        sys.exit(f"could not read inputs: {e}")
+        sys.exit(f"could not read candidates {a.candidates!r}: {e}")
+    try:
+        config = json.loads(pathlib.Path(a.config).read_text())
+    except (OSError, ValueError):
+        sys.exit(f"find-accounts: scoring-config not found at {a.config} — this skill reads "
+                 "research-account/references/scoring-config.json by path")
     seen = load_seen(a.seen)
     try:
         ranked, dropped, new_entries = rank(data, config, seen, a.include_seen)
     except ValueError as e:
         sys.exit(str(e))
     print(render_chat(ranked, dropped))
-    if a.xlsx:
+    if a.xlsx and not ranked:
+        # Never write a header-only, zero-data-row radar at exit 0 — a rep would get a blank
+        # radar and no signal anything went wrong. Warn loudly to stderr and skip the write.
+        hint = (" — all were filtered as previously-seen; re-run with --include-seen to include "
+                "previously-seen names" if dropped else " — the sweep found nothing to rank")
+        print(f"find-accounts: no candidates to export{hint}. No radar written to {a.xlsx}.",
+              file=sys.stderr)
+    elif a.xlsx:
         try:
             wb = build_radar(ranked)
         except ImportError:

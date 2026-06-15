@@ -103,3 +103,38 @@ def test_cli_writes_file(tmp_path):
     assert res.returncode == 0, res.stderr
     assert res.stdout.strip() == str(out)
     assert "Sample Pages" in load_workbook(out).sheetnames
+
+
+# --- friendly input validation (Part B) ------------------------------------------------
+def test_cli_friendly_error_missing_rollup(tmp_path):
+    bad = json.loads(json.dumps(DATA))
+    bad.pop("rollup")
+    f = tmp_path / "bad.json"; f.write_text(json.dumps(bad))
+    out = tmp_path / "e.xlsx"
+    res = subprocess.run([sys.executable, str(SCRIPT), str(f), str(out)],
+                         capture_output=True, text=True)
+    assert res.returncode != 0
+    assert "missing" in res.stderr.lower() and "rollup" in res.stderr
+    assert "Traceback" not in res.stderr and "KeyError" not in res.stderr
+
+
+def test_cli_friendly_error_empty_per_domain(tmp_path):
+    bad = json.loads(json.dumps(DATA))
+    bad["per_domain"] = []
+    f = tmp_path / "bad.json"; f.write_text(json.dumps(bad))
+    out = tmp_path / "e.xlsx"
+    res = subprocess.run([sys.executable, str(SCRIPT), str(f), str(out)],
+                         capture_output=True, text=True)
+    assert res.returncode != 0
+    assert "per_domain" in res.stderr
+    assert "Traceback" not in res.stderr and "KeyError" not in res.stderr
+
+
+def test_cli_friendly_error_malformed_json(tmp_path):
+    f = tmp_path / "bad.json"; f.write_text("{not valid json")
+    out = tmp_path / "e.xlsx"
+    res = subprocess.run([sys.executable, str(SCRIPT), str(f), str(out)],
+                         capture_output=True, text=True)
+    assert res.returncode != 0
+    assert "Traceback" not in res.stderr
+    assert "scope-calculator" in res.stderr

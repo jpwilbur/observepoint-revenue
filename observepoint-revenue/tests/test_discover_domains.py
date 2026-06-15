@@ -94,6 +94,42 @@ def test_discover_returns_summary_and_hosts():
     assert "crt.sh" in summary["sources"] and "whois" in summary["sources"]
 
 
+def test_discover_crt_status_unreachable_after_retries(monkeypatch):
+    # FETCH-FAILED: crt.sh raises/returns empty after every retry. host_count is 0, but crt_status
+    # must say "unreachable" so a silently-lost apex is distinguishable from a truly-zero one.
+    monkeypatch.setattr(dd.time, "sleep", lambda s: None)
+
+    def boom(url):
+        raise RuntimeError("503 Service Unavailable")
+    summary, hosts = dd.discover("ajg.com", fetcher=boom, whois_fn=lambda d: WHOIS_SAMPLE)
+    assert summary["host_count"] == 0
+    assert hosts == []
+    assert summary["crt_status"] == "unreachable"
+
+
+def test_discover_crt_status_unreachable_on_persistent_empty(monkeypatch):
+    # Empty body (not an exception) on every attempt is also a fetch failure -> unreachable.
+    monkeypatch.setattr(dd.time, "sleep", lambda s: None)
+    summary, _ = dd.discover("ajg.com", fetcher=lambda url: "", whois_fn=lambda d: WHOIS_SAMPLE)
+    assert summary["host_count"] == 0
+    assert summary["crt_status"] == "unreachable"
+
+
+def test_discover_crt_status_ok_when_truly_zero():
+    # TRULY-ZERO: the fetch SUCCEEDED and returned a valid-but-empty cert list. crt_status is "ok"
+    # with host_count 0 — a genuine no-cert apex, not a lost enumeration.
+    summary, hosts = dd.discover("ajg.com", fetcher=lambda url: "[]", whois_fn=lambda d: WHOIS_SAMPLE)
+    assert summary["host_count"] == 0
+    assert hosts == []
+    assert summary["crt_status"] == "ok"
+
+
+def test_discover_crt_status_ok_with_hosts():
+    summary, _ = dd.discover("ajg.com", fetcher=lambda url: CRT_SAMPLE, whois_fn=lambda d: WHOIS_SAMPLE)
+    assert summary["host_count"] == 3
+    assert summary["crt_status"] == "ok"
+
+
 def test_cli_main_writes_hosts_and_compact_summary(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(dd, "_default_fetcher", lambda url: CRT_SAMPLE)
     monkeypatch.setattr(dd, "_default_whois", lambda d: WHOIS_SAMPLE)

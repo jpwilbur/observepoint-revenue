@@ -91,6 +91,57 @@ def test_all_hostnames_reads_all_hosts_file(tmp_path):
     assert "api.ajg.com" in t and "vpn.ajg.com" in t   # full list from the file, not just sample_hosts
 
 
+def test_typoed_confidence_is_dropped_with_warning(capsys):
+    # A "confidense" typo means the real `confidence` key is MISSING -> the row must be dropped
+    # LOUDLY (named WARNING on stderr), not silently lost from the feed. The good row still lands.
+    data = {"org": "X", "excluded": [], "properties": [
+        {"registrable": "good.com", "type": "primary", "confidence": "confirmed",
+         "evidence": "WHOIS match", "source": "https://good.com/", "host_count": 1,
+         "sample_hosts": ["good.com"]},
+        {"registrable": "typo.com", "type": "primary", "confidense": "confirmed",  # typo'd key
+         "evidence": "should have been confirmed", "source": "https://typo.com/",
+         "host_count": 1, "sample_hosts": ["typo.com"]},
+    ]}
+    wb = bi.build_workbook(data)
+    err = capsys.readouterr().err
+    assert "WARNING" in err and "typo.com" in err          # dropped entry is named
+    assert _col1(wb["Confirmed Properties"]) == ["good.com"]  # the good domain still lands
+    assert bi.confirmed_domains(data) == ["good.com"]         # and feeds scope-calculator
+
+
+def test_unknown_confidence_value_is_dropped_with_warning(capsys):
+    # An out-of-enum confidence value (e.g. "definitely") is also dropped with a named warning.
+    data = {"org": "X", "excluded": [], "properties": [
+        {"registrable": "ok.com", "confidence": "likely", "evidence": "footer",
+         "source": "https://ok.com/", "host_count": 0, "sample_hosts": []},
+        {"registrable": "bad.com", "confidence": "definitely", "evidence": "guess",
+         "source": "https://bad.com/", "host_count": 0, "sample_hosts": []},
+    ]}
+    wb = bi.build_workbook(data)
+    err = capsys.readouterr().err
+    assert "WARNING" in err and "bad.com" in err
+    assert _col1(wb["For Review (unconfirmed)"]) == ["ok.com"]  # only the valid row survives
+
+
+def test_missing_registrable_or_source_is_dropped_with_warning(capsys):
+    data = {"org": "X", "excluded": [], "properties": [
+        {"registrable": "", "confidence": "confirmed", "evidence": "e",
+         "source": "https://x.com/", "host_count": 0, "sample_hosts": []},      # missing registrable
+        {"registrable": "nosrc.com", "confidence": "confirmed", "evidence": "e",
+         "host_count": 0, "sample_hosts": []},                                  # missing source
+    ]}
+    wb = bi.build_workbook(data)
+    err = capsys.readouterr().err
+    assert err.count("WARNING") == 2
+    assert "nosrc.com" in err
+    assert _col1(wb["Confirmed Properties"]) == []   # both invalid rows dropped
+
+
+def test_valid_data_emits_no_warning(capsys):
+    bi.build_workbook(DATA)
+    assert "WARNING" not in capsys.readouterr().err
+
+
 def test_cli_writes_only_xlsx_and_prints_confirmed_domains(tmp_path):
     f = tmp_path / "c.json"; f.write_text(json.dumps(DATA))
     xlsx = tmp_path / "out.xlsx"

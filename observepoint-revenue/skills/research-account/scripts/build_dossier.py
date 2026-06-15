@@ -77,33 +77,67 @@ def build_html(data):
     lowfit = ('<div class="note red">Qualified on the why-now trigger override despite sub-gate '
               'fit — a timing play.</div>' if score.get("lowFitHighTrigger") else "")
     rationale = f'<div class="rationale">{_e(data.get("rationale"))}</div>' if data.get("rationale") else ""
+    # The badge labels the two components explicitly. finalScore is fitScore (capped 0-100) PLUS an
+    # uncapped additive whyNowScore, so a multi-trigger account can total >100 — showing that total as
+    # a lone number on a 0-100-looking badge is misleading. Show "Fit n/100 · Why-now m" instead.
+    fit_s = _e(score.get("fitScore", 0))
+    why_s = _e(score.get("whyNowScore", 0))
+    total_s = _e(score.get("finalScore", 0))
     verdict = f"""
     <div class="verdict">
-      <div class="badge">{_e(score.get('finalScore', 0))}</div>
+      <div class="badge">
+        <span class="bscore"><span class="bnum">{fit_s}</span><span class="bden">/100</span></span>
+        <span class="blbl">Fit</span>
+        <span class="bsep">·</span>
+        <span class="bscore"><span class="bnum">{why_s}</span></span>
+        <span class="blbl">Why-now</span>
+      </div>
       <div class="vmeta">
         <div>{vchip}</div>
-        <div class="vmath">fit {_e(score.get('fitScore', 0))} &nbsp;·&nbsp; why-now {_e(score.get('whyNowScore', 0))}</div>
+        <div class="vmath">Fit {fit_s}/100 &nbsp;·&nbsp; Why-now {why_s} &nbsp;(combined {total_s})</div>
       </div>
     </div>{lowfit}{rationale}
     """
 
     # --- why now ---
-    pts = {b.get("description"): (b.get("points") or 0) for b in score.get("whyNowBreakdown", [])}
-    trigs = sorted(data.get("triggers", []) or [],
-                   key=lambda t: pts.get(t.get("description"), 0), reverse=True)
-    if trigs:
+    # Render the scored triggers DIRECTLY from whyNowBreakdown, which carries the points score_account
+    # computed per trigger (with recency decay). Do NOT re-join raw triggers to points by free-text
+    # description: two triggers with identical/similar descriptions would collapse or mis-assign points.
+    # `category` is a display-only field that lives on the raw trigger (not the breakdown), so it is
+    # joined back by a consuming positional match on the immutable (scoreKey, sourceUrl, date) tuple —
+    # never on description. Unscored raw triggers (unknown scoreKey, absent from the breakdown) are
+    # appended at the end at 0 points so honest context is not silently dropped.
+    raw_trigs = list(data.get("triggers", []) or [])
+    breakdown = list(score.get("whyNowBreakdown", []) or [])
+
+    def _take_category(score_key, source_url, date):
+        for i, t in enumerate(raw_trigs):
+            if (t.get("scoreKey") == score_key and t.get("sourceUrl") == source_url
+                    and t.get("date") == date):
+                return (raw_trigs.pop(i).get("category") or "")
+        return ""
+
+    rows = []  # (points, date, sourceUrl, description, category)
+    for b in sorted(breakdown, key=lambda b: (b.get("points") or 0), reverse=True):
+        cat = _take_category(b.get("key"), b.get("sourceUrl"), b.get("date"))
+        rows.append((b.get("points") or 0, b.get("date"), b.get("sourceUrl"),
+                     b.get("description"), cat))
+    # Any raw triggers not matched above were unscored (unknown scoreKey) — show them at 0 points.
+    for t in raw_trigs:
+        rows.append((0, t.get("date"), t.get("sourceUrl"), t.get("description"),
+                     t.get("category") or ""))
+
+    if rows:
         whynow = ""
-        for t in trigs:
-            cat = (t.get("category") or "").lower()
-            bg, fg = _CAT.get(cat, (GRAYCHIP, TEXT))
-            p = pts.get(t.get("description"), 0)
-            src = _link(t["sourceUrl"], "source ↗") if t.get("sourceUrl") else ""
+        for p, date, source_url, desc, cat in rows:
+            bg, fg = _CAT.get((cat or "").lower(), (GRAYCHIP, TEXT))
+            src = _link(source_url, "source ↗") if source_url else ""
             whynow += f"""
             <div class="trigger">
-              <div class="trow">{_chip((t.get('category') or '—').upper(), bg, fg)}
-                <span class="tdate">{_e(t.get('date', '—'))}</span>
+              <div class="trow">{_chip((cat or '—').upper(), bg, fg)}
+                <span class="tdate">{_e(date or '—')}</span>
                 <span class="tpts">+{_e(p)}</span></div>
-              <div class="tdesc">{_e(t.get('description', ''))}</div>
+              <div class="tdesc">{_e(desc or '')}</div>
               <div class="tsrc">{src}</div>
             </div>"""
     else:
@@ -182,8 +216,12 @@ a{{color:{LINK};text-decoration:none}} a:hover{{text-decoration:underline}}
 h1{{font-size:30px;font-weight:800;margin:10px 0 4px;color:#fff}}
 .sub{{color:{MUTED};font-size:12px;border-bottom:3px solid {YELLOW};padding-bottom:14px;margin-bottom:20px}}
 .verdict{{display:flex;align-items:center;gap:18px;margin-bottom:6px}}
-.badge{{background:{YELLOW};color:#15161a;font-weight:800;font-size:34px;line-height:1;
-  border-radius:14px;padding:16px 20px;min-width:84px;text-align:center}}
+.badge{{background:{YELLOW};color:#15161a;border-radius:14px;padding:12px 18px;
+  display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}}
+.badge .bscore{{font-weight:800;line-height:1}}
+.badge .bnum{{font-size:32px}} .badge .bden{{font-size:15px;font-weight:700;opacity:.7}}
+.badge .blbl{{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;align-self:center}}
+.badge .bsep{{font-size:20px;font-weight:800;opacity:.5;align-self:center}}
 .vmeta{{display:flex;flex-direction:column;gap:8px}}
 .vmath{{color:{MUTED};font-size:13px}}
 .chip{{display:inline-block;border-radius:999px;font-weight:700;letter-spacing:.4px;
