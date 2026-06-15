@@ -145,3 +145,26 @@ def test_cli_writes_docx(tmp_path):
     assert res.returncode == 0, res.stderr
     assert res.stdout.strip() == str(out)
     assert "Arthur J. Gallagher" in _text(Document(out))
+
+
+# --- friendly input validation (Part B) ------------------------------------------------
+def test_cli_friendly_error_missing_required_key(tmp_path):
+    bad = json.loads(json.dumps(DATA))
+    bad.pop("page_count")
+    f = tmp_path / "bad.json"; f.write_text(json.dumps(bad))
+    out = tmp_path / "p.docx"
+    res = subprocess.run([sys.executable, str(SCRIPT), str(f), str(out)],
+                         capture_output=True, text=True)
+    assert res.returncode != 0
+    assert "missing" in res.stderr.lower() and "page_count" in res.stderr
+    assert "Traceback" not in res.stderr and "KeyError" not in res.stderr
+
+
+def test_cli_friendly_error_malformed_json(tmp_path):
+    f = tmp_path / "bad.json"; f.write_text("{not valid json")
+    out = tmp_path / "p.docx"
+    res = subprocess.run([sys.executable, str(SCRIPT), str(f), str(out)],
+                         capture_output=True, text=True)
+    assert res.returncode != 0
+    assert "Traceback" not in res.stderr
+    assert "scope-calculator" in res.stderr

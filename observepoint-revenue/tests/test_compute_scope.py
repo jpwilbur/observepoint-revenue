@@ -184,3 +184,75 @@ def test_compute_recommended_contract():
     assert rc["price"] == 133_000                       # nearest $1,000 of 133,030.24
     assert rc["scans"] == cs.scans_for_price(133_000, cs.BAKED_TIERS)
     assert abs(cs.graduated_price(rc["scans"], cs.BAKED_TIERS)["total"] - 133_000) < 1
+
+
+# --- buffer-crosses-tier flag (Part C) -------------------------------------------------
+# One layer @ pct=1.0, runs=1 and all multipliers 1 → predicted_scans == base_pages, so we can
+# place predicted and buffered counts on either side of the 600k starter/professional boundary.
+_FLAT_LAYER = [{"name": "annual baseline", "pct": 1.0, "runs_per_year": 1}]
+_FLAT_INPUTS = {
+    "customer": "Tier Test",
+    "page_count": {"low": 590_000, "anchor": 590_000, "high": 590_000, "confidence": "HIGH"},
+    "multipliers": {"geographies": 1, "scenarios": 1, "environments": 1},
+    "cadence_layers": _FLAT_LAYER,
+}
+
+
+def test_tier_changed_by_buffer_true_when_buffer_straddles_boundary():
+    # 590,000 predicted (starter) → ×1.10 = 649,000 purchased (professional): flag True.
+    out = cs.compute(dict(_FLAT_INPUTS, buffer_pct=0.10))
+    a = out["anchor"]
+    assert a["predicted_scans"] == 590_000
+    assert a["purchased_scans"] == 649_000
+    assert cs.classify_tier(a["predicted_scans"]) == "starter"
+    assert cs.classify_tier(a["purchased_scans"]) == "professional"
+    assert a["tier_changed_by_buffer"] is True
+
+
+def test_tier_changed_by_buffer_false_same_tier():
+    # Same predicted count, no buffer → predicted and purchased both starter: flag False.
+    out = cs.compute(dict(_FLAT_INPUTS, buffer_pct=0.0))
+    a = out["anchor"]
+    assert a["predicted_scans"] == a["purchased_scans"] == 590_000
+    assert a["tier_changed_by_buffer"] is False
+
+
+def test_tier_changed_by_buffer_false_when_buffer_stays_in_tier():
+    # 100,000 predicted (starter) → ×1.10 = 110,000 purchased (still starter): flag False.
+    inp = dict(_FLAT_INPUTS, buffer_pct=0.10)
+    inp["page_count"] = {"low": 100_000, "anchor": 100_000, "high": 100_000, "confidence": "HIGH"}
+    a = cs.compute(inp)["anchor"]
+    assert a["predicted_scans"] == 100_000 and a["purchased_scans"] == 110_000
+    assert a["tier_changed_by_buffer"] is False
+
+
+# --- friendly input validation (Part B) ------------------------------------------------
+def _run_cli(stdin_text):
+    return subprocess.run([sys.executable, str(COMPUTE)], input=stdin_text,
+                          capture_output=True, text=True)
+
+
+def test_cli_friendly_error_missing_cadence_layers():
+    bad = dict(BASE_INPUTS)
+    bad.pop("cadence_layers")
+    res = _run_cli(json.dumps(bad))
+    assert res.returncode != 0
+    assert "missing" in res.stderr.lower()
+    assert "cadence_layers" in res.stderr
+    assert "Traceback" not in res.stderr and "KeyError" not in res.stderr
+
+
+def test_cli_friendly_error_missing_page_count():
+    bad = dict(BASE_INPUTS)
+    bad.pop("page_count")
+    res = _run_cli(json.dumps(bad))
+    assert res.returncode != 0
+    assert "missing" in res.stderr.lower() and "page_count" in res.stderr
+    assert "Traceback" not in res.stderr and "KeyError" not in res.stderr
+
+
+def test_cli_friendly_error_malformed_json():
+    res = _run_cli("{not valid json")
+    assert res.returncode != 0
+    assert "Traceback" not in res.stderr
+    assert "scope-calculator" in res.stderr

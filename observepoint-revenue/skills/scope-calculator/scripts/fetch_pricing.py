@@ -66,7 +66,9 @@ def fetch_pricing(fetcher=_default_fetcher, url=BUNDLE_URL):
             return {"tiers": tiers, "source": f"live @ {url}"}
     except Exception:
         pass
-    return {"tiers": BAKED_TIERS, "source": f"fallback (baked {BAKED_AS_OF})"}
+    # LOUD, unmistakable canary: the only signal of a stale price is this string, so make it scream.
+    return {"tiers": BAKED_TIERS,
+            "source": f"FALLBACK — baked {BAKED_AS_OF}; LIVE PRICING UNAVAILABLE, verify before sending"}
 
 
 def main(argv):

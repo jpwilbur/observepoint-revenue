@@ -84,14 +84,30 @@ def test_fetch_pricing_fallback_on_error():
     def boom(url):
         raise RuntimeError("network down")
     out = fp.fetch_pricing(fetcher=boom)
-    assert out["source"].startswith("fallback")
+    assert out["source"].upper().startswith("FALLBACK")
     assert out["tiers"] == cs.BAKED_TIERS
 
 
 def test_fetch_pricing_fallback_on_garbage():
     out = fp.fetch_pricing(fetcher=lambda url: "garbage")
-    assert out["source"].startswith("fallback")
+    assert out["source"].upper().startswith("FALLBACK")
     assert out["tiers"] == cs.BAKED_TIERS
+
+
+def test_fallback_source_is_loud_and_actionable():
+    # The fallback source string must be UNMISTAKABLE — loud token + "live pricing unavailable" +
+    # an explicit verify-before-sending instruction + the baked date — so the model can't miss it.
+    out = fp.fetch_pricing(fetcher=lambda url: "garbage")
+    src = out["source"]
+    assert src.upper().startswith("FALLBACK")
+    assert "LIVE PRICING UNAVAILABLE" in src.upper()
+    assert "verify" in src.lower()
+    assert cs.BAKED_AS_OF in src
+
+
+def test_live_source_unchanged():
+    out = fp.fetch_pricing(fetcher=lambda url: SAMPLE_JS)
+    assert out["source"].startswith("live @ ")
 
 
 def test_cli_emits_json():

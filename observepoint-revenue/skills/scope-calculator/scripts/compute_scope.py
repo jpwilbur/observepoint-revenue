@@ -130,6 +130,9 @@ def _compute_one(base, multipliers, layers, buffer_pct, tiers):
         "cadence_by_layer": sc["by_layer"],
         "implied_blended_frequency": round(predicted / ucp, 3) if ucp else 0,
         "tier": classify_tier(purchased),
+        # True when the buffer pushes the purchased count into a different pricing tier than the
+        # predicted count would land in — so the rep-facing breakdown can call out the jump.
+        "tier_changed_by_buffer": classify_tier(purchased) != classify_tier(predicted),
         "price": graduated_price(purchased, tiers),
     }
 
@@ -184,13 +187,40 @@ def _recommended_contract(anchor_price, tiers):
             "exact_price": graduated_price(scans, tiers)["total"]}
 
 
+_DOC_REF = "see references/deliverables-mapping.md"
+# Required top-level key → short expected-shape hint, surfaced in the friendly error.
+_REQUIRED = {
+    "page_count": "{low, anchor, high, confidence}",
+    "cadence_layers": "[{name, pct, runs_per_year}, …]",
+}
+
+
+def _validate(inputs):
+    """Friendly up-front validation so a malformed inputs JSON yields a one-line actionable
+    message instead of a raw KeyError traceback a rep can't decode."""
+    if not isinstance(inputs, dict):
+        sys.exit(f"scope-calculator: malformed inputs — expected a JSON object; {_DOC_REF}")
+    for key, shape in _REQUIRED.items():
+        if key not in inputs or inputs[key] in (None, {}, []):
+            sys.exit(f"scope-calculator: missing/malformed '{key}' — expected {shape}; {_DOC_REF}")
+    pc = inputs["page_count"]
+    if not isinstance(pc, dict) or any(k not in pc for k in ("low", "anchor", "high")):
+        sys.exit("scope-calculator: missing/malformed 'page_count' — expected "
+                 f"{_REQUIRED['page_count']}; {_DOC_REF}")
+
+
 def main(argv):
     if len(argv) > 1:
         with open(argv[1]) as f:
             raw = f.read()
     else:
         raw = sys.stdin.read()
-    print(json.dumps(compute(json.loads(raw)), indent=2))
+    try:
+        inputs = json.loads(raw)
+    except json.JSONDecodeError as e:
+        sys.exit(f"scope-calculator: inputs are not valid JSON ({e}); {_DOC_REF}")
+    _validate(inputs)
+    print(json.dumps(compute(inputs), indent=2))
 
 
 if __name__ == "__main__":

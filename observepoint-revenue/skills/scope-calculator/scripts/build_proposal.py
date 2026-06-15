@@ -390,6 +390,29 @@ def build_proposal(data):
     return doc
 
 
+_DOC_REF = "see references/deliverables-mapping.md"
+# Required top-level key → short expected-shape hint, surfaced in the friendly error.
+_REQUIRED = {
+    "page_count": "{low, anchor, high, confidence}",
+    "pricing": "{recommended_price, recommended_scans}",
+    "usage": "{pages_per_sweep, annual_scans}",
+}
+
+
+def _validate(data):
+    """Friendly up-front validation so a malformed proposal JSON yields a one-line actionable
+    message instead of a raw KeyError traceback a rep can't decode."""
+    if not isinstance(data, dict):
+        sys.exit(f"scope-calculator: malformed proposal inputs — expected a JSON object; {_DOC_REF}")
+    for key, shape in _REQUIRED.items():
+        if key not in data or data[key] in (None, {}, []):
+            sys.exit(f"scope-calculator: missing/malformed '{key}' — expected {shape}; {_DOC_REF}")
+    pc = data["page_count"]
+    if not isinstance(pc, dict) or any(k not in pc for k in ("low", "anchor", "high")):
+        sys.exit("scope-calculator: missing/malformed 'page_count' — expected "
+                 f"{_REQUIRED['page_count']}; {_DOC_REF}")
+
+
 def main(argv):
     if len(argv) > 1:
         with open(argv[1]) as fh:
@@ -397,7 +420,12 @@ def main(argv):
     else:
         raw = sys.stdin.read()
     out = argv[2] if len(argv) > 2 else "proposal.docx"
-    build_proposal(json.loads(raw)).save(out)  # narrative guard runs inside
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        sys.exit(f"scope-calculator: proposal inputs are not valid JSON ({e}); {_DOC_REF}")
+    _validate(data)
+    build_proposal(data).save(out)  # narrative guard runs inside
     print(out)
 
 
