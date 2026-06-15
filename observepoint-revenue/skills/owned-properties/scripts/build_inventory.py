@@ -19,6 +19,34 @@ from openpyxl.utils import get_column_letter
 DARK, AMBER, GRAY = "1E1E1E", "E8B500", "D9D9D9"
 HDR_FONT = Font(bold=True, color="FFFFFF", size=11)
 CHIP_FILL = {"likely": AMBER, "possible": GRAY}
+KNOWN_CONFIDENCE = {"confirmed", "likely", "possible"}
+
+
+def _validate_properties(props):
+    """Drop malformed rows LOUDLY (a `confidense` typo or `confidence: "definitely"` must NOT
+    silently vanish from the feed). A property is valid only with a non-empty `registrable`, a
+    present `source` key, and a `confidence` in the known enum. Each dropped row prints a named
+    `WARNING: dropping property ...` to stderr; valid rows are returned for rendering."""
+    valid = []
+    for p in props:
+        p = p if isinstance(p, dict) else {}
+        reg = (p.get("registrable") or "").strip()
+        name = reg or "???"
+        conf = p.get("confidence")
+        reasons = []
+        if not reg:
+            reasons.append("missing/empty 'registrable'")
+        if "source" not in p:
+            reasons.append("missing 'source'")
+        if conf is None:
+            reasons.append("missing 'confidence' (typo'd key?)")
+        elif conf not in KNOWN_CONFIDENCE:
+            reasons.append(f"unknown confidence '{conf}' (expected one of {sorted(KNOWN_CONFIDENCE)})")
+        if reasons:
+            print(f"WARNING: dropping property '{name}' — {'; '.join(reasons)}", file=sys.stderr)
+            continue
+        valid.append(p)
+    return valid
 
 
 def _headers(ws, headers):
@@ -47,7 +75,7 @@ def _hosts_for(prop):
 
 
 def build_workbook(data):
-    props = data.get("properties", []) or []
+    props = _validate_properties(data.get("properties", []) or [])
     confirmed = [p for p in props if p.get("confidence") == "confirmed"]
     review = [p for p in props if p.get("confidence") in ("likely", "possible")]
     wb = Workbook()
@@ -84,6 +112,10 @@ def build_workbook(data):
         ["How this footprint was built"],
         ["Certificate Transparency (crt.sh), WHOIS registrant, SEC 10-K Exhibit 21 subsidiaries, the "
          "org's own brand/footer pages, and (when keyed) reverse-WHOIS / passive-DNS."],
+        ["Coverage ceiling: v1 completeness is crt.sh + manual web research only — a FLOOR, not "
+         "exhaustive. Un-certed apexes are invisible and reverse-WHOIS / passive-DNS is not run in v1. "
+         "This is a starting inventory for the customer to confirm and extend, not a guaranteed-"
+         "complete list. Apexes marked 'enumeration incomplete' (crt.sh unreachable) must be re-run."],
         [""],
         ["Confidence definitions"],
         ["confirmed — WHOIS registrant match, SEC Exhibit-21 subsidiary, listed on the org's own "
@@ -110,8 +142,14 @@ def build_workbook(data):
 
 
 def confirmed_domains(data):
-    return sorted({p.get("registrable", "") for p in data.get("properties", []) or []
-                   if p.get("confidence") == "confirmed" and p.get("registrable")})
+    # Feed only well-formed confirmed rows (a typo'd/empty entry must never reach scope-calculator).
+    # Filtering is silent here — build_workbook owns the loud per-row WARNINGs so they print once.
+    return sorted({(p.get("registrable") or "").strip()
+                   for p in data.get("properties", []) or []
+                   if isinstance(p, dict)
+                   and p.get("confidence") == "confirmed"
+                   and (p.get("registrable") or "").strip()
+                   and "source" in p})
 
 
 def main(argv):
