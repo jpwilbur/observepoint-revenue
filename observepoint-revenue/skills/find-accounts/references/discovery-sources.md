@@ -28,7 +28,52 @@ generic breach, antitrust, or product-safety stretches (same discipline as resea
 Quick ICP sanity per candidate: enterprise scale, complex web estate, in a `targetVerticals`
 vertical (same file).
 
-## Sources to scan (public only)
+## Source-priority order (sweep highest-signal first)
+
+Spend your search budget top-down; a hit high on this list outranks several lower ones:
+
+1. **Active pixel/wiretap litigation** — CIPA, state wiretap, VPPA video-pixel, session-replay
+   suits filed or amended recently. Highest signal: a live tracking nexus, already public.
+2. **Enforcement actions** — FTC / HHS OCR / CPPA / state-AG actions, consent orders, settlements
+   on tracking, consent, or data sharing.
+3. **Client-side breaches with a tracking nexus** — Magecart / web-skimming / rogue-tag / supply-
+   chain-script incidents (not generic data breaches with no client-side angle).
+4. **Leadership / hiring signals** — new CPO / GC / VP MarTech / VP Analytics; waves of privacy or
+   analytics-governance job postings. Weakest of the four; corroborate with one of the above.
+
+## Query templates (copyable — fill the <brackets>)
+
+Use `WebSearch` for these; use `WebFetch` only to read a specific promising result. Swap `2026`
+for the current/prior year and `<region>`/`<state>`/`<company>` for your territory. Date-range
+operators (`2025..2026`) narrow to recent events.
+
+**Pixel / wiretap litigation**
+- `site:classaction.org "<region>" CIPA pixel 2026`
+- `site:topclassactions.com CIPA "pen register" "<state>" 2025..2026`
+- `"<state>" CIPA wiretap class action "Meta Pixel" OR "TikTok pixel" 2026`
+- `VPPA "video privacy" class action "<region>" 2025..2026`
+- `"session replay" OR "chat intercept" wiretap class action "<state>" 2026`
+
+**Enforcement actions**
+- `"<state> attorney general" privacy settlement 2026`
+- `site:ftc.gov press release tracking OR pixel OR "data sharing" 2025..2026`
+- `site:hhs.gov OCR "tracking technologies" hospital pixel 2025..2026`
+- `"CPPA" enforcement OR "consent order" 2026`
+
+**Healthcare patient-portal pixels (OCR / HHS)**
+- `"<region>" hospital "patient portal" Meta Pixel disclosure 2025..2026`
+- `health system "tracking technologies" HHS OCR breach 2026`
+
+**Client-side breach / rogue tag**
+- `"<company>" Magecart OR web-skimming OR "malicious script" 2025..2026`
+- `"<region>" e-commerce "card skimming" client-side script 2026`
+
+**Corporate / M&A / leadership (corroborating)**
+- `"<company>" 8-K acquisition 2025..2026`
+- `"<company>" hires "Chief Privacy Officer" OR "VP Marketing Technology" 2026`
+- `"<region>" "<vertical>" hiring "privacy program" OR "analytics governance" 2026`
+
+## Named sources to scan (public only)
 
 - Litigation: ClassAction.org, Top Class Actions, Law360, Bloomberg Law, LawStreetMedia; the Duane
   Morris class-action review; DLA Piper / Davis Polk / Gibson Dunn / Baker McKenzie
@@ -36,6 +81,18 @@ vertical (same file).
 - Enforcement: FTC press releases, HHS OCR enforcement, CPPA actions, state-AG announcements.
 - Incidents: breach/security press with a client-side or third-party-script angle.
 - People signals: privacy/compliance leadership changes, privacy & analytics-governance job posts.
+
+## Minimum-evidence bar (every candidate must clear this)
+
+A name without a resolvable source and a dated event is not a candidate — drop it, don't pad with it:
+
+- A **real, resolvable `sourceUrl`** for the trigger (a page you actually reached, not a guessed
+  URL). If you can't open it, it doesn't count.
+- A **dated event** (`triggerDate`, YYYY-MM-DD when known) — recency drives ranking. An undated
+  trigger is matched but discounted; an *unsourced* one is rejected outright.
+- A `triggerKey` that exists in scoring-config's `whyNow` and a genuine web-tracking nexus.
+- **No source = not a candidate.** When the only "evidence" is a hunch or a likely-but-unverified
+  URL, leave the name out.
 
 ## Hard rules
 
