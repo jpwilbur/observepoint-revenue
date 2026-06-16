@@ -28,9 +28,12 @@ DATA = {
                    "spiral_note": "Excluded ~389,375 query-string-duplicate URLs across 6 properties."},
     "consent_states": {"count": 3, "names": ["Default", "Opt-Out", "GPC"]},
     "cadence_layers": [
-        {"name": "Full privacy sweep", "runs_per_year": 1, "pages": 287_163, "runs": 287_163},
-        {"name": "Priority pages", "runs_per_year": 4, "pages": 14_358, "runs": 57_432},
-        {"name": "Consent-critical pages", "runs_per_year": 12, "pages": 7_179, "runs": 86_149}],
+        {"name": "Full privacy sweep", "runs_per_year": 1, "pages": 287_163, "runs": 287_163,
+         "why": "A full sweep so nothing on the site is invisible."},
+        {"name": "Priority pages", "runs_per_year": 4, "pages": 14_358, "runs": 57_432,
+         "why": "Sites drift — quarterly keeps the full picture current."},
+        {"name": "Consent-critical pages", "runs_per_year": 12, "pages": 7_179, "runs": 86_149,
+         "why": "Crown-jewel pages checked far more often."}],
     "usage": {"pages_per_sweep": 287_163, "annual_scans": 430_744},
     "pricing": {"recommended_price": 54_000, "recommended_scans": 430_167,
                 "range_low_price": 54_069, "range_high_price": 60_784,
@@ -77,12 +80,20 @@ def test_recommended_pair_reconciles_in_calculator():
     assert abs(cs.graduated_price(s, cs.BAKED_TIERS)["total"] - DATA["pricing"]["recommended_price"]) < 1
 
 
-def test_internal_section_marked_and_present():
+def test_no_internal_section_or_confidence_in_customer_doc():
     t = _text(bp.build_proposal(DATA))
-    assert "[INTERNAL — REMOVE BEFORE SENDING TO CUSTOMER]" in t
-    assert "485,096" in t                       # raw URL total — internal only
-    assert "711" in t                           # census id
-    assert "confirm regulations" in t.lower()   # an assumption surfaced for the rep
+    assert "[INTERNAL" not in t                 # the strippable section is gone
+    assert "485,096" not in t                   # raw URL total never in the customer doc
+    assert "711" not in t                       # census id never in the customer doc
+    assert "CONFIDENCE" not in t.upper()        # confidence moved to the internal file
+    for term in ("census", "spiral", "raw url", "defensible", "anchor"):
+        assert term not in t.lower(), f"leaked internal term: {term}"
+
+
+def test_cadence_table_shows_the_why():
+    t = _text(bp.build_proposal(DATA))
+    assert "Why" in t                                            # the new column header
+    assert "nothing on the site is invisible" in t              # a rationale line, customer-facing
 
 
 def test_clean_guard_rejects_internal_terms_in_narrative():
@@ -190,3 +201,10 @@ def test_clean_guard_allows_identity_collision_in_name_and_domain():
     d["domains"] = ["spiral-galaxy.com"]
     d["monitoring_summary"] = "Full-site privacy monitoring annually."
     bp.build_proposal(d)  # identity fields are not scrubbed → must not raise
+
+
+def test_clean_guard_rejects_internal_term_in_properties_note():
+    d = json.loads(json.dumps(DATA))
+    d["properties_note"] = "Site census crawl excluded spiral pages."
+    with pytest.raises(ValueError):
+        bp.build_proposal(d)

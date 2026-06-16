@@ -1,28 +1,28 @@
-"""Comprehensive, ObservePoint-themed scope & investment proposal (.docx).
+"""Customer-facing scope & investment proposal (.docx). Clean by construction — internal
+derivation lives in the separate internal-evidence workbook (build_internal_evidence.py).
 
-REP-FIRST + customer-strippable. This is a working proposal for the rep: it is comprehensive
-(it shows HOW the usage and price were derived) and it ends with a clearly-marked
-"[INTERNAL — REMOVE BEFORE SENDING]" section the rep deletes before sending to the customer.
+All agent-composed customer-facing strings (monitoring_summary, properties_note, cadence layer
+names and "why" lines) are guarded by customer_clean.assert_clean before the document is built.
+Identity/factual fields (customer, domains, prepared_by, regulations) are NOT passed to the
+guard — see customer_clean caller contract.
 
 Theming matches ObservePoint's brand: Montserrat, near-black #1E1E1E, brand yellow #F2CD14,
-light gray #F2F2F2 table rows, alert red for the internal marker, and the OP logo in the header.
-
-Only the customer-facing narrative field `monitoring_summary` is guarded against internal-only
-language (`_assert_clean`); the [INTERNAL] section intentionally carries the derivation detail.
+light gray #F2F2F2 table rows, and the OP logo in the header.
 
 Input schema (all keys tolerant; orchestrator assembles from derive-page-count + size-and-price):
 {
   customer, prepared_by?, date?, use_case, domains[], properties_note?, regulations[],
   monitoring_summary,                       # customer-facing prose (guarded)
-  page_count: {low, anchor, high, confidence, url_total?, defensible?, discounted?,
-               census_id?, crawl_status?, spiral_note?},
+  page_count: {low, anchor, high,
+               url_total?, defensible?, discounted?, census_id?, crawl_status?, spiral_note?,
+               confidence?},               # internal-only keys present but ignored here
   consent_states: {count, names[]},
-  cadence_layers: [{name, runs_per_year, pages, runs}],     # = compute_scope's cadence_by_layer
+  cadence_layers: [{name, why, runs_per_year, pages, runs}],  # why is customer-facing
   usage: {pages_per_sweep, annual_scans},
   pricing: {recommended_price, recommended_scans, range_low_price, range_high_price,
             price_by_band?: [{band_limit, rate, pages, cost}], pricing_source?,
             modeled_scans?, modeled_price?},
-  internal: {assumptions[]?, implied_frequency?, thresholds_swept?, precise_anchor?}
+  internal: {…}                            # present but ignored — goes to internal-evidence file
 }
 """
 import customer_clean
@@ -227,7 +227,7 @@ def _assert_clean(data):
     factual fields (customer, domains, prepared_by, regulations) are NOT scrubbed — see
     customer_clean caller contract."""
     strings = [data.get("monitoring_summary", ""), data.get("properties_note", "")]
-    for L in data.get("cadence_layers", []):
+    for L in data.get("cadence_layers") or []:
         strings.append(L.get("name", ""))
         strings.append(L.get("why", ""))
     customer_clean.assert_clean(strings, where="proposal")
@@ -240,7 +240,6 @@ def build_proposal(data):
     pr = data["pricing"]
     us = data["usage"]
     cs = data.get("consent_states", {"count": 1, "names": ["Default"]})
-    internal = data.get("internal", {})
 
     doc = Document()
     _set_base_style(doc)
@@ -263,10 +262,9 @@ def build_proposal(data):
     # §1 Footprint
     _section(doc, "1. Your web footprint")
     _para(doc, f"We scanned your web properties to establish how many real pages ObservePoint "
-               f"would monitor. Your validated footprint is approximately "
+               f"would monitor. Your estimated footprint is approximately "
                f"{_int(_round_sig(pc['anchor']))} pages "
-               f"(range {_int(_round_sig(pc['low']))}–{_int(_round_sig(pc['high']))}; "
-               f"confidence {pc.get('confidence', 'MEDIUM')}).")
+               f"(range {_int(_round_sig(pc['low']))}–{_int(_round_sig(pc['high']))}).")
     if data.get("properties_note"):
         _para(doc, data["properties_note"] + " The full property list is in the attached evidence "
                    "workbook — please review and confirm which properties are in scope.")
@@ -274,17 +272,10 @@ def build_proposal(data):
                "and its page count), Sample Pages (real example pages we found on each), Annual "
                "Usage Breakdown (how the page-scan total is built), and Methodology (how the count "
                "was validated).", size=9.5, color=GRAY)
-    # Footprint badge + confidence chip
-    badge_t = doc.add_table(rows=1, cols=2)
+    # Footprint badge (page count only — confidence is rep-only, in the internal file)
+    badge_t = doc.add_table(rows=1, cols=1)
     _no_borders(badge_t)
-    badge_cells = badge_t.rows[0].cells
-    badge_cells[0].width = Inches(1.6)
-    badge_cells[1].width = Inches(2.4)
-    _chip(badge_cells[0], _int(_round_sig(pc["anchor"])) + " pages", YELLOW_HEX, DARK, size=14)
-    confidence = str(pc.get("confidence", "MEDIUM")).upper()
-    conf_fill = {"HIGH": GREEN_HEX, "MEDIUM": YELLOW_HEX}.get(confidence, MIDGRAY_HEX)
-    conf_tcolor = WHITE if confidence == "HIGH" else DARK
-    _chip(badge_cells[1], "CONFIDENCE: " + confidence, conf_fill, conf_tcolor, size=10)
+    _chip(badge_t.rows[0].cells[0], _int(_round_sig(pc["anchor"])) + " pages", YELLOW_HEX, DARK, size=14)
 
     # §2 What we monitor
     _section(doc, "2. What ObservePoint will monitor")
@@ -304,12 +295,13 @@ def build_proposal(data):
     ])
     _para(doc, "")
     cadence_rows = []
-    for L in data.get("cadence_layers", []):
+    for L in data.get("cadence_layers") or []:
         freq = _FREQ.get(L.get("runs_per_year"), f"{L.get('runs_per_year')}×/yr")
-        cadence_rows.append([L["name"], freq, _int(L.get("pages", 0)),
+        cadence_rows.append([L["name"], L.get("why", ""), freq, _int(L.get("pages", 0)),
                              str(L.get("runs_per_year", "")), _int(L.get("runs", 0))])
-    cadence_rows.append(["**Total annual page scans**", "", "", "", "**" + _int(us["annual_scans"]) + "**"])
-    _table(doc, ["What's monitored", "How often", "Pages each run", "Runs/yr", "Page scans/yr"], cadence_rows)
+    cadence_rows.append(["**Total annual page scans**", "", "", "", "", "**" + _int(us["annual_scans"]) + "**"])
+    _table(doc, ["What's monitored", "Why", "How often", "Pages each run", "Runs/yr", "Page scans/yr"],
+           cadence_rows)
 
     # §4 Investment
     _section(doc, "4. Recommended contract & investment")
@@ -335,58 +327,6 @@ def build_proposal(data):
                  "Finalize the agreement at the confirmed usage."):
         p = doc.add_paragraph(style="List Bullet")
         _run(p, item)
-
-    # [INTERNAL] — rep-only, delete before sending
-    doc.add_page_break()
-    _section(doc, "[INTERNAL — REMOVE BEFORE SENDING TO CUSTOMER]", fill=RED_HEX)
-    _para(doc, "Everything below is rep-only context for how this scope was built. Delete this "
-               "section before sharing the proposal.", size=9, color=RED, bold=True)
-
-    _para(doc, "Page-count derivation", bold=True, size=11)
-    pcrows = [["Census ID", str(pc.get("census_id", "—"))],
-              ["Crawl status", str(pc.get("crawl_status", "—"))],
-              ["Raw URLs crawled (NOT quoted)", _int(pc["url_total"]) if pc.get("url_total") else "—"],
-              ["Defensible pages (anchor)", _int(pc.get("defensible", pc["anchor"]))],
-              ["Discounted (query-string duplicates)", _int(pc["discounted"]) if pc.get("discounted") else "—"],
-              ["Confidence", str(pc.get("confidence", "—"))]]
-    _table(doc, ["Metric", "Value"], pcrows)
-    if pc.get("spiral_note"):
-        _para(doc, pc["spiral_note"], size=9, color=GRAY)
-
-    _para(doc, "Modeled vs. contracted", bold=True, size=11)
-    _table(doc, ["", "Modeled (precise)", "Contracted (clean)"], [
-        ["Annual page scans", _int(pr.get("modeled_scans", us["annual_scans"])), _int(pr["recommended_scans"])],
-        ["Annual price", _usd(pr.get("modeled_price", pr["recommended_price"])), _usd(pr["recommended_price"])],
-    ])
-    if internal.get("implied_frequency") is not None:
-        _para(doc, f"Implied blended frequency: {internal['implied_frequency']}× (vs the public "
-                   f"single-frequency calculator).", size=9, color=GRAY)
-
-    if internal.get("assumptions"):
-        _para(doc, "Assumptions applied (confirm with customer)", bold=True, size=11)
-        for a in internal["assumptions"]:
-            p = doc.add_paragraph(style="List Bullet")
-            _run(p, a, size=9.5)
-
-    if pr.get("price_by_band"):
-        _para(doc, "Usage-based pricing — per-band breakdown", bold=True, size=11)
-        band_rows = []
-        for b in pr["price_by_band"]:
-            band = "tail" if b.get("band_limit") is None else _int(b["band_limit"])
-            band_rows.append([band, f"${b['rate']:.2f}", _int(b["pages"]), _usd(b["cost"])])
-        _table(doc, ["Band width", "Rate/scan", "Scans", "Cost"], band_rows)
-
-    src = pr.get("pricing_source", "")
-    if src:
-        if "http" in src:
-            url = src[src.index("http"):].strip()
-            p = doc.add_paragraph()
-            _run(p, "Pricing source: ", size=8, color=GRAY)
-            _hyperlink(p, url, url, size=8)
-        else:
-            _para(doc, f"Pricing source: {src}", size=8, color=GRAY)
-    if internal.get("thresholds_swept"):
-        _para(doc, f"Spiral threshold sweep: {internal['thresholds_swept']}", size=8, color=GRAY)
 
     return doc
 
