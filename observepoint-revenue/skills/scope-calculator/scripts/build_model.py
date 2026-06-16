@@ -82,6 +82,9 @@ def _lever(cell, fmt):
 # ---------- Scope Detail (first sheet) ----------
 
 def _scope_detail(wb, data):
+    """Build the Scope Detail sheet: top-20 domains individually, the rest collapsed into one
+    bottom aggregate row. NOTE: that aggregate row is a SINGLE Include?/Sample Size lever governing
+    the whole long tail as a block — toggling it does not preserve the per-domain engine breakdown."""
     ws = wb.active
     ws.title = "Scope Detail"
     _widths(ws, [44, 14, 12, 16, 12, 30])
@@ -266,6 +269,8 @@ def build_workbook(data):
     layers = data.get("cadence_layers", [])
     if not (1 <= len(layers) <= 6):
         raise ValueError(f"scope of work: expected 1–6 cadence layers; got {len(layers)}.")
+    if not data.get("per_domain"):
+        raise ValueError("scope of work: 'per_domain' is empty — nothing to scope.")
     strings = [L.get("name", "") for L in layers] + [L.get("why", "") for L in layers]
     customer_clean.assert_clean(strings, where="scope of work")
 

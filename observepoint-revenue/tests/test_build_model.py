@@ -201,3 +201,30 @@ def test_sample_pages_render():
     ws = bm.build_workbook(DATA)["Sample pages"]
     blob = "\n".join(str(c.value) for row in ws.iter_rows() for c in row if c.value)
     assert "https://d0.com/" in blob
+
+
+def test_scope_detail_percent_of_total_range_is_exact():
+    ws = bm.build_workbook(DATA)["Scope Detail"]
+    # 23 domains → 20 individual + 1 aggregate, data rows 4..24
+    assert ws["C4"].value == "=B4/SUM($B$4:$B$24)"
+    assert ws["C24"].value == "=B24/SUM($B$4:$B$24)"
+
+
+def test_combined_text_audit_formula():
+    ws = bm.build_workbook(DATA)["Scope of Work"]
+    assert ws["C10"].value == '=TEXT(B6,"#,##0")&" × "&B7&" × "&B8&" × "&B9&" = "&TEXT(B10,"#,##0")'
+
+
+def test_no_tail_means_no_aggregate_row():
+    d = json.loads(json.dumps(DATA)); d["per_domain"] = PER_DOMAIN[:20]   # exactly 20 → no tail
+    wb = bm.build_workbook(d)
+    sd = wb["Scope Detail"]
+    assert sd["A23"].value == "d19.com" and sd["A24"].value is None
+    text = getattr(wb["Scope of Work"]["B6"].value, "text", wb["Scope of Work"]["B6"].value)
+    assert "D4:D23" in text          # SUMPRODUCT spans only the 20 real rows, no aggregate
+
+
+def test_empty_per_domain_raises():
+    d = json.loads(json.dumps(DATA)); d["per_domain"] = []
+    with pytest.raises(ValueError):
+        bm.build_workbook(d)
