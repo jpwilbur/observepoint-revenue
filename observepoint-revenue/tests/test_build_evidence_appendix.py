@@ -54,7 +54,7 @@ def test_customer_sheets_no_methodology_or_internal():
     assert "Methodology" not in wb.sheetnames            # methodology is internal now
     assert wb.sheetnames == ["Scope Summary", "Pages by Domain", "Sample Pages", "Annual Usage Breakdown"]
     t = _alltext(wb)
-    for term in ("Spiral", "raw url", "Census", "Confidence", "Reduced", "defensible"):
+    for term in ("Spiral", "raw url", "Census", "Confidence", "Reduced", "defensible", "crawl", "query"):
         assert term.lower() not in t.lower(), f"leaked internal term: {term}"
 
 

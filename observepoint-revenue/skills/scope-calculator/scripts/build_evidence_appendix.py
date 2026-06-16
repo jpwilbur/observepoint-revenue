@@ -164,9 +164,9 @@ def _sample_pages(wb, data):
     ws = wb.create_sheet("Sample Pages")
     _widths(ws, [34, 70])
     r = _title(ws, "Sample Pages — real examples found on each property", 2, 1)
-    note = ws.cell(r, 1, "A handful of real, query-stripped pages per itemized property (the largest "
-                         "by page count) — so you can see these are genuine pages, not crawler noise. "
-                         "Smaller properties are rolled into the aggregate row on 'Pages by Domain'.")
+    note = ws.cell(r, 1, "A handful of real example pages per itemized property (the largest by "
+                         "page count) — so you can see these are genuine pages. Smaller properties "
+                         "are rolled into the aggregate row on 'Pages by Domain'.")
     note.font = _f(color=GRAY, size=9)
     note.alignment = Alignment(wrap_text=True, vertical="top")
     ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
