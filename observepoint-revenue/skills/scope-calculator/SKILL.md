@@ -7,7 +7,11 @@ description: Use when a revenue or sales rep needs to scope or price an ObserveP
 
 The single tool reps use to scope and price an ObservePoint contract. It is **one job in three stages** — run all three (the default) or jump to the stage you need. You orchestrate and judge; the scripts do every calculation and render the deliverables. **Never invent a page count, multiplier, cadence, or price — a guessed number presented as fact is the failure this tool exists to prevent.**
 
-Set `SCRIPTS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts` and `REFS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/references`. Scripts: `compute_scope.py`, `fetch_pricing.py`, `fetch_samples.py`, `check_artifacts.py`, `build_proposal.py`, `build_evidence_appendix.py`. Read the reference for whichever stage you run.
+Set `SCRIPTS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts` and `REFS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/references`. Scripts: `compute_scope.py`, `fetch_pricing.py`, `fetch_samples.py`, `check_artifacts.py`, `build_proposal.py`, `build_evidence_appendix.py`, `customer_clean.py`, `build_internal_evidence.py`. Read the reference for whichever stage you run.
+
+## Phase 0 — Frame & audience
+
+**Ask up front** (before any derivation): *"Will these files ever reach the customer?"* Default: **yes**. This sets customer-clean mode for the rest of the job — customer-facing deliverables are clean by construction; all internal context (derivation, confidence, census IDs, spiral/recursion notes, assumptions-to-verify, price-by-band) goes exclusively to the **internal-evidence file** (`build_internal_evidence.py`), which is never forwarded. If the rep says no (internal only), flag it, but keep the same split — the internal file is still the right home for internal data.
 
 **Interpreter note:** `build_proposal.py` requires `python-docx` and `build_evidence_appendix.py` requires `openpyxl`. Invoke scripts with a Python that has the plugin deps (prefer `/opt/homebrew/bin/python3`). If you hit `ModuleNotFoundError`, install the repo requirements first — do NOT silently skip the deliverable.
 
@@ -45,11 +49,17 @@ Set `SCRIPTS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts` and `REFS=${
 
 ## Stage 2 — Size usage + price
 
-**REQUIRED READING:** `$REFS/usage-methodology.md` (multipliers, defaults, layered cadence, use-case profiles, ask-the-customer map) and `$REFS/pricing-model.md` (graduated tiers, buffer, live fetch + fallback, no-override rule). **Never invent a value, never block, never do the math in your head.** For any missing input apply the labeled default and add a line to an **"Assumptions to verify with the customer"** list. Never quote a $/page or $/scan rate from memory.
+**REQUIRED READING:** `$REFS/usage-methodology.md` (multipliers, defaults, ask-the-customer map), `$REFS/frequency-advisor.md` (the cadence ladder), and `$REFS/pricing-model.md` (graduated tiers, buffer, live fetch + fallback, no-override rule). **Never invent a value, never block, never do the math in your head.** For any missing input apply the labeled default and add a line to an **"Assumptions to verify with the customer"** list. Never quote a $/page or $/scan rate from memory.
 
-1. **Pick the use case** (privacy / analytics / accessibility) — seeds multiplier + cadence defaults.
-2. **Set multipliers** — geographies, scenarios, environments — via regulation-based defaults (CCPA→3, GDPR→2, else 1; prod+staging→1.5). Flag every defaulted one.
-3. **Set cadence layers** — risk-framed ("how long can you tolerate an undetected issue?"), additive.
+**Soft inputs — recommend-first.** Walk the rep through each input one at a time. For each: lead with an **anchored best-practice recommendation + the reasoning** (pre-filled); the rep accepts, adjusts, or says "I don't know." "I don't know" → apply the labeled default AND add an **assumptions-to-verify** line (goes to the internal-evidence file and the rep chat; never to the customer proposal).
+
+1. **Pick the use case** (privacy / analytics / accessibility) — seeds multiplier + cadence defaults. Lead with a recommendation based on what you know about the account; if unknown, offer all three and let the rep choose; if still unknown, default to privacy (broadest scenario multiplier).
+2. **Set multipliers** — walk each one recommend-first:
+   - **Geographies:** "Which regulated regions need verified behavior? I recommend anchoring to all that plausibly apply." Default if unknown: 1.
+   - **Consent scenarios:** "Which consent states matter? CCPA → 3 (Default + Opt-Out + GPC), GDPR → 2 (Accept-All + Reject-All)." Default by regulation (CCPA→3, GDPR→2, else 1).
+   - **Environments:** "Do they validate staging/pre-prod before release? If so, prod + staging → 1.5." Default if unknown: 1 (prod only).
+   Flag every defaulted multiplier in the assumptions-to-verify list.
+3. **Set cadence via the frequency-advisor walk** (`$REFS/frequency-advisor.md`): open at the anchor-high default (all five layers at their default %; blended ≈ 11 scans/page/year). Walk each layer top to bottom — state the customer-facing **why** + default %, then the rep **keeps**, **adjusts the %**, or **drops** the layer. "I don't know" → keep the default and log an assumption-to-verify. Capture each retained layer with its `{name, pct, runs_per_year, why}` for `compute_scope.py`.
 4. **Fetch live pricing:** `python3 "$SCRIPTS/fetch_pricing.py"` → `{tiers, source}`.
 5. **Compute:** assemble the inputs JSON (`page_count` low/anchor/high, `multipliers`, `cadence_layers`, `buffer_pct`, plus fetched `tiers` + `source`) → `python3 "$SCRIPTS/compute_scope.py" <inputs.json>`. Use its numbers verbatim.
 6. **Present** the rep-facing breakdown: each multiplier + rationale (defaulted?); cadence table; annual_scans range; predicted vs purchased (if buffer — and if `tier_changed_by_buffer` is true, **call out that the buffer pushed the deal into a different pricing tier**); tier; live price-by-band + total range; the recommended quote (anchor); the **recommended contract** (`recommended_contract` — a clean round price and the **exact** scans that reconcile to it); the implied-blended-frequency note; the pricing **`source`** stamp; the assumptions-to-verify checklist. If `source` starts with `"FALLBACK"` (live pricing unavailable), add a "pricing may be stale — verify/refresh before sending" warning.
@@ -58,12 +68,12 @@ Set `SCRIPTS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts` and `REFS=${
 
 ## Stage 3 — Assemble deliverables
 
-Produce **BOTH** files — never just one; the proposal references the workbook. The exact field
-mappings for both inputs are in `$REFS/deliverables-mapping.md` (and `build_proposal.py`'s docstring).
+Produce **ALL THREE** files — never just one or two; the proposal references the workbook, and the internal-evidence file carries everything the customer must not see. The exact field mappings for all three are in `$REFS/deliverables-mapping.md` (and each script's docstring).
 
-- **Evidence workbook:** `python3 "$SCRIPTS/build_evidence_appendix.py" <perdomain.json> "<Customer> - evidence appendix.xlsx"` — fed the Stage-1 `{rollup, per_domain}` (with `url_samples`) plus a `usage` object for the Annual Usage Breakdown sheet.
-- **Proposal:** `python3 "$SCRIPTS/build_proposal.py" <proposal.json> "<Customer> - proposal.docx"` — a comprehensive, rep-first ObservePoint-themed doc that SHOWS the derivation and ends with a strippable `[INTERNAL — REMOVE BEFORE SENDING]` section. Build `proposal.json` per the mapping reference; keep internal terms out of `monitoring_summary` (the generator rejects them).
-- **Output location (uniform across the plugin) — one folder per account:** rep-named base folder, else default `~/Documents/ObservePoint Revenue/Scoping & Pricing/`. Create a **per-account subfolder** (`.../Scoping & Pricing/<Customer>/`); expand `~`, `mkdir -p` first, never a temp dir. Report both **absolute paths** with the rep-facing breakdown.
+- **Proposal (clean):** `python3 "$SCRIPTS/build_proposal.py" <proposal.json> "<Customer> - proposal.docx"` — a clean, customer-facing snapshot: footprint, cadence table with per-row "why", recommended investment. **No `[INTERNAL]` section, no internal terms by construction.** Build `proposal.json` per the mapping reference; agent-composed strings (monitoring_summary, cadence names, why lines) are guard-checked (the generator rejects internal terms).
+- **Customer workbook (clean):** `python3 "$SCRIPTS/build_evidence_appendix.py" <perdomain.json> "<Customer> - evidence appendix.xlsx"` — fed the Stage-1 `{rollup, per_domain}` (with `url_samples`) plus a `usage` object (with cadence `why` fields) for the Annual Usage Breakdown sheet. Clean: no Spiral? column, no raw-URL math, no census/crawl/confidence.
+- **Internal evidence (rep-only, NEVER sent):** `python3 "$SCRIPTS/build_internal_evidence.py" <internal.json> "<Customer> - internal evidence.xlsx"` — the page-count derivation (census ID, crawl status, raw/defensible/reduced), per-domain spiral/recursion notes, assumptions-to-verify, modeled-vs-contracted, price-by-band, rollup-dominance flag. This file stays with the rep; it is **never forwarded to the customer**.
+- **Output location (uniform across the plugin) — one folder per account:** rep-named base folder, else default `~/Documents/ObservePoint Revenue/Scoping & Pricing/`. Create a **per-account subfolder** (`.../Scoping & Pricing/<Customer>/`); expand `~`, `mkdir -p` first, never a temp dir. Report all **three absolute paths** with the rep-facing breakdown.
 
 ## The single-source consistency rule
 
@@ -84,4 +94,5 @@ There is **one** Stage-1 object and it feeds BOTH pricing and the deliverables. 
 | "I'll state a rate / total I know roughly." | Run `fetch_pricing.py` + `compute_scope.py`. Live tiers are the only truth. No mental math. |
 | "I don't know their geos/cadence — I'll bake in sensible numbers." | Apply the labeled default AND add it to the assumptions-to-verify list. |
 | "The proposal, appendix, and price show different anchors." | STOP — you re-derived instead of passing one object through. |
-| "I'll hand over just the proposal." | Reps need the chat breakdown AND both files (proposal `.docx` + evidence `.xlsx`). |
+| "I'll hand over just the proposal." | Reps need the chat breakdown AND all three files (proposal `.docx` + customer workbook `.xlsx` + internal evidence `.xlsx`). |
+| "I'll show the customer the confidence rating / page-count derivation / census ID." | That's the internal file. Customer files are clean by construction — confidence, census IDs, raw URL totals, spiral/recursion notes never appear in the proposal or customer workbook. |
