@@ -42,10 +42,7 @@ FONT = "Montserrat"
 DARK = RGBColor(0x1E, 0x1E, 0x1E)
 GRAY = RGBColor(0x5C, 0x5C, 0x5C)
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-RED = RGBColor(0xF3, 0x41, 0x46)
-GREEN = RGBColor(0x1F, 0x9D, 0x55)
 DARK_HEX, YELLOW_HEX, LIGHT_HEX = "1E1E1E", "F2CD14", "F2F2F2"
-RED_HEX, GREEN_HEX, MIDGRAY_HEX, LINK_HEX = "F34146", "1F9D55", "E2E2E2", "0563C1"
 LOGO = pathlib.Path(__file__).resolve().parent.parent / "assets" / "op-logo.png"
 
 _FREQ = {1: "Annually", 4: "Quarterly", 12: "Monthly", 26: "Bi-weekly", 52: "Weekly", 365: "Daily"}
@@ -107,37 +104,6 @@ def _left_accent(cell, hex_color=YELLOW_HEX, sz="24"):
     for k, v in (("w:val", "single"), ("w:sz", sz), ("w:space", "0"), ("w:color", hex_color)):
         el.set(qn(k), v)
     borders.append(el)
-
-
-def _hyperlink(paragraph, url, text, *, size=9):
-    """A real clickable Word hyperlink (blue, underlined)."""
-    r_id = paragraph.part.relate_to(
-        url, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
-        is_external=True)
-    link = OxmlElement("w:hyperlink")
-    link.set(qn("r:id"), r_id)
-    r = OxmlElement("w:r")
-    rPr = OxmlElement("w:rPr")
-    rf = OxmlElement("w:rFonts")
-    rf.set(qn("w:ascii"), FONT)
-    rf.set(qn("w:hAnsi"), FONT)
-    rPr.append(rf)
-    sz_el = OxmlElement("w:sz")
-    sz_el.set(qn("w:val"), str(int(size * 2)))
-    rPr.append(sz_el)
-    col = OxmlElement("w:color")
-    col.set(qn("w:val"), LINK_HEX)
-    rPr.append(col)
-    u = OxmlElement("w:u")
-    u.set(qn("w:val"), "single")
-    rPr.append(u)
-    r.append(rPr)
-    t = OxmlElement("w:t")
-    t.text = text
-    r.append(t)
-    link.append(r)
-    paragraph._p.append(link)
-    return link
 
 
 def _chip(cell, text, fill_hex, text_color=WHITE, size=8):
@@ -334,7 +300,7 @@ def build_proposal(data):
 _DOC_REF = "see references/deliverables-mapping.md"
 # Required top-level key → short expected-shape hint, surfaced in the friendly error.
 _REQUIRED = {
-    "page_count": "{low, anchor, high, confidence}",
+    "page_count": "{low, anchor, high}",
     "pricing": "{recommended_price, recommended_scans}",
     "usage": "{pages_per_sweep, annual_scans}",
 }
