@@ -90,10 +90,6 @@ def test_annual_scans_layered_calibration():
     assert by["daily"] == 0
 
 
-def test_apply_buffer():
-    assert cs.apply_buffer(100_000, 0.10) == 110_000
-    assert cs.apply_buffer(1_664_256, 0.0) == 1_664_256          # no-op
-    assert cs.apply_buffer(1_664_256, 0.10) == 1_830_682          # round(…*1.1)
 
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -112,29 +108,33 @@ BASE_INPUTS = {
 def test_compute_anchor_calibration():
     out = cs.compute(BASE_INPUTS)
     a = out["anchor"]
-    assert a["use_case_pages"] == 1_182_000
-    assert a["predicted_scans"] == 1_664_256
-    assert a["purchased_scans"] == 1_664_256
+    assert a["combined_pages"] == 1_182_000
+    assert a["predicted_scans"] == 1_664_256        # buffer_pct=0 → predicted == layer sum
+    assert "purchased_scans" not in a               # retired
     assert a["tier"] == "professional"
     assert a["price"]["total"] == 133_030.24
     assert a["implied_blended_frequency"] == round(1_664_256 / 1_182_000, 3)
     assert out["recommended_quote"]["price_total"] == 133_030.24
-    assert out["pricing_source"].startswith("baked")  # no tiers passed → baked
+    assert out["recommended_quote"]["predicted_scans"] == 1_664_256
+    assert "recommended_contract" not in out        # retired
+    assert out["pricing_source"].startswith("baked")
 
 
 def test_compute_range_is_monotonic():
     out = cs.compute(BASE_INPUTS)
     lo, hi = out["range"]["low"], out["range"]["high"]
-    assert lo["purchased_scans"] < out["anchor"]["purchased_scans"] < hi["purchased_scans"]
+    assert lo["predicted_scans"] < out["anchor"]["predicted_scans"] < hi["predicted_scans"]
     assert lo["price_total"] < out["anchor"]["price"]["total"] < hi["price_total"]
 
 
-def test_compute_buffer_changes_purchased():
-    inp = dict(BASE_INPUTS, buffer_pct=0.10)
-    out = cs.compute(inp)
-    assert out["anchor"]["predicted_scans"] == 1_664_256
-    assert out["anchor"]["purchased_scans"] == 1_830_682
-    assert out["anchor"]["price"]["total"] > 133_030.24
+def test_buffer_is_additive_not_a_multiplier():
+    # combined = 1,182,000; layer sum (calibration) = 1,664,256.
+    # additive buffer adds round(combined * 0.15) = 177,300 → predicted 1,841,556.
+    out = cs.compute(dict(BASE_INPUTS, buffer_pct=0.15))
+    a = out["anchor"]
+    assert a["buffer_scans"] == round(1_182_000 * 0.15)     # 177,300
+    assert a["predicted_scans"] == 1_664_256 + 177_300       # 1,841,556
+    assert a["price"]["total"] > 133_030.24                  # more scans → higher price
 
 
 def test_compute_uses_passed_tiers_and_source():
@@ -171,10 +171,6 @@ def test_annual_scans_empty_layers():
     assert out["by_layer"] == []
 
 
-def test_apply_buffer_zero_scans():
-    assert cs.apply_buffer(0, 0.10) == 0
-
-
 def test_compute_accepts_source_alias():
     inp = dict(BASE_INPUTS, tiers=cs.BAKED_TIERS, source="live @ alias")
     out = cs.compute(inp)
@@ -201,53 +197,6 @@ def test_scans_for_price_clean_target():
     s = cs.scans_for_price(54_000, cs.BAKED_TIERS)
     assert s == 430_167
     assert abs(cs.graduated_price(s, cs.BAKED_TIERS)["total"] - 54_000) < 0.5
-
-
-def test_compute_recommended_contract():
-    rc = cs.compute(BASE_INPUTS)["recommended_contract"]
-    assert rc["price"] == 133_000                       # nearest $1,000 of 133,030.24
-    assert rc["scans"] == cs.scans_for_price(133_000, cs.BAKED_TIERS)
-    assert abs(cs.graduated_price(rc["scans"], cs.BAKED_TIERS)["total"] - 133_000) < 1
-
-
-# --- buffer-crosses-tier flag (Part C) -------------------------------------------------
-# One layer @ pct=1.0, runs=1 and all multipliers 1 → predicted_scans == base_pages, so we can
-# place predicted and buffered counts on either side of the 600k starter/professional boundary.
-_FLAT_LAYER = [{"name": "annual baseline", "pct": 1.0, "runs_per_year": 1}]
-_FLAT_INPUTS = {
-    "customer": "Tier Test",
-    "page_count": {"low": 590_000, "anchor": 590_000, "high": 590_000, "confidence": "HIGH"},
-    "multipliers": {"geographies": 1, "scenarios": 1, "environments": 1},
-    "cadence_layers": _FLAT_LAYER,
-}
-
-
-def test_tier_changed_by_buffer_true_when_buffer_straddles_boundary():
-    # 590,000 predicted (starter) → ×1.10 = 649,000 purchased (professional): flag True.
-    out = cs.compute(dict(_FLAT_INPUTS, buffer_pct=0.10))
-    a = out["anchor"]
-    assert a["predicted_scans"] == 590_000
-    assert a["purchased_scans"] == 649_000
-    assert cs.classify_tier(a["predicted_scans"]) == "starter"
-    assert cs.classify_tier(a["purchased_scans"]) == "professional"
-    assert a["tier_changed_by_buffer"] is True
-
-
-def test_tier_changed_by_buffer_false_same_tier():
-    # Same predicted count, no buffer → predicted and purchased both starter: flag False.
-    out = cs.compute(dict(_FLAT_INPUTS, buffer_pct=0.0))
-    a = out["anchor"]
-    assert a["predicted_scans"] == a["purchased_scans"] == 590_000
-    assert a["tier_changed_by_buffer"] is False
-
-
-def test_tier_changed_by_buffer_false_when_buffer_stays_in_tier():
-    # 100,000 predicted (starter) → ×1.10 = 110,000 purchased (still starter): flag False.
-    inp = dict(_FLAT_INPUTS, buffer_pct=0.10)
-    inp["page_count"] = {"low": 100_000, "anchor": 100_000, "high": 100_000, "confidence": "HIGH"}
-    a = cs.compute(inp)["anchor"]
-    assert a["predicted_scans"] == 100_000 and a["purchased_scans"] == 110_000
-    assert a["tier_changed_by_buffer"] is False
 
 
 # --- friendly input validation (Part B) ------------------------------------------------
