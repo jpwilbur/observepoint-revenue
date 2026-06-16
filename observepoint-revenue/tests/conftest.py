@@ -1,6 +1,6 @@
 """Put the hyphenated skill script dirs on sys.path so tests can `import` the
-script modules directly (compute_scope, fetch_pricing, build_proposal,
-build_evidence_appendix all live under scope-calculator/scripts)."""
+script modules directly (compute_scope, fetch_pricing, build_proposal, build_model
+all live under scope-calculator/scripts)."""
 import pathlib
 import sys
 

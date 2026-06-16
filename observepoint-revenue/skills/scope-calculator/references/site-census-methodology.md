@@ -12,10 +12,21 @@ million" is a failure.
 Site Census is a cheap, **unrendered GET crawler** that walks a customer's domains to estimate page
 count. It is internal and flaky. Defend against these failure modes:
 
-1. **Query-param spirals (the #1 problem).** One page reachable via session IDs / tracking params /
-   faceted-nav combos / calendar pickers explodes into thousands of distinct URLs that are the SAME
-   page. Counting raw URLs over-states page count by 5–50× on affected domains. This is what
-   separates a defensible number from an indefensible one.
+1. **Count inflation (the #1 problem) — three flavors, all discount-or-die.** Counting raw URLs
+   through any of these is what separates a defensible number from an indefensible one.
+   - **Query-param spirals.** One page reachable via session IDs / tracking params / faceted-nav
+     combos / calendar pickers explodes into thousands of distinct URLs that are the SAME page (5–50×
+     on affected domains). `size_site_census`'s spiral gate (distinct URLs ≫ distinct paths) catches
+     these.
+   - **`%22` / doubled-slash artifacts.** The unrendered crawler mis-parses escaped-quote hrefs into
+     junk like `/%22//news///%22`. This lives in the PATH, so URLs and paths inflate EQUALLY — the
+     spiral gate is blind to it (TKO: 306 raw → ~80 real). Caught only by the artifact check (§5).
+   - **Path-recursion traps.** A relative-link loop re-appends a nav segment onto the path over and
+     over (`/contact/biz/biz/biz/…`). No query string, no `%22`, no doubled slash — so it defeats the
+     spiral gate, the `%22` check, AND the `patterns` backstop (each depth is a structurally distinct
+     template, so `patterns` ≈ `paths` ≈ `urls`). One trap can be 90%+ of an account (Gallagher 711,
+     2026-06-15: stevenson-insurance.com 1.71M URLs for a ~150-page agency, a silent ~15×). Caught
+     only by the recursion-aware artifact check (§5); the remedy is to EXCLUDE the host and re-crawl.
 2. **No JavaScript rendering.** Can miss JS-injected links (undercount) or count app-shell variants
    (overcount). Usually small/qualitative — flag it, don't precisely model it.
 3. **API flakiness.** 500s, 504 timeouts, request timeouts — worse on big accounts. The MCP tools
@@ -105,7 +116,7 @@ as the number grows (more crawled pages = more confidence).
 
 ## 5. Output contract (what Stage 1 returns)
 
-A JSON object (consumed by the usage+price stage and by `build_evidence_appendix.py` for the
+A JSON object (consumed by the usage+price stage and by `build_model.py` for the
 customer workbook):
 
 ```
@@ -113,15 +124,22 @@ per_domain[] = { hostname, raw_urls, paths, patterns, spiral_flag, spiral_ratio,
                  defensible_pages, discounted, why, url_samples }
    # why         e.g. "349x query-param spiral"
    # url_samples a small capped list (~5–10) of real sample URLs for that domain, pulled from the
-   #             census — populates the evidence workbook's "URL Samples" sheet so the customer can
+   #             census — populates the customer workbook's 'Sample pages' sheet so the customer can
    #             eyeball that these are genuine pages. Capture them when you size the census.
 rollup = { url_total, path_floor, spiral_adjusted_anchor, low, high, confidence,
            census_ids, crawl_status, thresholds_swept }
 ```
 
 `defensible_pages` = paths for spiral-flagged domains, distinct URLs otherwise. The per-domain
-`defensible_pages` MUST sum to `rollup.spiral_adjusted_anchor` (the evidence-appendix builder
-enforces this invariant).
+`defensible_pages` MUST sum to `rollup.spiral_adjusted_anchor` (the customer-workbook builder
+(`build_model.py`) enforces this invariant).
+
+**Anchor confirmation gate.** After emitting `{rollup, per_domain}`, the Stage-1 flow runs
+`anchor_guard.py` (the anchor confirmation gate) before pricing may begin. The script computes the
+dominant-host signal (one host > 40% of the anchor) and the confidence-level directive, and outputs a
+deterministic `requires_confirmation` flag. A dominant host must be sampled via `check_artifacts.py`
+and excluded from the anchor if it is a recursion trap — before pricing. The gate also enforces a
+hard stop when confidence is MEDIUM or LOW. See SKILL.md Stage-1 step 7 for the full orchestration.
 
 **Truncated per-domain list → tail-aggregate row.** `size_site_census` lists only the top ~40
 hostnames in detail and rolls the rest into the totals. When the account has more domains than that
@@ -173,24 +191,37 @@ Notes (all learned from live use, read-only query):
   tool — see the SKILL's note; until it exists, the top-N + spirals rule is the default.
 
 **Artifact check (REQUIRED before you quote a count).** The spiral gate is blind to junk that lives
-in the PATH. An unrendered crawler mis-parsing escaped-quote hrefs emits URLs like
-`/%22//news///%22`, which inflate distinct URLs AND distinct paths **equally** — so url/path ratio
-stays ~1, NO spiral flags, yet the raw total can be several× the real page count (TKO: 306 raw → ~80
-real, ~4×, which would have over-scoped the deal). The free tell is in data you already have:
-**`patterns` ≪ `raw_urls` while url/path ratio is ~1** (TKO `patterns`=79 vs `raw_urls`=306). When
-you see that — or as a gate on any account before quoting — confirm with a sample that does NOT
-filter the junk:
+in the PATH, because it inflates distinct URLs AND distinct paths **equally** (url/path ratio ~1, no
+spiral flag). Two kinds:
+- **`%22`/doubled-slash artifacts** — the crawler mis-parses escaped-quote hrefs into `/%22//news///%22`
+  (TKO: 306 raw → ~80 real, ~4×). The free tell is **`patterns` ≪ `raw_urls` at url/path ratio ~1**
+  (TKO `patterns`=79 vs `raw_urls`=306).
+- **Path-recursion traps** — a relative-link loop re-appends a nav segment (`/biz/biz/biz/…`). This
+  defeats the `patterns` tell too (each depth is a distinct template, so `patterns` ≈ `paths` ≈ `urls`),
+  so there is **no aggregate tell** — one trap reported 1.71M URLs for a ~150-page agency (Gallagher
+  711), 93% of the account total, with no flag from any gate.
+
+Because recursion has no aggregate tell, run the artifact check **on every account before quoting** —
+not only when the `%22` tell fires — and **always on the single biggest host** and any host that is an
+outsized share of the total. Use a sample that does NOT filter the junk:
 
 - Build the RAW-mode query — `python3 "$SCRIPTS/fetch_samples.py" <censusId> <hostname> --raw` — which
   keeps ONLY the `SITE_CENSUS_ID` + `//<hostname>` filters (the junk is NOT filtered, so it CAN be
-  measured; bump `size` if you want a wider sample). Call `op_api_call` with it, `parse_samples` the
-  response, and write the returned `LINK_URL`s to a JSON list.
-- Run `python3 "$SCRIPTS/check_artifacts.py" <urls.json>` — it flags `%22`, literal quotes, and
-  doubled-slash paths. **Verdict `inflated`** (≥20% junk) means the raw/spiral-adjusted total for that
-  host is parser junk, not pages → quote the **clean** count for it (its `patterns` count, or
-  `raw_urls × (1 − artifact_pct)`), note it in the evidence, and lower confidence. **`clean`** → quote
-  as normal. This is the check the `%22`-excluding sample query above CANNOT do — that query hides the
-  junk by design, so it can't measure the junk rate.
+  measured; bump `size` to ~50–100 on suspect hosts for a firmer rate). Call `op_api_call` with it,
+  `parse_samples` the response, and write the returned `LINK_URL`s to a JSON list. (A plain raw sample
+  needs no negated multi-condition filter — avoid those on huge hosts; they 504. See §6.)
+- Run `python3 "$SCRIPTS/check_artifacts.py" <urls.json>`. It flags `%22`/quotes/doubled-slash
+  (`artifact_count`) AND repeated-segment recursion (`recursion_count`), and reports `collapsed_distinct`
+  (the host's real templates once repeats collapse). **Verdict `inflated`** (≥20% junk) means that
+  host's raw total is parser junk:
+  - **recursion-dominant** → even its *path* count is junk. **EXCLUDE the host from the anchor** (do
+    NOT substitute paths, unlike a spiral), itemize the discount with `collapsed_distinct` as the floor,
+    lower confidence, and recommend a corrected re-crawl with recursion/param handling.
+  - **`%22`-dominant** → quote the **clean** count for it (its `patterns` count, or
+    `raw_urls × (1 − artifact_pct)`), note it in the evidence, lower confidence.
+
+  **`clean`** → quote as normal. This is the check the `%22`-excluding sample query above CANNOT do —
+  that query hides the junk by design, so it can't measure the junk rate.
 
 Also surface, in the rep-facing summary: the range (narrow, rounded), the anchor, a recommended
 quoting number within the band, confidence + one-line reason, the **inflation discounted**
@@ -202,14 +233,22 @@ used (census id/name, domains, thresholds swept).
 
 - Admin-gated; operate in the central census account via impersonation. `whoami` first; impersonate
   before reading; for ANY write (create/resume/update/delete) state the account + plan, get explicit
-  go-ahead, `confirm_account_plan`, act, then `stop_impersonation` when done.
+  go-ahead, `confirm_account_plan`, act, then `stop_impersonation` when done. **Impersonation can
+  auto-revert (idle) mid-session:** a census-scoped read that lands on your admin account returns an
+  empty success (`totalCount: 0`, HTTP 200) with an "auto-reverted / admin account" warning — NOT an
+  error. Treat that as an invalid read (re-`login_as_account` + retry); never consume the `0` as data.
 - **Never** quote the raw URL total as "the number." **Never** emit an absurd range — the ceiling
   prevents it. **Never** fabricate a count when no census exists — cold-start hand-off instead.
 - **Never quote a count without the artifact check (§5).** "No spiral flagged" does NOT mean clean —
-  in-path `%22`/doubled-slash crawler junk defeats the spiral gate (it inflates URLs and paths
-  equally). `patterns` ≪ `raw_urls` at url/path ratio ~1 is the tell; confirm with `check_artifacts.py`.
+  in-path `%22`/doubled-slash junk AND path-recursion traps defeat the spiral gate (both inflate URLs
+  and paths equally); recursion defeats the `patterns` tell too, so there is no aggregate signal — run
+  `check_artifacts.py` on the biggest host(s) of every account before quoting.
 - A single census can hold many starting URLs (Gallagher had ~240 domains under one census).
   Customers may be split across censuses — use `censusIds[]` to merge, or ask which to include.
+- **Grid 504 on huge hosts.** A `string_contains` filter — especially negated, or several at once —
+  over a multi-million-row host times out (504). The recursion/artifact check does NOT need that: a
+  plain raw sample (`SITE_CENSUS_ID` + `//<host>` only, the `--raw` mode) returns fine. Don't try to
+  *quantify* a trap with negated multi-filters; sample it and exclude it.
 - On a final grid failure the tool falls back to kicking off a Links export (downloadable only in the
   OP UI, NOT API-pollable) — surface that to the user rather than hanging.
 

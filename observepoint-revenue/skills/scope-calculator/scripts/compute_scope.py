@@ -105,6 +105,7 @@ def annual_scans(ucp, cadence_layers):
             "runs_per_year": layer["runs_per_year"],
             "pages": round(pages, 2),
             "runs": runs,
+            "why": layer.get("why", ""),
         })
     return {"total": round(total), "by_layer": by_layer}
 

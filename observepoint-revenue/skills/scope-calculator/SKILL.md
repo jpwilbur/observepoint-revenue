@@ -1,15 +1,19 @@
 ---
 name: scope-calculator
-description: Use when a revenue or sales rep needs to scope or price an ObservePoint contract — "scope this account", "how many pages do they need", "how many pages does X have", "size a deal", "price out X", "price a known page count", "build a usage proposal". Derives a defensible page count, sizes annual page-scan usage, prices it against ObservePoint's live pricing, and produces a customer proposal + evidence workbook. Runs the whole job or any single stage. To discover which domains an org owns use owned-properties; to research/qualify a prospect use research-account.
+description: Use when a revenue or sales rep needs to scope or price an ObservePoint contract — "scope this account", "how many pages do they need", "how many pages does X have", "size a deal", "price out X", "price a known page count", "build a usage proposal". Derives a defensible page count, sizes annual page-scan usage, prices it against ObservePoint's live pricing, and produces a customer proposal + live investment model workbook. Runs the whole job or any single stage. To discover which domains an org owns use owned-properties; to research/qualify a prospect use research-account.
 ---
 
 # Scope Calculator
 
 The single tool reps use to scope and price an ObservePoint contract. It is **one job in three stages** — run all three (the default) or jump to the stage you need. You orchestrate and judge; the scripts do every calculation and render the deliverables. **Never invent a page count, multiplier, cadence, or price — a guessed number presented as fact is the failure this tool exists to prevent.**
 
-Set `SCRIPTS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts` and `REFS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/references`. Scripts: `compute_scope.py`, `fetch_pricing.py`, `fetch_samples.py`, `check_artifacts.py`, `build_proposal.py`, `build_evidence_appendix.py`. Read the reference for whichever stage you run.
+Set `SCRIPTS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts` and `REFS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/references`. Scripts: `compute_scope.py`, `fetch_pricing.py`, `fetch_samples.py`, `check_artifacts.py`, `build_proposal.py`, `build_model.py`, `customer_clean.py`, `build_internal_evidence.py`, `anchor_guard.py`. Read the reference for whichever stage you run.
 
-**Interpreter note:** `build_proposal.py` requires `python-docx` and `build_evidence_appendix.py` requires `openpyxl`. Invoke scripts with a Python that has the plugin deps (prefer `/opt/homebrew/bin/python3`). If you hit `ModuleNotFoundError`, install the repo requirements first — do NOT silently skip the deliverable.
+## Phase 0 — Frame & audience
+
+**Ask up front** (before any derivation): *"Will these files ever reach the customer?"* Default: **yes**. This sets customer-clean mode for the rest of the job — customer-facing deliverables are clean by construction; all internal context (derivation, confidence, census IDs, spiral/recursion notes, assumptions-to-verify, price-by-band) goes exclusively to the **internal-evidence file** (`build_internal_evidence.py`), which is never forwarded. If the rep says no (internal only), flag it, but keep the same split — the internal file is still the right home for internal data.
+
+**Interpreter note:** `build_proposal.py` requires `python-docx` and `build_model.py` requires `openpyxl`. Invoke scripts with a Python that has the plugin deps (prefer `/opt/homebrew/bin/python3`). If you hit `ModuleNotFoundError`, install the repo requirements first — do NOT silently skip the deliverable.
 
 ## Entry paths
 
@@ -26,27 +30,52 @@ Set `SCRIPTS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts` and `REFS=${
 > **Input — owned→scope inbound handoff.** If the rep supplies a **confirmed-domains list** (e.g. from the owned-properties skill), use it to scope/disambiguate the Site Census search (which domains belong to this account) and to **validate per_domain coverage** (every confirmed domain should appear in `per_domain[]` or the tail aggregate).
 
 **Stage-1 checklist (do not skip any of these — even if no spiral is flagged):**
-- **Artifact-check tell:** `patterns` ≪ `raw_urls` while the url/path ratio is ~1 (TKO `patterns`=79 vs `raw_urls`=306). That signature is in-path crawler junk the spiral gate is blind to.
+- **Artifact-check tell:** `patterns` ≪ `raw_urls` while the url/path ratio is ~1 (TKO `patterns`=79 vs `raw_urls`=306) — in-path `%22`/doubled-slash junk the spiral gate is blind to. **Path-recursion traps are sneakier still:** they defeat the patterns tell too (`patterns` ≈ `paths` ≈ `urls`, all inflated equally), so the *only* reliable catch is the raw-sample → `check_artifacts.py` gate (step 5). Tell: one domain is an implausible share of `url_total` or implausibly large for the business (Gallagher: stevenson-insurance.com reported 1.71M URLs for a ~150-page agency — 93% of the account, no flag).
 - **Incompleteness uplift (push HIGH only):** if `urlsToVisit > 0`, add ≈ `urlsToVisit × (pathFloor / visitedUrls)` to HIGH.
-- **Sampling cost rule:** sample every **spiral-flagged** domain plus the **top ~8–10 remaining** by page count (~12–16 grid queries total) — never every domain; the long tail is the aggregate row.
+- **Sampling cost rule:** sample every **spiral-flagged** domain, **any host that is an outsized share of `url_total`** (recursion-trap candidates — always sample the single biggest host), plus the **top ~8–10 remaining** by page count (~12–16 grid queries total) — never every domain; the long tail is the aggregate row.
 - **Do NOT skip the threshold sweep or the artifact check even if no spiral is flagged.**
 
-1. **Admin safety.** `whoami` → if not in the central census account (default id 32527) `login_as_account` into it. Reads are immediate. For ANY write (create/start/update/delete): state account + plan, get explicit go-ahead, `confirm_account_plan`, act, then `stop_impersonation`.
+1. **Admin safety.** `whoami` → if not in the central census account (default id 32527) `login_as_account` into it. Reads are immediate. For ANY write (create/start/update/delete): state account + plan, get explicit go-ahead, `confirm_account_plan`, act, then `stop_impersonation`. **Impersonation can auto-revert (idle) mid-session.** A census-scoped read that lands back on your own admin account returns an empty success — `totalCount: 0`, HTTP 200 — carrying an "auto-reverted / ran on your admin account" warning, **not** an error. Treat any response with that warning as an **invalid read**: re-assert `login_as_account` and retry — NEVER consume the `0`/empty as real data. Don't fire a long batch of census reads expecting one impersonation to survive the whole batch; re-check between groups.
 2. **Find the census.** `list_site_censuses({search:<customer surname/brand>})` (names are `[Rep][Rep] Customer`; if the rep gave a confirmed-domains list, use it to disambiguate). One → proceed. Multiple → disambiguate. None → **cold start** (see the callout above): do NOT invent a number; offer to create + start one (behind the write gate), tell the rep a fresh crawl takes hours-to-days, never block waiting.
 3. **Size + sweep.** `size_site_census({censusId})` at default thresholds, then sweep (5000/1.3, 10000/1.5, 20000/2.0). Read per-hostname URLs/paths/spiral flags + the three totals.
 4. **Derive the range** per the reference: anchor = spiral-adjusted total; band from the sweep spread; HIGH gets the incompleteness uplift `urlsToVisit × pathFloor/visitedUrls`; clamp to the sanity ceiling; round to ~2 sig figs; assign confidence.
-5. **Artifact check — MANDATORY GATE before you quote.** "No spiral flagged" ≠ clean: in-path crawler junk (`%22`/escaped-quote/doubled-slash) inflates URLs and paths equally, so the spiral gate misses it (TKO: 306 raw → ~80 real, ~4×). Tell = `patterns` ≪ `raw_urls` at url/path ratio ~1. **You MUST run the raw-mode sample through `check_artifacts.py` before quoting** — build the raw query with `python3 "$SCRIPTS/fetch_samples.py" <censusId> <hostname> --raw`, call `op_api_call` with it, `parse_samples` the response to a `<urls.json>`, then `python3 "$SCRIPTS/check_artifacts.py" <urls.json>`. **If verdict=`inflated`, quote the clean `patterns` count — NEVER the raw/spiral-adjusted total.** See `$REFS/site-census-methodology.md`.
+5. **Artifact check — MANDATORY GATE before you quote.** "No spiral flagged" ≠ clean. Two classes of in-path junk inflate URLs and paths equally, so the spiral gate misses both: **(a) `%22`/escaped-quote/doubled-slash artifacts** (TKO: 306 raw → ~80 real, ~4×); **(b) path-recursion traps** — a nav segment re-appended over and over (`/biz/biz/biz/…`), which ALSO defeat the patterns tell (Gallagher: stevenson-insurance.com 1.71M URLs for a ~150-page agency — a silent ~15× that was 93% of the account total). **You MUST run the raw-mode sample through `check_artifacts.py` before quoting** — build the raw query with `python3 "$SCRIPTS/fetch_samples.py" <censusId> <hostname> --raw` (bump `size` to ~50–100 for a firmer rate on suspect hosts), call `op_api_call` with it, `parse_samples` to a `<urls.json>`, then `python3 "$SCRIPTS/check_artifacts.py" <urls.json>`. Act on the verdict:
+   - **`inflated` with `recursion_count` dominant** → even the *path* count for that host is junk. **EXCLUDE the host from the anchor** (do NOT substitute paths — unlike a spiral), itemize the discount (`why: "recursion trap — N URLs collapse to ~M real pages"`, M = `collapsed_distinct`), and recommend a corrected re-crawl with recursion/param handling.
+   - **`inflated` with `artifact_count` (`%22`) dominant** → quote the clean `patterns` count for that host, never its raw/spiral-adjusted total.
+   - **`clean`** → quote as normal. See `$REFS/site-census-methodology.md`.
 6. **Emit `{rollup, per_domain[]}`** + the discounted-spiral transparency line. `size_site_census` itemizes only the top ~40 hostnames — on bigger accounts add a single labeled **tail-aggregate row** so `per_domain` sums to the anchor. Pull ~5–6 real sample pages per itemized domain into `url_samples`: build the query with `python3 "$SCRIPTS/fetch_samples.py" <censusId> <hostname>`, call `op_api_call` with it, and parse with `parse_samples` (clean pages, never fabricated, never hand-authored filter JSON).
+
+7. **Anchor confirmation gate — REQUIRED before Stage 2.** The derived anchor does NOT proceed to
+   pricing until the rep confirms it. Run `python3 "$SCRIPTS/anchor_guard.py" <rollup_perdomain.json>`
+   (the `{rollup, per_domain}` object from step 6) and present the rep with: the **anchor + range +
+   confidence**, plus any flags — the step-5 recursion/artifact verdict AND the gate's
+   **dominant-host** signal. Then:
+   - **HARD STOP** if ANY of: the gate reports `requires_confirmation` (a dominant host > 40% of the
+     anchor, OR confidence MEDIUM/LOW), OR step 5 found a recursion/`%22` host. The rep must
+     explicitly acknowledge, and for a dominant/recursion host you MUST run the step-5
+     `check_artifacts.py` sample on that host and EXCLUDE it if it's a trap, then re-derive — before
+     pricing. Never price past a hard stop on the rep's silence.
+   - **Quick confirm** if the gate is clean (HIGH confidence, no dominant host, step-5 clean): show
+     the anchor and get a one-line "confirmed" before Stage 2.
+   This gate is why a silent ~15× over-count (Gallagher) cannot reach a quote: the anchor is always
+   seen and OK'd, and an outsized single host is always investigated. (Applies on the full-scope
+   path; "known page count" entry skips Stage 1, so the rep-supplied number is the confirmation.)
 
 **Spiral-adjusted rule:** `defensible_pages` per domain = **paths for spiral-flagged domains, distinct URLs otherwise.** A domain is a spiral only when BOTH gates trip (overage > threshold AND ratio > threshold). Substitute paths for a spiral domain — do not drop it, do not apply paths to non-spiral domains. Per-domain `defensible_pages` MUST sum to the anchor.
 
 ## Stage 2 — Size usage + price
 
-**REQUIRED READING:** `$REFS/usage-methodology.md` (multipliers, defaults, layered cadence, use-case profiles, ask-the-customer map) and `$REFS/pricing-model.md` (graduated tiers, buffer, live fetch + fallback, no-override rule). **Never invent a value, never block, never do the math in your head.** For any missing input apply the labeled default and add a line to an **"Assumptions to verify with the customer"** list. Never quote a $/page or $/scan rate from memory.
+**REQUIRED READING:** `$REFS/usage-methodology.md` (multipliers, defaults, ask-the-customer map), `$REFS/pricing-model.md` (graduated tiers, buffer, live fetch + fallback, no-override rule), and `$REFS/frequency-advisor.md` (the cadence ladder — read this before the cadence walk in step 3). **Never invent a value, never block, never do the math in your head.** For any missing input apply the labeled default and add a line to an **"Assumptions to verify with the customer"** list. Never quote a $/page or $/scan rate from memory.
 
-1. **Pick the use case** (privacy / analytics / accessibility) — seeds multiplier + cadence defaults.
-2. **Set multipliers** — geographies, scenarios, environments — via regulation-based defaults (CCPA→3, GDPR→2, else 1; prod+staging→1.5). Flag every defaulted one.
-3. **Set cadence layers** — risk-framed ("how long can you tolerate an undetected issue?"), additive.
+**Soft inputs — recommend-first.** Walk the rep through each input one at a time. For each: lead with an **anchored best-practice recommendation + the reasoning** (pre-filled); the rep accepts, adjusts, or says "I don't know." "I don't know" → apply the labeled default AND add an **assumptions-to-verify** line (goes to the internal-evidence file and the rep chat; never to the customer proposal).
+
+1. **Pick the use case** (privacy / analytics / accessibility) — seeds multiplier + cadence defaults. Lead with a recommendation based on what you know about the account; if unknown, offer all three and let the rep choose; if still unknown, default to privacy (broadest scenario multiplier).
+2. **Set multipliers** — walk each one recommend-first:
+   - **Geographies:** "Which regulated regions need verified behavior? I recommend anchoring to all that plausibly apply." Default if unknown: 1.
+   - **Consent scenarios:** "Which consent states matter? CCPA → 3 (Default + Opt-Out + GPC), GDPR → 2 (Accept-All + Reject-All)." Default by regulation (CCPA→3, GDPR→2, else 1).
+   - **Environments:** "Do they validate staging/pre-prod before release? If so, prod + staging → 1.5." Default if unknown: 1 (prod only).
+   Flag every defaulted multiplier in the assumptions-to-verify list.
+3. **Set cadence via the frequency-advisor walk** (`$REFS/frequency-advisor.md`): open at the anchor-high default (all five layers at their default %; blended ≈ 11 scans/page/year). Walk each layer top to bottom — state the customer-facing **why** + default %, then the rep **keeps**, **adjusts the %**, or **drops** the layer. "I don't know" → keep the default and log an assumption-to-verify. Capture each retained layer with its `{name, pct, runs_per_year, why}` for `compute_scope.py`. **Note: the old use-case-profile cadence templates (privacy/analytics/accessibility presets) are retired — the frequency-advisor ladder is the single seed for every deal.**
 4. **Fetch live pricing:** `python3 "$SCRIPTS/fetch_pricing.py"` → `{tiers, source}`.
 5. **Compute:** assemble the inputs JSON (`page_count` low/anchor/high, `multipliers`, `cadence_layers`, `buffer_pct`, plus fetched `tiers` + `source`) → `python3 "$SCRIPTS/compute_scope.py" <inputs.json>`. Use its numbers verbatim.
 6. **Present** the rep-facing breakdown: each multiplier + rationale (defaulted?); cadence table; annual_scans range; predicted vs purchased (if buffer — and if `tier_changed_by_buffer` is true, **call out that the buffer pushed the deal into a different pricing tier**); tier; live price-by-band + total range; the recommended quote (anchor); the **recommended contract** (`recommended_contract` — a clean round price and the **exact** scans that reconcile to it); the implied-blended-frequency note; the pricing **`source`** stamp; the assumptions-to-verify checklist. If `source` starts with `"FALLBACK"` (live pricing unavailable), add a "pricing may be stale — verify/refresh before sending" warning.
@@ -55,12 +84,12 @@ Set `SCRIPTS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts` and `REFS=${
 
 ## Stage 3 — Assemble deliverables
 
-Produce **BOTH** files — never just one; the proposal references the workbook. The exact field
-mappings for both inputs are in `$REFS/deliverables-mapping.md` (and `build_proposal.py`'s docstring).
+Produce **ALL THREE** files — never just one or two; the proposal references the workbook, and the internal-evidence file carries everything the customer must not see. The exact field mappings for all three are in `$REFS/deliverables-mapping.md` (and each script's docstring).
 
-- **Evidence workbook:** `python3 "$SCRIPTS/build_evidence_appendix.py" <perdomain.json> "<Customer> - evidence appendix.xlsx"` — fed the Stage-1 `{rollup, per_domain}` (with `url_samples`) plus a `usage` object for the Annual Usage Breakdown sheet.
-- **Proposal:** `python3 "$SCRIPTS/build_proposal.py" <proposal.json> "<Customer> - proposal.docx"` — a comprehensive, rep-first ObservePoint-themed doc that SHOWS the derivation and ends with a strippable `[INTERNAL — REMOVE BEFORE SENDING]` section. Build `proposal.json` per the mapping reference; keep internal terms out of `monitoring_summary` (the generator rejects them).
-- **Output location (uniform across the plugin) — one folder per account:** rep-named base folder, else default `~/Documents/ObservePoint Revenue/Scoping & Pricing/`. Create a **per-account subfolder** (`.../Scoping & Pricing/<Customer>/`); expand `~`, `mkdir -p` first, never a temp dir. Report both **absolute paths** with the rep-facing breakdown.
+- **Proposal (clean):** `python3 "$SCRIPTS/build_proposal.py" <proposal.json> "<Customer> - proposal.docx"` — a clean, customer-facing snapshot: footprint, cadence table with per-row "why", recommended investment. **No `[INTERNAL]` section, no internal terms by construction.** Build `proposal.json` per the mapping reference; agent-composed strings (monitoring_summary, cadence names, why lines) are guard-checked (the generator rejects internal terms).
+- **Customer workbook (live model):** `python3 "$SCRIPTS/build_model.py" <model.json> "<Customer> - investment model.xlsx"` — the live Investment Model: yellow INPUT cells (pages, multipliers, cadence %) with Excel formulas so scans and price recompute when the customer adjusts them. Four sheets: **Investment Model** (live calculator), **Pricing** (graduated tier table + price formula), **Scope detail** (per-domain pages, customer-fillable), **Sample pages** (real example URLs). Clean: no Spiral? column, no raw-URL math, no census/crawl/confidence.
+- **Internal evidence (rep-only, NEVER sent):** `python3 "$SCRIPTS/build_internal_evidence.py" <internal.json> "<Customer> - internal evidence.xlsx"` — the page-count derivation (census ID, crawl status, raw/defensible/reduced), per-domain spiral/recursion notes, assumptions-to-verify, modeled-vs-contracted, price-by-band, rollup-dominance flag. This file stays with the rep; it is **never forwarded to the customer**.
+- **Output location (uniform across the plugin) — one folder per account:** if the rep specified a preferred output folder, use that as the base; otherwise the default base is `~/Documents/ObservePoint Revenue/Scoping & Pricing/`. Create a **per-account subfolder** (`.../Scoping & Pricing/<Customer>/`); expand `~`, `mkdir -p` first, never a temp dir. Report all **three absolute paths** with the rep-facing breakdown.
 
 ## The single-source consistency rule
 
@@ -73,10 +102,14 @@ There is **one** Stage-1 object and it feeds BOTH pricing and the deliverables. 
 | "No census yet, the rep needs a number — I'll estimate ~10k." | A fabricated count is the failure this tool prevents. Cold-start hand-off; return when the crawl completes. |
 | "Quote the raw URL total — it's the biggest number." | Query-param inflation; dies under scrutiny. Anchor = spiral-adjusted. |
 | "No spiral flagged, so the count is clean." | In-path `%22`/doubled-slash crawler junk defeats the spiral gate (inflates URLs and paths equally). `patterns` ≪ `raw_urls` at ratio ~1 is the tell — run `check_artifacts.py` before quoting. |
-| "That spiral domain isn't real pages — exclude it." | It has real pages (its paths). Spiral-ADJUST, don't exclude. |
+| "One domain is 1.7M pages — it's a huge account!" | Implausible for the business = a **recursion trap** (`/biz/biz/biz/…`), invisible to every gate (patterns ≈ paths ≈ urls). Raw-sample it → `check_artifacts.py`; if `recursion`, **EXCLUDE it** from the anchor (even paths are junk) and re-crawl. |
+| "That spiral domain isn't real pages — exclude it." | It has real pages (its paths). Spiral-ADJUST, don't exclude. (A *recursion* trap is the opposite — exclude that one.) |
+| "A census read returned `totalCount: 0` — that domain is empty." | Check for the impersonation auto-revert warning. A `0` from a reverted read is your ADMIN account, not the customer's — re-`login_as_account` and retry; never quote the 0. |
 | "I'll add 20% headroom for safety/growth." | The range is data-driven (sweep + uplift + ceiling), not an invented percentage. |
 | "The rep's in a hurry — use the flat $0.135." | That rate is dead. The live graduated price from the scripts IS the quote; no in-skill override. |
 | "I'll state a rate / total I know roughly." | Run `fetch_pricing.py` + `compute_scope.py`. Live tiers are the only truth. No mental math. |
 | "I don't know their geos/cadence — I'll bake in sensible numbers." | Apply the labeled default AND add it to the assumptions-to-verify list. |
 | "The proposal, appendix, and price show different anchors." | STOP — you re-derived instead of passing one object through. |
-| "I'll hand over just the proposal." | Reps need the chat breakdown AND both files (proposal `.docx` + evidence `.xlsx`). |
+| "I'll hand over just the proposal." | Reps need the chat breakdown AND all three files (proposal `.docx` + customer workbook `.xlsx` + internal evidence `.xlsx`). |
+| "I'll show the customer the confidence rating / page-count derivation / census ID." | That's the internal file. Customer files are clean by construction — confidence, census IDs, raw URL totals, spiral/recursion notes never appear in the proposal or customer workbook. |
+| "The anchor looks fine — I'll go straight to pricing." | Run the **anchor gate** (`anchor_guard.py`) and get explicit rep confirmation first. An unconfirmed anchor is exactly how a silent ~15× over-count reaches the quote. Hard-stop on a dominant host (>40%), a recursion/`%22` host, or MEDIUM/LOW confidence. |
