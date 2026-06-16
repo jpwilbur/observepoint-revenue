@@ -48,6 +48,8 @@ def _check_invariant(data):
 def dominant_host(data):
     """Return the per-domain row whose defensible_pages exceed DOMINANCE_THRESHOLD of the anchor,
     else None. The Gallagher recursion-trap signal (one host was 93% of the total)."""
+    if not data["per_domain"]:
+        return None
     anchor = data["rollup"].get("spiral_adjusted_anchor") or 0
     if anchor <= 0:
         return None
@@ -60,7 +62,7 @@ def _widths(ws, widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
 
 
-def _title(ws, text, span, row, color=DARK):
+def _title(ws, text, row, color=DARK):
     c = ws.cell(row, 1, text)
     c.font = _f(bold=True, size=14, color=color)
     return row + 2
@@ -75,7 +77,7 @@ def _headers(ws, headers, row):
     return row + 1
 
 
-def _row(ws, row, values, *, alt=False, fill=None, bold=()):
+def _row(ws, row, values, *, alt=False, bold=(), fill=None):
     for i, v in enumerate(values):
         c = ws.cell(row, i + 1, v)
         c.font = _f(bold=(i in bold))
@@ -84,8 +86,10 @@ def _row(ws, row, values, *, alt=False, fill=None, bold=()):
             c.fill = _fill(fill)
         elif alt:
             c.fill = _fill(LIGHT)
-        if isinstance(v, (int, float)) and not isinstance(v, bool):
+        if isinstance(v, int) and not isinstance(v, bool):
             c.number_format = "#,##0"
+        elif isinstance(v, float):
+            c.number_format = "#,##0.##"
     return row + 1
 
 
@@ -93,7 +97,7 @@ def _derivation(wb, data):
     ws = wb.active
     ws.title = "Derivation (INTERNAL)"
     _widths(ws, [44, 26])
-    r = _title(ws, "Page-count derivation — REP ONLY, do not send", 2, 1, color=RED)
+    r = _title(ws, "Page-count derivation — REP ONLY, do not send", 1, color=RED)
     rollup = data["rollup"]
     raw_total = sum(d["raw_urls"] for d in data["per_domain"])
     def_total = sum(d["defensible_pages"] for d in data["per_domain"])
@@ -121,17 +125,20 @@ def _derivation(wb, data):
         c1.font = _f(bold=True)
         c2 = ws.cell(r, 2, val)
         c2.font = _f()
-        if isinstance(val, (int, float)) and not isinstance(val, bool):
+        if isinstance(val, int) and not isinstance(val, bool):
             c2.number_format = "#,##0"
+        elif isinstance(val, float):
+            c2.number_format = "#,##0.##"
         if "DOMINANCE" in str(label):
-            c1.fill = c2.fill = _fill(YELLOW)
+            c1.fill = _fill(YELLOW)
+            c2.fill = _fill(YELLOW)
         r += 1
 
 
 def _per_domain(wb, data):
     ws = wb.create_sheet("Per-Domain (INTERNAL)")
     _widths(ws, [40, 14, 14, 14, 36])
-    r = _title(ws, "Per-domain derivation", 5, 1)
+    r = _title(ws, "Per-domain derivation", 1)
     r = _headers(ws, ["Property (domain)", "Raw URLs", "Defensible pages", "Reduced", "Note"], r)
     for i, d in enumerate(sorted(data["per_domain"], key=lambda x: -x.get("discounted", 0))):
         note = d.get("why", "") or ("query-string duplicates removed" if d.get("spiral_flag") else "")
@@ -145,7 +152,7 @@ def _assumptions(wb, data):
         return
     ws = wb.create_sheet("Assumptions (INTERNAL)")
     _widths(ws, [80])
-    r = _title(ws, "Assumptions to verify with the customer", 1, 1)
+    r = _title(ws, "Assumptions to verify with the customer", 1)
     for a in internal["assumptions"]:
         r = _row(ws, r, [a])
     if internal.get("implied_frequency") is not None:
@@ -160,7 +167,7 @@ def _pricing(wb, data):
         return
     ws = wb.create_sheet("Pricing (INTERNAL)")
     _widths(ws, [22, 20, 16, 16])
-    r = _title(ws, "Pricing — modeled vs contracted", 4, 1)
+    r = _title(ws, "Pricing — modeled vs contracted", 1)
     r = _headers(ws, ["", "Modeled (precise)", "Contracted (clean)", ""], r)
     r = _row(ws, r, ["Annual page scans", pr.get("modeled_scans", ""), pr.get("recommended_scans", ""), ""])
     r = _row(ws, r, ["Annual price (USD)", pr.get("modeled_price", ""), pr.get("recommended_price", ""), ""], alt=True)
@@ -195,10 +202,16 @@ def _validate(data):
     for key, shape in _REQUIRED.items():
         if key not in data or data[key] in (None, {}, []):
             sys.exit(f"scope-calculator: missing/malformed '{key}' — expected {shape}; {_DOC_REF}")
+    if "spiral_adjusted_anchor" not in data["rollup"]:
+        sys.exit(f"scope-calculator: 'rollup' is missing 'spiral_adjusted_anchor'; {_DOC_REF}")
 
 
 def main(argv):
-    raw = open(argv[1]).read() if len(argv) > 1 else sys.stdin.read()
+    if len(argv) > 1:
+        with open(argv[1]) as fh:
+            raw = fh.read()
+    else:
+        raw = sys.stdin.read()
     out = argv[2] if len(argv) > 2 else "internal-evidence.xlsx"
     try:
         data = json.loads(raw)

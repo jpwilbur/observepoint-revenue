@@ -14,7 +14,7 @@ SCRIPT = ROOT / "skills" / "scope-calculator" / "scripts" / "build_internal_evid
 
 DATA = {
     "customer": "Acme Corp", "date": "2026-06-15",
-    "rollup": {"url_total": 410_000, "spiral_adjusted_anchor": 95_000, "low": 88_000, "high": 105_000,
+    "rollup": {"spiral_adjusted_anchor": 95_000, "low": 88_000, "high": 105_000,
                "confidence": "MEDIUM", "census_ids": [812], "crawl_status": "done"},
     "per_domain": [
         {"hostname": "acme.com", "raw_urls": 90_000, "defensible_pages": 90_000, "discounted": 0, "why": ""},
@@ -141,3 +141,24 @@ def test_cli_bad_json_exits_nonzero(tmp_path):
         capture_output=True, text=True
     )
     assert result.returncode != 0
+
+
+def test_pricing_floats_have_decimal_format():
+    """Band rate 0.17 must use a decimal number format, not the integer '#,##0'."""
+    wb = bie.build_workbook(DATA)
+    ws = wb["Pricing (INTERNAL)"]
+    rate_cell = None
+    for row in ws.iter_rows():
+        for cell in row:
+            if cell.value == 50000:
+                # The rate cell is immediately to the right (same row, next column)
+                rate_cell = ws.cell(cell.row, cell.column + 1)
+                break
+        if rate_cell is not None:
+            break
+    assert rate_cell is not None, "Could not locate band-rate cell (row where first cell is 50000)"
+    assert rate_cell.value == 0.17
+    assert "." in rate_cell.number_format, (
+        f"Expected a decimal format (containing '.') for float 0.17, got {rate_cell.number_format!r}"
+    )
+    assert rate_cell.number_format == "#,##0.##"
