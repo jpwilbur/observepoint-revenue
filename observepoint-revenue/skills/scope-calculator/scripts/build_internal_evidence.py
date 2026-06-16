@@ -21,11 +21,12 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from anchor_guard import DOMINANCE_THRESHOLD, dominant_host  # noqa: F401  (re-exported; used by _derivation)
+
 FONT = "Montserrat"
 DARK, YELLOW, LIGHT, GRAY, WHITE, RED = "1E1E1E", "F2CD14", "F2F2F2", "5C5C5C", "FFFFFF", "F34146"
 _THIN = Side(style="thin", color="D9D9D9")
 _BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
-DOMINANCE_THRESHOLD = 0.40  # spec §9.2: flag when one host exceeds this share of the anchor
 
 
 def _f(bold=False, color=DARK, size=10):
@@ -43,18 +44,6 @@ def _check_invariant(data):
         breakdown = ", ".join(f"{d['hostname']}={d['defensible_pages']}" for d in data["per_domain"])
         raise ValueError(f"per-domain defensible_pages sum {total} != rollup anchor {anchor} "
                          f"(per domain: {breakdown})")
-
-
-def dominant_host(data):
-    """Return the per-domain row whose defensible_pages exceed DOMINANCE_THRESHOLD of the anchor,
-    else None. The Gallagher recursion-trap signal (one host was 93% of the total)."""
-    if not data["per_domain"]:
-        return None
-    anchor = data["rollup"].get("spiral_adjusted_anchor") or 0
-    if anchor <= 0:
-        return None
-    top = max(data["per_domain"], key=lambda d: d["defensible_pages"])
-    return top if top["defensible_pages"] / anchor > DOMINANCE_THRESHOLD else None
 
 
 def _widths(ws, widths):
