@@ -8,6 +8,8 @@ compute_scope.compute() at the anchor and under perturbations.
 Sheets (built incrementally across Phase B Tasks):
   Task 1 — Investment Model   (inputs + scan formulas)
   Task 2 — Pricing            (graduated tiers + live price formula)
+  Task 3 — Scope detail       (per-domain pages, sorted desc, customer-fillable cols)
+  Task 3 — Sample pages       (per-domain url_samples)
 """
 import pathlib
 import sys
@@ -22,6 +24,7 @@ import customer_clean
 FONT = "Montserrat"
 DARK, YELLOW, LIGHT, GRAY, WHITE = "1E1E1E", "F2CD14", "F2F2F2", "5C5C5C", "FFFFFF"
 INPUT_FILL = "FFF7CC"   # pale yellow — marks editable input cells
+FILL_COLS = ["Include in scope?", "Priority", "Notes"]  # customer-fillable, left empty
 LOGO = pathlib.Path(__file__).resolve().parent.parent / "assets" / "op-logo.png"
 
 _THIN = Side(style="thin", color="D9D9D9")
@@ -40,6 +43,43 @@ def _fill(hexc):
 def _widths(ws, widths):
     for i, w in enumerate(widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
+
+
+def _title(ws, text, span, row):
+    """Write a yellow-underlined section title; return next-available row (row + 2)."""
+    c = ws.cell(row, 1, text)
+    c.font = _f(bold=True, size=15)
+    for i in range(span):
+        ws.cell(row, i + 1).border = Border(bottom=_YBAR)
+    ws.row_dimensions[row].height = 22
+    return row + 2
+
+
+def _headers(ws, headers, row):
+    """Write a dark-background header row; return next-available row (row + 1)."""
+    for i, h in enumerate(headers):
+        c = ws.cell(row, i + 1, h)
+        c.font = _f(bold=True, color=WHITE)
+        c.fill = _fill(DARK)
+        c.border = _BORDER
+        c.alignment = Alignment(vertical="center", wrap_text=True)
+    ws.row_dimensions[row].height = 26
+    return row + 1
+
+
+def _row(ws, row, values, *, alt=False, bold=(), fill=None):
+    """Write a data row; return next-available row (row + 1)."""
+    for i, v in enumerate(values):
+        c = ws.cell(row, i + 1, v)
+        c.font = _f(bold=(i in bold))
+        c.border = _BORDER
+        if fill:
+            c.fill = _fill(fill)
+        elif alt:
+            c.fill = _fill(LIGHT)
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            c.number_format = "#,##0"
+    return row + 1
 
 
 def _input(ws, cell_addr, label_row, label, value, fmt="#,##0"):
@@ -213,6 +253,58 @@ def _pricing(wb, data):
     _widths(ws, [22, 16, 16, 14, 16])
 
 
+# ---------- Scope detail sheet ----------
+
+def _scope_detail(wb, data):
+    """Build the 'Scope detail' sheet: per-domain pages sorted desc with customer-fillable cols.
+
+    Ported from build_evidence_appendix._pages_by_domain — renamed sheet, same clean layout.
+    No Spiral? column, no raw URLs, no internal why. % of total computed from
+    rollup.spiral_adjusted_anchor.
+    """
+    ws = wb.create_sheet("Scope detail")
+    _widths(ws, [40, 16, 12, 16, 12, 26])
+    r = _title(ws, "Scope detail", 6, 1)
+    anchor = data["rollup"]["spiral_adjusted_anchor"] or 1
+    r = _headers(ws, ["Property (domain)", "Pages", "% of total"] + FILL_COLS, r)
+    ws.freeze_panes = ws.cell(r, 1)
+    for i, d in enumerate(sorted(data["per_domain"], key=lambda x: -x["defensible_pages"])):
+        pct = round(100.0 * d["defensible_pages"] / anchor, 1)
+        r = _row(ws, r, [d["hostname"], d["defensible_pages"], f"{pct}%", None, None, None],
+                 alt=(i % 2 == 1))
+
+
+# ---------- Sample pages sheet ----------
+
+def _sample_pages(wb, data):
+    """Build the 'Sample pages' sheet: per-domain url_samples.
+
+    Ported from build_evidence_appendix._sample_pages — renamed sheet, same clean layout.
+    """
+    ws = wb.create_sheet("Sample pages")
+    _widths(ws, [34, 70])
+    r = _title(ws, "Sample pages — real examples found on each property", 2, 1)
+    note = ws.cell(r, 1, "A handful of real example pages per property (the largest by page count) "
+                         "— so you can see these are genuine pages.")
+    note.font = _f(color=GRAY, size=9)
+    note.alignment = Alignment(wrap_text=True, vertical="top")
+    ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
+    ws.row_dimensions[r].height = 26
+    r = _headers(ws, ["Property (domain)", "Example page URL"], r + 1)
+    ws.freeze_panes = ws.cell(r, 1)
+    any_rows = False
+    alt = False
+    for d in sorted(data["per_domain"], key=lambda x: -x["defensible_pages"]):
+        samples = d.get("url_samples", [])
+        for s in samples:
+            r = _row(ws, r, [d["hostname"], s], alt=alt)
+            any_rows = True
+        if samples:
+            alt = not alt
+    if not any_rows:
+        _row(ws, r, ["(no per-URL samples captured)", ""])
+
+
 # ---------- public API ----------
 
 def build_workbook(data):
@@ -220,7 +312,10 @@ def build_workbook(data):
 
     Task 1: Investment Model sheet (inputs + scan formulas).
     Task 2: Pricing sheet (graduated tiers + live price formula).
-    Tasks 3–4 will add Scope detail / Sample pages + cell locking.
+    Task 3: Scope detail + Sample pages (per-domain pages + url samples, clean).
+    Task 4 will add cell locking.
+
+    Sheet order: Investment Model, Pricing, Scope detail, Sample pages.
     """
     layers = data.get("cadence_layers", [])
     if len(layers) != 5:
@@ -238,6 +333,8 @@ def build_workbook(data):
     wb = Workbook()
     _investment_model(wb, data)
     _pricing(wb, data)
+    _scope_detail(wb, data)
+    _sample_pages(wb, data)
     return wb
 
 

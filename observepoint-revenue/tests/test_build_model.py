@@ -151,3 +151,36 @@ def test_investment_model_b23_and_pricing_total_row_track_tier_count():
 
     # (b) Pricing total cell at E10 sums the 5 band rows (E5:E9)
     assert wb["Pricing"]["E10"].value == "=ROUND(SUM(E5:E9),2)"
+
+
+# ---------- Task 3: Scope detail + Sample pages sheets ----------
+
+def test_all_customer_sheets_present_and_clean():
+    wb = bm.build_workbook(DATA)
+    assert wb.sheetnames == ["Investment Model", "Pricing", "Scope detail", "Sample pages"]
+    import customer_clean
+    text = []
+    for ws in wb.worksheets:
+        for row in ws.iter_rows(values_only=True):
+            text += [str(v) for v in row if v is not None]
+    blob = "\n".join(text)
+    for term in customer_clean.FORBIDDEN:
+        assert term not in blob.lower(), f"internal term leaked: {term}"   # DATA fixture is clean (Acme/acme.com)
+
+
+def test_scope_detail_header_and_fillable_empty():
+    ws = bm.build_workbook(DATA)["Scope detail"]
+    # header row + first data row exist; fillable Include/Priority/Notes empty
+    hdr = [c.value for c in ws[3]] if ws[3][0].value else [c.value for c in ws[1]]
+    assert "Pages" in hdr and "Spiral?" not in hdr
+
+
+def test_sample_pages_render():
+    blob = "\n".join(str(c.value) for ws in [bm.build_workbook(DATA)["Sample pages"]] for row in ws.iter_rows() for c in row if c.value)
+    assert "https://acme.com/" in blob
+
+
+def test_guard_rejects_internal_layer_name():
+    d = json.loads(json.dumps(DATA)); d["cadence_layers"][0]["name"] = "Spiral baseline"
+    with pytest.raises(ValueError):
+        bm.build_workbook(d)
