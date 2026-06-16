@@ -22,7 +22,7 @@ Assemble `proposal.json`:
 - `consent_states` = `{count: <scenarios multiplier>, names: [Default/Opt-Out/GPC …]}`.
 - `cadence_layers` ← Stage-2 `anchor.cadence_by_layer` verbatim (each entry must include `why`).
 - `usage` = `{pages_per_sweep: anchor.use_case_pages, annual_scans: anchor.predicted_scans}`.
-- `pricing` = `{recommended_price: recommended_contract.price, recommended_scans: recommended_contract.scans, range_low_price: range.low.price_total, range_high_price: range.high.price_total, pricing_source, modeled_scans: anchor.predicted_scans, modeled_price: anchor.price.total}` — the recommended pair is the **clean price ↔ exact scans** that reconcile in the calculator.
+- `pricing` = `{recommended_price: recommended_contract.price, recommended_scans: recommended_contract.scans, range_low_price: range.low.price_total, range_high_price: range.high.price_total, modeled_scans: anchor.predicted_scans, modeled_price: anchor.price.total, pricing_source}` — the recommended pair is the **clean price ↔ exact scans** that reconcile in the calculator. **`pricing_source` is accepted-if-present but NOT rendered to the customer doc — the source stamp belongs in the internal-evidence file (Output 3); include it there, not here.**
 - plus `customer`, `prepared_by`, `date`, `use_case`, `domains`, `properties_note`, `regulations`, and a one-line `monitoring_summary` (NO internal terms — the generator rejects them).
 
 ## Output 2 — Customer workbook (customer-facing, clean): `build_evidence_appendix.py <perdomain.json> <out.xlsx>`
@@ -56,6 +56,6 @@ Assemble `internal.json`:
 
 - `rollup` ← Stage-1 `rollup` in full (`spiral_adjusted_anchor`, `low`, `high`, `url_total`, `confidence`, `census_ids`, `crawl_status`).
 - `per_domain` ← Stage-1 `per_domain[]` in full (including `raw_urls`, `discounted`, `spiral_flag`, `why` notes).
-- `pricing` = `{price_by_band: anchor.price.breakdown, modeled_scans: anchor.predicted_scans, modeled_price: anchor.price.total, recommended_scans: recommended_contract.scans, recommended_price: recommended_contract.price, pricing_source}`.
+- `pricing` = `{price_by_band: anchor.price.breakdown, modeled_scans: anchor.predicted_scans, modeled_price: anchor.price.total, recommended_scans: recommended_contract.scans, recommended_price: recommended_contract.price, pricing_source}` — **`pricing_source` belongs here** (internal evidence), not in the customer-facing proposal (Output 1).
 - `internal` = `{assumptions: <assumptions-to-verify list>, implied_frequency: anchor.implied_blended_frequency}`.
 - plus `customer`, `date`.
