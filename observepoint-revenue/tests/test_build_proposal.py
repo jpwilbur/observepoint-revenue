@@ -125,6 +125,10 @@ def test_clean_guard_allows_collision_identity():
 def _with_anchor(low, anchor, high):
     d = json.loads(json.dumps(DATA))
     d["page_count"].update(low=low, anchor=anchor, high=high)
+    # Keep the sweep chain consistent with the mutated anchor so the §3 reconciliation guard
+    # doesn't trip — these tests exercise §1 footprint rounding, not §3.
+    mx = d["multipliers"]
+    d["usage"]["pages_per_sweep"] = anchor * mx["geographies"] * mx["scenarios"] * mx["environments"]
     return d
 
 
@@ -315,3 +319,52 @@ def test_gilead_environments_row_shown_when_gt_one():
     t = _text(bp.build_proposal(d))
     assert "Environments" in t
     assert "×2" in t
+
+
+# ---------------------------------------------------------------------------
+# Regression: the §3 multiplier chain MUST reconcile to usage.pages_per_sweep.
+# Production bug (Gilead, geos=3): the orchestrator passed geographies=1 in the
+# proposal payload while usage.pages_per_sweep already baked geos in (848×3×3 =
+# 7,632). The geographies row was silently dropped and §3 showed 848 → 7,632
+# with no factor explaining the jump. A non-reconciling proposal must be
+# REFUSED, not shipped as a wrong customer doc. The §3 factors are not allowed
+# to drift from compute_scope's authoritative output.
+# ---------------------------------------------------------------------------
+def _gilead_with_dropped_geo():
+    """The exact production failure: multipliers.geographies forgotten (defaults to 1),
+    but usage still reflects the real geos=3 the engine used (848×3×3 = 7,632)."""
+    d = json.loads(json.dumps(GILEAD_DATA))
+    d["multipliers"]["geographies"] = 1            # dropped by the orchestrator
+    assert d["usage"]["pages_per_sweep"] == 7632   # engine still used geos=3
+    return d
+
+
+def test_dropped_geo_multiplier_is_rejected_not_silently_rendered():
+    with pytest.raises(ValueError):
+        bp.build_proposal(_gilead_with_dropped_geo())
+
+
+def test_cli_friendly_error_on_unreconciled_sweep(tmp_path):
+    f = tmp_path / "bad.json"; f.write_text(json.dumps(_gilead_with_dropped_geo()))
+    out = tmp_path / "p.docx"
+    res = subprocess.run([sys.executable, str(SCRIPT), str(f), str(out)],
+                         capture_output=True, text=True)
+    assert res.returncode != 0
+    assert "Traceback" not in res.stderr and "KeyError" not in res.stderr
+    assert "reconcile" in res.stderr.lower()
+    assert "7,632" in res.stderr            # the message names the mismatch so it can be fixed
+    assert not out.exists()                 # a wrong customer doc must NOT be written
+
+
+def test_consistent_chain_still_renders():
+    # The correct payload (geos=3, pages_per_sweep=7,632) must still build cleanly.
+    bp.build_proposal(GILEAD_DATA)          # must not raise
+
+
+def test_environments_one_point_five_reconciles():
+    # Fractional environment multiplier (1.5) must not trip the reconciliation guard.
+    d = json.loads(json.dumps(GILEAD_DATA))
+    d["multipliers"] = {"geographies": 1, "scenarios": 3, "environments": 1.5}
+    d["usage"]["pages_per_sweep"] = round(848 * 1 * 3 * 1.5)   # 3,816
+    d["usage"]["annual_scans"] = 28239
+    bp.build_proposal(d)                    # must not raise

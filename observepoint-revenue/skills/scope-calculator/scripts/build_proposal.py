@@ -209,6 +209,10 @@ def build_proposal(data):
     cs = data.get("consent_states", {"count": 1, "names": ["Default"]})
     mx = data.get("multipliers", {"geographies": 1, "scenarios": cs.get("count", 1), "environments": 1})
 
+    err = _sweep_reconcile_error(data)
+    if err:
+        raise ValueError(err)
+
     doc = Document()
     _set_base_style(doc)
 
@@ -316,6 +320,39 @@ _REQUIRED = {
 }
 
 
+def _sweep_reconcile_error(data):
+    """Return an actionable message if the §3 multiplier chain does NOT reconcile to
+    usage.pages_per_sweep, else None.
+
+    The §3 sweep table walks anchor pages → × geographies → × consent states → × environments
+    → 'pages per full sweep'. Those factors MUST multiply the anchor up to the same
+    pages_per_sweep the engine (compute_scope) computed. If a factor is dropped from the
+    hand-assembled proposal payload (the production bug: geographies forgotten while the engine
+    used geos=3), the table silently omits a row and the chain no longer adds up. This guard
+    refuses to render a non-reconciling proposal — the §3 factors are not allowed to drift from
+    compute_scope's authoritative output. Returns None when other validation owns the failure
+    (missing blocks)."""
+    pc = data.get("page_count") or {}
+    us = data.get("usage") or {}
+    cs = data.get("consent_states") or {}
+    mx = data.get("multipliers") or {}
+    anchor, pps = pc.get("anchor"), us.get("pages_per_sweep")
+    if not isinstance(anchor, (int, float)) or not isinstance(pps, (int, float)):
+        return None  # _REQUIRED / page_count validation handles missing/garbage blocks
+    geos = mx.get("geographies", 1) or 1
+    scen = mx.get("scenarios", cs.get("count", 1)) or 1
+    env = mx.get("environments", 1) or 1
+    product = anchor * geos * scen * env
+    tol = max(1, round(0.01 * pps))   # absorb fractional-environment rounding; a dropped factor is ≫1%
+    if abs(round(product) - round(pps)) > tol:
+        return (f"scope inputs don't reconcile — multipliers "
+                f"(geographies×scenarios×environments = {geos}×{scen}×{env}) on {_int(anchor)} "
+                f"anchor pages give {_int(product)}, but usage.pages_per_sweep is {_int(pps)}. "
+                f"A factor (often geographies) was dropped from the proposal payload — copy "
+                f"compute_scope's emitted 'multipliers' into proposal.json verbatim; {_DOC_REF}")
+    return None
+
+
 def _validate(data):
     """Friendly up-front validation so a malformed proposal JSON yields a one-line actionable
     message instead of a raw KeyError traceback a rep can't decode."""
@@ -328,6 +365,9 @@ def _validate(data):
     if not isinstance(pc, dict) or any(k not in pc for k in ("low", "anchor", "high")):
         sys.exit("scope-calculator: missing/malformed 'page_count' — expected "
                  f"{_REQUIRED['page_count']}; {_DOC_REF}")
+    err = _sweep_reconcile_error(data)
+    if err:
+        sys.exit("scope-calculator: " + err)
 
 
 def main(argv):
