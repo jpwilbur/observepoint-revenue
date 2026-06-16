@@ -53,7 +53,11 @@ def gate_report(data):
 
 
 def main(argv):
-    raw = open(argv[1]).read() if len(argv) > 1 else sys.stdin.read()
+    if len(argv) > 1:
+        with open(argv[1]) as fh:
+            raw = fh.read()
+    else:
+        raw = sys.stdin.read()
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as e:

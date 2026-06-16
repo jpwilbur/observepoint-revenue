@@ -7,7 +7,7 @@ description: Use when a revenue or sales rep needs to scope or price an ObserveP
 
 The single tool reps use to scope and price an ObservePoint contract. It is **one job in three stages** — run all three (the default) or jump to the stage you need. You orchestrate and judge; the scripts do every calculation and render the deliverables. **Never invent a page count, multiplier, cadence, or price — a guessed number presented as fact is the failure this tool exists to prevent.**
 
-Set `SCRIPTS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts` and `REFS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/references`. Scripts: `compute_scope.py`, `fetch_pricing.py`, `fetch_samples.py`, `check_artifacts.py`, `build_proposal.py`, `build_model.py`, `customer_clean.py`, `build_internal_evidence.py`. Read the reference for whichever stage you run.
+Set `SCRIPTS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts` and `REFS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/references`. Scripts: `compute_scope.py`, `fetch_pricing.py`, `fetch_samples.py`, `check_artifacts.py`, `build_proposal.py`, `build_model.py`, `customer_clean.py`, `build_internal_evidence.py`, `anchor_guard.py`. Read the reference for whichever stage you run.
 
 ## Phase 0 — Frame & audience
 
@@ -44,6 +44,22 @@ Set `SCRIPTS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts` and `REFS=${
    - **`inflated` with `artifact_count` (`%22`) dominant** → quote the clean `patterns` count for that host, never its raw/spiral-adjusted total.
    - **`clean`** → quote as normal. See `$REFS/site-census-methodology.md`.
 6. **Emit `{rollup, per_domain[]}`** + the discounted-spiral transparency line. `size_site_census` itemizes only the top ~40 hostnames — on bigger accounts add a single labeled **tail-aggregate row** so `per_domain` sums to the anchor. Pull ~5–6 real sample pages per itemized domain into `url_samples`: build the query with `python3 "$SCRIPTS/fetch_samples.py" <censusId> <hostname>`, call `op_api_call` with it, and parse with `parse_samples` (clean pages, never fabricated, never hand-authored filter JSON).
+
+7. **Anchor confirmation gate — REQUIRED before Stage 2.** The derived anchor does NOT proceed to
+   pricing until the rep confirms it. Run `python3 "$SCRIPTS/anchor_guard.py" <rollup_perdomain.json>`
+   (the `{rollup, per_domain}` object from step 6) and present the rep with: the **anchor + range +
+   confidence**, plus any flags — the step-5 recursion/artifact verdict AND the gate's
+   **dominant-host** signal. Then:
+   - **HARD STOP** if ANY of: the gate reports `requires_confirmation` (a dominant host > 40% of the
+     anchor, OR confidence MEDIUM/LOW), OR step 5 found a recursion/`%22` host. The rep must
+     explicitly acknowledge, and for a dominant/recursion host you MUST run the step-5
+     `check_artifacts.py` sample on that host and EXCLUDE it if it's a trap, then re-derive — before
+     pricing. Never price past a hard stop on the rep's silence.
+   - **Quick confirm** if the gate is clean (HIGH confidence, no dominant host, step-5 clean): show
+     the anchor and get a one-line "confirmed" before Stage 2.
+   This gate is why a silent ~15× over-count (Gallagher) cannot reach a quote: the anchor is always
+   seen and OK'd, and an outsized single host is always investigated. (Applies on the full-scope
+   path; "known page count" entry skips Stage 1, so the rep-supplied number is the confirmation.)
 
 **Spiral-adjusted rule:** `defensible_pages` per domain = **paths for spiral-flagged domains, distinct URLs otherwise.** A domain is a spiral only when BOTH gates trip (overage > threshold AND ratio > threshold). Substitute paths for a spiral domain — do not drop it, do not apply paths to non-spiral domains. Per-domain `defensible_pages` MUST sum to the anchor.
 
@@ -96,3 +112,4 @@ There is **one** Stage-1 object and it feeds BOTH pricing and the deliverables. 
 | "The proposal, appendix, and price show different anchors." | STOP — you re-derived instead of passing one object through. |
 | "I'll hand over just the proposal." | Reps need the chat breakdown AND all three files (proposal `.docx` + customer workbook `.xlsx` + internal evidence `.xlsx`). |
 | "I'll show the customer the confidence rating / page-count derivation / census ID." | That's the internal file. Customer files are clean by construction — confidence, census IDs, raw URL totals, spiral/recursion notes never appear in the proposal or customer workbook. |
+| "The anchor looks fine — I'll go straight to pricing." | Run the **anchor gate** (`anchor_guard.py`) and get explicit rep confirmation first. An unconfirmed anchor is exactly how a silent ~15× over-count reaches the quote. Hard-stop on a dominant host (>40%), a recursion/`%22` host, or MEDIUM/LOW confidence. |

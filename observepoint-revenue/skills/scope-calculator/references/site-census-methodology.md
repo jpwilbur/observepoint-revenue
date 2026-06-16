@@ -134,6 +134,13 @@ rollup = { url_total, path_floor, spiral_adjusted_anchor, low, high, confidence,
 `defensible_pages` MUST sum to `rollup.spiral_adjusted_anchor` (the customer-workbook builder
 (`build_model.py`) enforces this invariant).
 
+**Anchor confirmation gate.** After emitting `{rollup, per_domain}`, the Stage-1 flow runs
+`anchor_guard.py` (the anchor confirmation gate) before pricing may begin. The script computes the
+dominant-host signal (one host > 40% of the anchor) and the confidence-level directive, and outputs a
+deterministic `requires_confirmation` flag. A dominant host must be sampled via `check_artifacts.py`
+and excluded from the anchor if it is a recursion trap — before pricing. The gate also enforces a
+hard stop when confidence is MEDIUM or LOW. See SKILL.md Stage-1 step 7 for the full orchestration.
+
 **Truncated per-domain list → tail-aggregate row.** `size_site_census` lists only the top ~40
 hostnames in detail and rolls the rest into the totals. When the account has more domains than that
 (big accounts often have 200+), build `per_domain[]` from the rows you can see PLUS one labeled
