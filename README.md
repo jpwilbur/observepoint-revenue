@@ -68,5 +68,5 @@ export GH_TOKEN=...        # or GITHUB_TOKEN
 ## Tests
 
 ```
-/opt/homebrew/bin/python3 -m pytest observepoint-revenue/tests -q     # 220 passing
+/opt/homebrew/bin/python3 -m pytest observepoint-revenue/tests -q     # 223 passing
 ```
