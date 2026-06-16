@@ -159,13 +159,63 @@ def _investment_model(wb, data):
     _widths(ws, [34, 30, 14, 12, 16, 14])
 
 
+# ---------- Pricing sheet ----------
+
+def _pricing(wb, data):
+    """Build the 'Pricing' sheet with graduated-tier band table and live price formula.
+
+    Derives Lo/Hi/Rate from data['tiers'] (cumulative widths) so a pricing change
+    flows through automatically. The last band's Hi is set to 10**12 (∞ sentinel)
+    to capture the final defined band AND graduated_price's tail-at-last-rate rule.
+
+    For 6 tiers the total is written to row 11 (E11); B23 in Investment Model
+    references '=Pricing'!E11 (written in Task 1 / _investment_model).
+    """
+    import compute_scope as _cs
+    tiers = data.get("tiers") or _cs.BAKED_TIERS
+
+    ws = wb.create_sheet("Pricing")
+    ws["A2"] = "ObservePoint published pricing — graduated tiers"
+    ws["A2"].font = _f(bold=True, size=12)
+
+    # Header row 4
+    for i, h in enumerate(["Band", "From (scans)", "To (scans)", "Rate / scan", "Cost"]):
+        c = ws.cell(4, i + 1, h)
+        c.font = _f(bold=True, color=WHITE)
+        c.fill = _fill(DARK)
+
+    # Band rows (rows 5 … 4+len(tiers))
+    lo = 0
+    for i, t in enumerate(tiers):
+        n = 5 + i
+        hi = lo + t["limit"]
+        if i == len(tiers) - 1:
+            hi = 10 ** 12   # ∞ sentinel: captures final band + tail at last rate
+        ws.cell(n, 1, i + 1).font = _f()
+        ws.cell(n, 2, lo).number_format = "#,##0"
+        ws.cell(n, 3, hi).number_format = "#,##0"
+        ws.cell(n, 4, t["pricePerPage"]).number_format = "$#,##0.00"
+        ws.cell(n, 5).value = f"=MAX(0, MIN('Investment Model'!$F$21, C{n}) - B{n}) * D{n}"
+        ws.cell(n, 5).number_format = "$#,##0.00"
+        lo = lo + t["limit"]
+
+    # Total row (row 11 for 6 tiers; computed from len(tiers) for robustness)
+    total_row = 5 + len(tiers)   # = 11 for 6 tiers
+    ws.cell(total_row, 1, "Recommended investment / year").font = _f(bold=True)
+    ws.cell(total_row, 5).value = f"=ROUND(SUM(E5:E{total_row - 1}),2)"
+    ws.cell(total_row, 5).number_format = "$#,##0"
+
+    _widths(ws, [22, 16, 16, 14, 16])
+
+
 # ---------- public API ----------
 
 def build_workbook(data):
     """Build the live Investment Model workbook.
 
-    Task 1: builds Investment Model sheet only.
-    Tasks 2-3 will add Pricing / Scope detail / Sample pages.
+    Task 1: Investment Model sheet (inputs + scan formulas).
+    Task 2: Pricing sheet (graduated tiers + live price formula).
+    Tasks 3–4 will add Scope detail / Sample pages + cell locking.
     """
     layers = data.get("cadence_layers", [])
     if len(layers) != 5:
@@ -182,6 +232,7 @@ def build_workbook(data):
 
     wb = Workbook()
     _investment_model(wb, data)
+    _pricing(wb, data)
     return wb
 
 

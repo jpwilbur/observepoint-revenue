@@ -107,3 +107,30 @@ def test_emulator_matches_engine_with_nonzero_buffer():
     assert e["predicted"] == a["predicted_scans"]
     assert e["purchased"] == a["purchased_scans"]
     assert e["purchased"] != e["predicted"]   # proves the buffer path is exercised
+
+
+# ---------- Task 2: Pricing sheet ----------
+
+def test_pricing_band_table_derived_from_tiers():
+    ws = bm.build_workbook(DATA)["Pricing"]
+    # cumulative Lo/Hi from BAKED_TIERS widths; last Hi is the 1e12 sentinel
+    assert ws["B5"].value == 0 and ws["C5"].value == 1_000 and ws["D5"].value == 0.0
+    assert ws["B6"].value == 1_000 and ws["C6"].value == 51_000 and ws["D6"].value == 0.17
+    assert ws["C10"].value == 10**12 and ws["D10"].value == 0.03
+
+
+def test_price_cost_formula_references_purchased_scans():
+    ws = bm.build_workbook(DATA)["Pricing"]
+    assert ws["E5"].value == "=MAX(0, MIN('Investment Model'!$F$21, C5) - B5) * D5"
+    assert ws["E11"].value == "=ROUND(SUM(E5:E10),2)"
+
+
+def test_price_emulator_matches_engine_anchor_and_perturbations():
+    for mutate in (lambda L: L,
+                   lambda L: ([{**l, "pct": 0.0} if l["name"] == "Critical watch" else l for l in L]),
+                   lambda L: ([{**l, "pct": 0.25} if l["name"] == "Inventory refresh" else l for l in L])):
+        layers = mutate(json.loads(json.dumps(LAYERS)))
+        d = json.loads(json.dumps(DATA)); d["cadence_layers"] = layers
+        a = _cs_anchor(d)
+        e = emulate_model(95_000, 1, 3, 1, layers, 0.0, TIERS)
+        assert e["price"] == a["price"]["total"], f"price mismatch for {layers}"
