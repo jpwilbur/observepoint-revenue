@@ -71,7 +71,8 @@ def test_customer_sections_and_derivation():
     assert "430,744" in t                       # annual page scans total
     assert "Recommended contract" in t
     assert "430,167" in t and "$54,000" in t    # the reconciling pair
-    assert "Sample Pages" in t and "Methodology" in t   # points to the evidence workbook sheets
+    assert "Sample Pages" in t                          # points to the evidence workbook sheets
+    assert "Annual Usage Breakdown" in t               # workbook sheet present in the customer doc
 
 
 def test_recommended_pair_reconciles_in_calculator():
@@ -208,6 +209,18 @@ def test_clean_guard_rejects_internal_term_in_properties_note():
     d["properties_note"] = "Site census crawl excluded spiral pages."
     with pytest.raises(ValueError):
         bp.build_proposal(d)
+
+
+def test_proposal_does_not_mention_removed_methodology_sheet_or_internal_terms():
+    """Regression: customer workbook has no Methodology sheet; proposal must not advertise it.
+    Also guards against internal-derivation language leaking into the rendered customer document."""
+    t = _text(bp.build_proposal(DATA))
+    # The Methodology sheet was removed from the customer workbook in Phase A.
+    assert "Methodology" not in t, "proposal advertises the removed Methodology workbook sheet"
+    # Internal-derivation terms must not appear in the customer-facing proposal.
+    for term in ("census", "spiral", "raw url", "defensible", "reduced",
+                 "crawl", "query-param", "query-string", "recursion", "collapsed"):
+        assert term not in t.lower(), f"internal term leaked into proposal: {term!r}"
 
 
 def test_frequency_advisor_reference_exists_and_has_ladder():

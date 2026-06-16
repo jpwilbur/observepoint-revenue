@@ -235,9 +235,8 @@ def build_proposal(data):
         _para(doc, data["properties_note"] + " The full property list is in the attached evidence "
                    "workbook — please review and confirm which properties are in scope.")
     _para(doc, "The attached evidence workbook shows the detail: Pages by Domain (every property "
-               "and its page count), Sample Pages (real example pages we found on each), Annual "
-               "Usage Breakdown (how the page-scan total is built), and Methodology (how the count "
-               "was validated).", size=9.5, color=GRAY)
+               "and its page count), Sample Pages (real example pages we found on each), and "
+               "Annual Usage Breakdown (how the page-scan total is built).", size=9.5, color=GRAY)
     # Footprint badge (page count only — confidence is rep-only, in the internal file)
     badge_t = doc.add_table(rows=1, cols=1)
     _no_borders(badge_t)
