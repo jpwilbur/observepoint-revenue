@@ -256,3 +256,35 @@ def test_cli_friendly_error_malformed_json():
     assert res.returncode != 0
     assert "Traceback" not in res.stderr
     assert "scope-calculator" in res.stderr
+
+
+# --- why-passthrough (Fix 1) ------------------------------------------------------------
+def test_cadence_why_passes_through_compute():
+    """Each cadence layer's 'why' field must survive the annual_scans + compute pipeline.
+    It is a customer-facing rationale string — not a math input — and must not be dropped."""
+    layers_with_why = [
+        {"name": "annual baseline", "pct": 1.0,   "runs_per_year": 1,
+         "why": "Full-site sweep to establish a complete baseline."},
+        {"name": "quarterly",       "pct": 0.05,  "runs_per_year": 4,
+         "why": "High-risk pages re-checked each quarter."},
+        {"name": "weekly",          "pct": 0.004, "runs_per_year": 52,
+         "why": "Critical conversion pages monitored weekly."},
+        {"name": "daily",           "pct": 0.0,   "runs_per_year": 365,
+         "why": "Real-time monitoring for top landing pages."},
+    ]
+
+    # annual_scans direct
+    out = cs.annual_scans(1_182_000, layers_with_why)
+    for i, layer in enumerate(layers_with_why):
+        assert out["by_layer"][i]["why"] == layer["why"], (
+            f"annual_scans dropped 'why' on layer {i!r}"
+        )
+
+    # compute end-to-end (anchor.cadence_by_layer)
+    inp = dict(BASE_INPUTS, cadence_layers=layers_with_why)
+    result = cs.compute(inp)
+    for i, layer in enumerate(layers_with_why):
+        actual = result["anchor"]["cadence_by_layer"][i]
+        assert actual["why"] == layer["why"], (
+            f"compute dropped 'why' on cadence_by_layer[{i}]"
+        )

@@ -49,10 +49,13 @@ def test_invariant_raises_on_mismatch():
         bea.build_workbook(bad)
 
 
-def test_sheets_present_with_usage():
+def test_customer_sheets_no_methodology_or_internal():
     wb = bea.build_workbook(DATA)
-    assert wb.sheetnames == ["Scope Summary", "Pages by Domain", "Sample Pages",
-                             "Annual Usage Breakdown", "Methodology"]
+    assert "Methodology" not in wb.sheetnames            # methodology is internal now
+    assert wb.sheetnames == ["Scope Summary", "Pages by Domain", "Sample Pages", "Annual Usage Breakdown"]
+    t = _alltext(wb)
+    for term in ("Spiral", "raw url", "Census", "Confidence", "Reduced", "defensible", "crawl", "query"):
+        assert term.lower() not in t.lower(), f"leaked internal term: {term}"
 
 
 def test_usage_sheet_omitted_when_no_usage():
@@ -60,17 +63,15 @@ def test_usage_sheet_omitted_when_no_usage():
     d.pop("usage")
     wb = bea.build_workbook(d)
     assert "Annual Usage Breakdown" not in wb.sheetnames
-    assert len(wb.sheetnames) == 4
+    assert len(wb.sheetnames) == 3
 
 
-def test_pages_by_domain_headers_and_fillable():
+def test_pages_by_domain_clean_headers():
     ws = bea.build_workbook(DATA)["Pages by Domain"]
-    assert [c.value for c in ws[3]] == ["Property (domain)", "Real pages", "% of total",
-                                        "Spiral?"] + bea.FILL_COLS
-    assert ws.cell(4, 1).value == "acme.com"      # sorted by pages desc
+    assert [c.value for c in ws[3]] == ["Property (domain)", "Pages", "% of total"] + bea.FILL_COLS
+    assert ws.cell(4, 1).value == "acme.com"
     assert ws.cell(4, 2).value == 90_000
-    # customer-fillable columns present and empty
-    assert ws.cell(4, 5).value is None and ws.cell(4, 6).value is None and ws.cell(4, 7).value is None
+    assert ws.cell(4, 4).value is None    # first fillable column (Include in scope?) empty
 
 
 def test_sample_pages_present():
@@ -89,10 +90,13 @@ def test_usage_breakdown_content():
     assert "430,167 page scans" in t and "$54,000 / year" in t    # reconciling contract sentence
 
 
-def test_methodology_shows_reduction():
-    t = _alltext(bea.build_workbook(DATA))
-    assert "64x query-param spiral" in t
-    assert "320000" in t                                          # raw URLs for the spiral domain
+def test_usage_breakdown_shows_why():
+    # add a why to the fixture layers in this test
+    d = json.loads(json.dumps(DATA))
+    for L, w in zip(d["usage"]["cadence_layers"], ["full sweep", "priority refresh", "consent watch"]):
+        L["why"] = w
+    t = _alltext(bea.build_workbook(d))
+    assert "Why" in t and "priority refresh" in t
 
 
 def test_cli_writes_file(tmp_path):
