@@ -1,19 +1,19 @@
 ---
 name: scope-calculator
-description: Use when a revenue or sales rep needs to scope or price an ObservePoint contract — "scope this account", "how many pages do they need", "how many pages does X have", "size a deal", "price out X", "price a known page count", "build a usage proposal". Derives a defensible page count, sizes annual page-scan usage, prices it against ObservePoint's live pricing, and produces a customer proposal + evidence workbook. Runs the whole job or any single stage. To discover which domains an org owns use owned-properties; to research/qualify a prospect use research-account.
+description: Use when a revenue or sales rep needs to scope or price an ObservePoint contract — "scope this account", "how many pages do they need", "how many pages does X have", "size a deal", "price out X", "price a known page count", "build a usage proposal". Derives a defensible page count, sizes annual page-scan usage, prices it against ObservePoint's live pricing, and produces a customer proposal + live investment model workbook. Runs the whole job or any single stage. To discover which domains an org owns use owned-properties; to research/qualify a prospect use research-account.
 ---
 
 # Scope Calculator
 
 The single tool reps use to scope and price an ObservePoint contract. It is **one job in three stages** — run all three (the default) or jump to the stage you need. You orchestrate and judge; the scripts do every calculation and render the deliverables. **Never invent a page count, multiplier, cadence, or price — a guessed number presented as fact is the failure this tool exists to prevent.**
 
-Set `SCRIPTS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts` and `REFS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/references`. Scripts: `compute_scope.py`, `fetch_pricing.py`, `fetch_samples.py`, `check_artifacts.py`, `build_proposal.py`, `build_evidence_appendix.py`, `customer_clean.py`, `build_internal_evidence.py`. Read the reference for whichever stage you run.
+Set `SCRIPTS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts` and `REFS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/references`. Scripts: `compute_scope.py`, `fetch_pricing.py`, `fetch_samples.py`, `check_artifacts.py`, `build_proposal.py`, `build_model.py`, `customer_clean.py`, `build_internal_evidence.py`. Read the reference for whichever stage you run.
 
 ## Phase 0 — Frame & audience
 
 **Ask up front** (before any derivation): *"Will these files ever reach the customer?"* Default: **yes**. This sets customer-clean mode for the rest of the job — customer-facing deliverables are clean by construction; all internal context (derivation, confidence, census IDs, spiral/recursion notes, assumptions-to-verify, price-by-band) goes exclusively to the **internal-evidence file** (`build_internal_evidence.py`), which is never forwarded. If the rep says no (internal only), flag it, but keep the same split — the internal file is still the right home for internal data.
 
-**Interpreter note:** `build_proposal.py` requires `python-docx` and `build_evidence_appendix.py` requires `openpyxl`. Invoke scripts with a Python that has the plugin deps (prefer `/opt/homebrew/bin/python3`). If you hit `ModuleNotFoundError`, install the repo requirements first — do NOT silently skip the deliverable.
+**Interpreter note:** `build_proposal.py` requires `python-docx` and `build_model.py` requires `openpyxl`. Invoke scripts with a Python that has the plugin deps (prefer `/opt/homebrew/bin/python3`). If you hit `ModuleNotFoundError`, install the repo requirements first — do NOT silently skip the deliverable.
 
 ## Entry paths
 
@@ -71,7 +71,7 @@ Set `SCRIPTS=${CLAUDE_PLUGIN_ROOT}/skills/scope-calculator/scripts` and `REFS=${
 Produce **ALL THREE** files — never just one or two; the proposal references the workbook, and the internal-evidence file carries everything the customer must not see. The exact field mappings for all three are in `$REFS/deliverables-mapping.md` (and each script's docstring).
 
 - **Proposal (clean):** `python3 "$SCRIPTS/build_proposal.py" <proposal.json> "<Customer> - proposal.docx"` — a clean, customer-facing snapshot: footprint, cadence table with per-row "why", recommended investment. **No `[INTERNAL]` section, no internal terms by construction.** Build `proposal.json` per the mapping reference; agent-composed strings (monitoring_summary, cadence names, why lines) are guard-checked (the generator rejects internal terms).
-- **Customer workbook (clean):** `python3 "$SCRIPTS/build_evidence_appendix.py" <perdomain.json> "<Customer> - evidence appendix.xlsx"` — fed the Stage-1 `{rollup, per_domain}` (with `url_samples`) plus a `usage` object (with cadence `why` fields) for the Annual Usage Breakdown sheet. Clean: no Spiral? column, no raw-URL math, no census/crawl/confidence.
+- **Customer workbook (live model):** `python3 "$SCRIPTS/build_model.py" <model.json> "<Customer> - investment model.xlsx"` — the live Investment Model: yellow INPUT cells (pages, multipliers, cadence %) with Excel formulas so scans and price recompute when the customer adjusts them. Four sheets: **Investment Model** (live calculator), **Pricing** (graduated tier table + price formula), **Scope detail** (per-domain pages, customer-fillable), **Sample pages** (real example URLs). Clean: no Spiral? column, no raw-URL math, no census/crawl/confidence.
 - **Internal evidence (rep-only, NEVER sent):** `python3 "$SCRIPTS/build_internal_evidence.py" <internal.json> "<Customer> - internal evidence.xlsx"` — the page-count derivation (census ID, crawl status, raw/defensible/reduced), per-domain spiral/recursion notes, assumptions-to-verify, modeled-vs-contracted, price-by-band, rollup-dominance flag. This file stays with the rep; it is **never forwarded to the customer**.
 - **Output location (uniform across the plugin) — one folder per account:** if the rep specified a preferred output folder, use that as the base; otherwise the default base is `~/Documents/ObservePoint Revenue/Scoping & Pricing/`. Create a **per-account subfolder** (`.../Scoping & Pricing/<Customer>/`); expand `~`, `mkdir -p` first, never a temp dir. Report all **three absolute paths** with the rep-facing breakdown.
 

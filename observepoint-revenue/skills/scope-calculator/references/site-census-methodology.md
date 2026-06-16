@@ -116,7 +116,7 @@ as the number grows (more crawled pages = more confidence).
 
 ## 5. Output contract (what Stage 1 returns)
 
-A JSON object (consumed by the usage+price stage and by `build_evidence_appendix.py` for the
+A JSON object (consumed by the usage+price stage and by `build_model.py` for the
 customer workbook):
 
 ```

@@ -20,7 +20,7 @@ from openpyxl.utils import get_column_letter
 
 import customer_clean
 
-# ---------- theme constants (mirror build_evidence_appendix.py) ----------
+# ---------- theme constants ----------
 FONT = "Montserrat"
 DARK, YELLOW, LIGHT, GRAY, WHITE = "1E1E1E", "F2CD14", "F2F2F2", "5C5C5C", "FFFFFF"
 INPUT_FILL = "FFF7CC"   # pale yellow — marks editable input cells
@@ -273,7 +273,7 @@ def _pricing(wb, data):
 def _scope_detail(wb, data):
     """Build the 'Scope detail' sheet: per-domain pages sorted desc with customer-fillable cols.
 
-    Ported from build_evidence_appendix._pages_by_domain — renamed sheet, same clean layout.
+    Same clean layout as the former evidence appendix pages-by-domain sheet, renamed Scope detail.
     No Spiral? column, no raw URLs, no internal why. % of total computed from
     rollup.spiral_adjusted_anchor.
     """
@@ -299,7 +299,7 @@ def _scope_detail(wb, data):
 def _sample_pages(wb, data):
     """Build the 'Sample pages' sheet: per-domain url_samples.
 
-    Ported from build_evidence_appendix._sample_pages — renamed sheet, same clean layout.
+    Same clean layout as the former evidence appendix sample-pages sheet, renamed Sample pages.
     """
     ws = wb.create_sheet("Sample pages")
     _widths(ws, [34, 70])

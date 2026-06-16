@@ -25,25 +25,43 @@ Assemble `proposal.json`:
 - `pricing` = `{recommended_price: recommended_contract.price, recommended_scans: recommended_contract.scans, range_low_price: range.low.price_total, range_high_price: range.high.price_total, modeled_scans: anchor.predicted_scans, modeled_price: anchor.price.total, pricing_source}` — the recommended pair is the **clean price ↔ exact scans** that reconcile in the calculator. **`pricing_source` is accepted-if-present but NOT rendered to the customer doc — the source stamp belongs in the internal-evidence file (Output 3); include it there, not here.**
 - plus `customer`, `prepared_by`, `date`, `use_case`, `domains`, `properties_note`, `regulations`, and a one-line `monitoring_summary` (NO internal terms — the generator rejects them).
 
-## Output 2 — Customer workbook (customer-facing, clean): `build_evidence_appendix.py <perdomain.json> <out.xlsx>`
+## Output 2 — Customer workbook (customer-facing, live model): `build_model.py <model.json> <out.xlsx>`
 
-Clean scope detail + sample pages + Annual Usage Breakdown. No Spiral? column, no raw-URL math, no
-census/crawl/confidence. Feed the Stage-1 `{rollup, per_domain}` (each domain with its `url_samples`)
-PLUS a `usage` object so the **Annual Usage Breakdown** sheet renders:
+Live Investment Model workbook: yellow INPUT cells (pages, multipliers, cadence %) with Excel formulas
+so the customer's page-scans and annual investment recompute automatically when they adjust inputs.
+No Spiral? column, no raw-URL math, no census/crawl/confidence. Four sheets:
+
+- **Investment Model** — live calculator (validated pages, geographies, consent scenarios, environments,
+  cadence layers with % and runs/yr inputs; scans-per-layer and total formula cells; investment cell
+  linked to Pricing sheet).
+- **Pricing** — graduated tier table with live price formula referencing Purchased page-scans.
+- **Scope detail** — per-domain pages sorted desc with customer-fillable Include/Priority/Notes columns.
+- **Sample pages** — real example URLs per property (the largest by page count).
+
+Assemble `model.json`:
 
 ```
-usage = {
-  consent_states: {count, names},            # e.g. 3, [Default, Opt-Out, GPC]
-  pages_per_sweep: anchor.use_case_pages,
-  annual_scans:    anchor.predicted_scans,
-  recommended_price: recommended_contract.price,
-  recommended_scans: recommended_contract.scans,
-  cadence_layers:  anchor.cadence_by_layer,  # each entry must include why
+{
+  customer:        <string>,
+  date?:           <string>,
+  page_count: {low, anchor, high},            # precise anchor (e.g. 95721, not 96000)
+  multipliers: {geographies, scenarios, environments},
+  cadence_layers: [                           # exactly 5 — drop a layer by pct=0, never remove it
+    {name, why, pct, runs_per_year},
+  ],
+  buffer_pct?:     <float>,                   # default 0.0
+  tiers:           <from fetch_pricing.py>,   # graduated tier array
+  per_domain: [                               # from Stage-1 rollup
+    {hostname, defensible_pages, url_samples[]},
+  ],
+  rollup: {spiral_adjusted_anchor},           # per_domain[].defensible_pages must sum to this
 }
 ```
 
-> **Phase B note:** `build_model.py` (the live Excel investment model with formula cells) will supersede
-> the customer workbook in Phase B. Until then, `build_evidence_appendix.py` is the customer `.xlsx`.
+- `page_count.anchor` / `rollup.spiral_adjusted_anchor` / proposal `page_count.anchor` MUST be the
+  same precise number. Round only in display text, never in the input JSON.
+- `cadence_layers` must have exactly 5 entries (the Investment Model sheet has 5 fixed rows).
+- `tiers` comes from `fetch_pricing.py`; do not hardcode.
 
 ## Output 3 — Internal evidence (rep-only, NEVER sent): `build_internal_evidence.py <internal.json> <out.xlsx>`
 
