@@ -89,6 +89,21 @@ def use_case_pages(base_pages, geographies=1, scenarios=1, environments=1.0):
     return base_pages * geographies * scenarios * environments
 
 
+def total_pages_found(per_domain):
+    """Σ over domains of (in_scope ? pages × sample_size : 0).
+
+    Drives the Scope of Work's 'Total Pages Found' (the workbook does this as a SUMPRODUCT).
+    Defaults: include=True, sample_size=1.0 (so the total equals the anchor when untouched).
+    Accepts 'defensible_pages' or 'pages' as the per-domain count key."""
+    total = 0.0
+    for d in per_domain:
+        if not d.get("include", True):
+            continue
+        pages = d.get("defensible_pages", d.get("pages", 0)) or 0
+        total += pages * d.get("sample_size", 1.0)
+    return round(total)
+
+
 def annual_scans(ucp, cadence_layers):
     """Additive layered cadence model. cadence_layers: list of
     {name, pct, runs_per_year}. A page may appear in multiple layers (layers are

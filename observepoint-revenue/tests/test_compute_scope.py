@@ -8,6 +8,30 @@ import pytest
 import compute_scope as cs
 
 
+def test_total_pages_found_defaults_all_in_full_sample():
+    per_domain = [
+        {"hostname": "a.com", "defensible_pages": 1000},
+        {"hostname": "b.com", "defensible_pages": 500},
+    ]
+    # no include/sample keys → default include=True, sample=1.0
+    assert cs.total_pages_found(per_domain) == 1500
+
+
+def test_total_pages_found_respects_include_and_sample():
+    per_domain = [
+        {"hostname": "a.com", "defensible_pages": 1000, "include": True,  "sample_size": 0.5},
+        {"hostname": "b.com", "defensible_pages": 500,  "include": False, "sample_size": 1.0},
+        {"hostname": "c.com", "defensible_pages": 200,  "include": True,  "sample_size": 1.0},
+    ]
+    # 1000*0.5 + (b excluded) + 200*1.0 = 700
+    assert cs.total_pages_found(per_domain) == 700
+
+
+def test_total_pages_found_accepts_pages_alias():
+    # the reader may pass 'pages' instead of 'defensible_pages'
+    assert cs.total_pages_found([{"hostname": "a.com", "pages": 300}]) == 300
+
+
 def test_baked_tiers_shape():
     assert cs.BAKED_TIERS[0] == {"limit": 1_000, "pricePerPage": 0.0}
     assert cs.BAKED_TIERS[1]["pricePerPage"] == 0.17
