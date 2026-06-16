@@ -399,7 +399,7 @@ def test_emulator_matches_engine_under_perturbations():
 
 
 def test_total_row_and_pricing_track_layer_and_tier_counts():
-    # 3 layers + 5 tiers → buffer row 17, total row 18; pricing total at E10
+    # 3 layers + 5 tiers → buffer row 17, total row 18, investment cell B20; pricing total at E10
     d = json.loads(json.dumps(DATA))
     d["cadence_layers"] = json.loads(json.dumps(LAYERS))[:3]
     d["tiers"] = cs.BAKED_TIERS[:-1]
@@ -407,7 +407,7 @@ def test_total_row_and_pricing_track_layer_and_tier_counts():
     sow = wb["Scope of Work"]
     assert sow["A17"].value == "Buffer %"
     assert sow["G18"].value == "=ROUND(SUM(G14:G17),0)"
-    assert sow["B21"].value == "='Pricing'!E10"
+    assert sow["B20"].value == "='Pricing'!E10"     # investment cell shifts up with fewer layers (total row 18 + 2)
     assert wb["Pricing"]["E10"].value == "=ROUND(SUM(E5:E9),2)"
     assert wb["Pricing"]["E5"].value == "=MAX(0, MIN('Scope of Work'!$G$18, C5) - B5) * D5"
 
