@@ -1,13 +1,11 @@
 # tests/test_build_model.py
 import json, pathlib, sys
 import pytest
-from openpyxl import load_workbook
 
 import build_model as bm
 import compute_scope as cs
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SCRIPT = ROOT / "skills" / "scope-calculator" / "scripts" / "build_model.py"
 
 TIERS = cs.BAKED_TIERS
 LAYERS = [
@@ -79,3 +77,33 @@ def test_emulator_matches_engine_when_daily_dropped_and_quarterly_halved():
     a = _cs_anchor(d)
     e = emulate_model(95_000, 1, 3, 1, layers, 0.0, TIERS)
     assert e["predicted"] == a["predicted_scans"] and e["purchased"] == a["purchased_scans"]
+
+
+# ---------- Fix 1: 5-layer guard ----------
+
+def test_six_layers_raises():
+    d = json.loads(json.dumps(DATA))
+    d["cadence_layers"] = json.loads(json.dumps(LAYERS)) + [
+        {"name": "Extra", "why": "Should not exist.", "pct": 0.001, "runs_per_year": 1}
+    ]
+    with pytest.raises(ValueError, match="expected exactly 5 cadence layers"):
+        bm.build_workbook(d)
+
+
+def test_four_layers_raises():
+    d = json.loads(json.dumps(DATA))
+    d["cadence_layers"] = json.loads(json.dumps(LAYERS))[:4]
+    with pytest.raises(ValueError, match="expected exactly 5 cadence layers"):
+        bm.build_workbook(d)
+
+
+# ---------- Fix 2: buffer formula with non-zero buffer ----------
+
+def test_emulator_matches_engine_with_nonzero_buffer():
+    d = json.loads(json.dumps(DATA))
+    d["buffer_pct"] = 0.15
+    a = _cs_anchor(d)
+    e = emulate_model(95_000, 1, 3, 1, LAYERS, 0.15, TIERS)
+    assert e["predicted"] == a["predicted_scans"]
+    assert e["purchased"] == a["purchased_scans"]
+    assert e["purchased"] != e["predicted"]   # proves the buffer path is exercised

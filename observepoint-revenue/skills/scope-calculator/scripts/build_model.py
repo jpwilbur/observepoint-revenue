@@ -42,6 +42,21 @@ def _widths(ws, widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
 
 
+def _input(ws, cell_addr, label_row, label, value, fmt="#,##0"):
+    """Write a labelled INPUT cell (pale-yellow fill) to *ws*.
+
+    Shared by Investment Model (Task 1) and Pricing sheet (Task 2+).
+    """
+    ws[f"A{label_row}"] = label
+    ws[f"A{label_row}"].font = _f(bold=True)
+    c = ws[cell_addr]
+    c.value = value
+    c.fill = _fill(INPUT_FILL)
+    c.number_format = fmt
+    c.font = _f()
+    return c
+
+
 # ---------- Investment Model sheet ----------
 
 def _investment_model(wb, data):
@@ -73,20 +88,10 @@ def _investment_model(wb, data):
     ws["A5"] = "INPUTS"
     ws["A5"].font = _f(bold=True, size=11)
 
-    def _input(cell_addr, label_row, label, value, fmt="#,##0"):
-        ws[f"A{label_row}"] = label
-        ws[f"A{label_row}"].font = _f(bold=True)
-        c = ws[cell_addr]
-        c.value = value
-        c.fill = _fill(INPUT_FILL)
-        c.number_format = fmt
-        c.font = _f()
-        return c
-
-    _input("B6", 6, "Validated pages", pc["anchor"])
-    _input("B7", 7, "Geographies", m.get("geographies", 1))
-    _input("B8", 8, "Consent scenarios", m.get("scenarios", 1))
-    _input("B9", 9, "Environments", m.get("environments", 1))
+    _input(ws, "B6", 6, "Validated pages", pc["anchor"])
+    _input(ws, "B7", 7, "Geographies", m.get("geographies", 1))
+    _input(ws, "B8", 8, "Consent scenarios", m.get("scenarios", 1))
+    _input(ws, "B9", 9, "Environments", m.get("environments", 1))
 
     ws["A10"] = "Pages per full sweep"
     ws["A10"].font = _f(bold=True)
@@ -162,10 +167,17 @@ def build_workbook(data):
     Task 1: builds Investment Model sheet only.
     Tasks 2-3 will add Pricing / Scope detail / Sample pages.
     """
+    layers = data.get("cadence_layers", [])
+    if len(layers) != 5:
+        raise ValueError(
+            f"investment model: expected exactly 5 cadence layers (the fixed Investment Model "
+            f"layout has 5 rows); got {len(layers)}. The frequency-advisor ladder always has 5 — "
+            f"drop a layer by setting its pct=0, don't remove it.")
+
     # Guard: check only agent-composed, customer-facing strings (cadence names + why).
     # Per-domain why and identity fields are excluded — scoping is the caller's job.
-    strings = [L.get("name", "") for L in data.get("cadence_layers", [])] + \
-              [L.get("why", "") for L in data.get("cadence_layers", [])]
+    strings = [L.get("name", "") for L in layers] + \
+              [L.get("why", "") for L in layers]
     customer_clean.assert_clean(strings, where="investment model")
 
     wb = Workbook()
