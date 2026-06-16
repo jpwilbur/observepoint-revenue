@@ -1,40 +1,42 @@
-"""Live Excel Investment Model workbook (.xlsx) for the scope-calculator.
+"""Live Excel **Scope of Work** workbook (.xlsx) for the scope-calculator.
 
-Builds a customer-facing workbook with INPUT cells (yellow) and FORMULA cells
-that reproduce compute_scope.py's arithmetic exactly when Excel recalculates.
-The formulas are tested by a dependency-free Python emulator asserted against
-compute_scope.compute() at the anchor and under perturbations.
+Customer-facing workbook driven by the Scope Detail tab: Total Pages Found is a SUMPRODUCT over
+in-scope domains × sample size; Combined = × geographies × consent × environments; a 4-(or N-)layer
+priority cadence plus an additive Buffer row; price = graduated tiers on the predicted total.
+Yellow cells mark the editable levers; sheets are NOT protected (integrity is validated at
+proposal-generation time instead). The formulas reproduce compute_scope.py exactly on recalc, and
+a dependency-free emulator asserts that in the tests.
 
-Sheets (built incrementally across Phase B Tasks):
-  Task 1 — Investment Model   (inputs + scan formulas)
-  Task 2 — Pricing            (graduated tiers + live price formula)
-  Task 3 — Scope detail       (per-domain pages, sorted desc, customer-fillable cols)
-  Task 3 — Sample pages       (per-domain url_samples)
+Sheets (in order): Scope Detail · Scope of Work · Pricing · Sample pages.
 """
 import pathlib
 import sys
 
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Protection, Side
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.formula import ArrayFormula
 
 import customer_clean
 
-# ---------- theme constants ----------
+# ---------- theme ----------
 FONT = "Montserrat"
 DARK, YELLOW, LIGHT, GRAY, WHITE = "1E1E1E", "F2CD14", "F2F2F2", "5C5C5C", "FFFFFF"
-INPUT_FILL = "FFF7CC"   # pale yellow — marks editable input cells
-FILL_COLS = ["Include in scope?", "Priority", "Notes"]  # customer-fillable, left empty
+INPUT_FILL = "FFF7CC"   # pale yellow — marks the editable levers
 LOGO = pathlib.Path(__file__).resolve().parent.parent / "assets" / "op-logo.png"
-
-# Protection helper — marks a cell as editable under sheet protection.
-# openpyxl default: all cells are locked=True; protection is off at the sheet level.
-# Task 4 turns on ws.protection.sheet = True and explicitly unlocks input cells.
-_EDITABLE = Protection(locked=False)
 
 _THIN = Side(style="thin", color="D9D9D9")
 _BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
 _YBAR = Side(style="thick", color=YELLOW)
+
+TOP_N = 20   # individual domains listed; the rest collapse into one bottom aggregate row
+
+# Runs/yr → customer-facing cadence word.
+_CADENCE_WORD = {1: "Yearly", 4: "Quarterly", 12: "Monthly", 26: "Bi-weekly", 52: "Weekly", 365: "Daily"}
+
+
+def _cadence_word(runs):
+    return _CADENCE_WORD.get(runs, f"{runs}×/yr")
 
 
 def _f(bold=False, color=DARK, size=10):
@@ -51,7 +53,6 @@ def _widths(ws, widths):
 
 
 def _title(ws, text, span, row):
-    """Write a yellow-underlined section title; return next-available row (row + 2)."""
     c = ws.cell(row, 1, text)
     c.font = _f(bold=True, size=15)
     for i in range(span):
@@ -61,7 +62,6 @@ def _title(ws, text, span, row):
 
 
 def _headers(ws, headers, row):
-    """Write a dark-background header row; return next-available row (row + 1)."""
     for i, h in enumerate(headers):
         c = ws.cell(row, i + 1, h)
         c.font = _f(bold=True, color=WHITE)
@@ -72,293 +72,208 @@ def _headers(ws, headers, row):
     return row + 1
 
 
-def _row(ws, row, values, *, alt=False, bold=(), fill=None):
-    """Write a data row; return next-available row (row + 1)."""
-    for i, v in enumerate(values):
-        c = ws.cell(row, i + 1, v)
-        c.font = _f(bold=(i in bold))
-        c.border = _BORDER
-        if fill:
-            c.fill = _fill(fill)
-        elif alt:
-            c.fill = _fill(LIGHT)
-        if isinstance(v, (int, float)) and not isinstance(v, bool):
-            c.number_format = "#,##0"
-    return row + 1
+def _lever(cell, fmt):
+    """Style a cell as an editable yellow lever (no protection — sheets are unprotected)."""
+    cell.fill = _fill(INPUT_FILL)
+    cell.number_format = fmt
+    cell.font = _f()
 
 
-def _input(ws, cell_addr, label_row, label, value, fmt="#,##0"):
-    """Write a labelled INPUT cell (pale-yellow fill, unlocked) to *ws*.
+# ---------- Scope Detail (first sheet) ----------
 
-    Shared by Investment Model (Task 1) and Pricing sheet (Task 2+).
-    Sets Protection(locked=False) so the cell remains editable when sheet
-    protection is enabled (Task 4).
-    """
-    ws[f"A{label_row}"] = label
-    ws[f"A{label_row}"].font = _f(bold=True)
-    c = ws[cell_addr]
-    c.value = value
-    c.fill = _fill(INPUT_FILL)
-    c.number_format = fmt
-    c.font = _f()
-    c.protection = _EDITABLE
-    return c
-
-
-# ---------- Investment Model sheet ----------
-
-def _investment_model(wb, data):
+def _scope_detail(wb, data):
     ws = wb.active
-    ws.title = "Investment Model"
+    ws.title = "Scope Detail"
+    _widths(ws, [44, 14, 12, 16, 12, 30])
+    r = _title(ws, "Scope detail", 6, 1)
+    hdr_row = r
+    r = _headers(ws, ["Property (domain)", "Pages", "% of total",
+                      "Include in scope?", "Sample Size", "Notes"], r)
+    ws.freeze_panes = ws.cell(r, 1)
 
-    pc = data["page_count"]
+    ordered = sorted(data["per_domain"], key=lambda x: -x["defensible_pages"])
+    individual = ordered[:TOP_N]
+    tail = ordered[TOP_N:]
+    rows = [(d["hostname"], d["defensible_pages"]) for d in individual]
+    if tail:
+        rows.append((f"({len(tail)} additional domains — long tail, aggregated)",
+                     sum(d["defensible_pages"] for d in tail)))
+
+    first = r
+    last = r + len(rows) - 1
+    for i, (host, pages) in enumerate(rows):
+        n = r + i
+        alt = (i % 2 == 1)
+        fill = LIGHT if alt else WHITE
+        c = ws.cell(n, 1, host); c.font = _f(); c.fill = _fill(fill); c.border = _BORDER
+        c = ws.cell(n, 2, pages); c.font = _f(); c.fill = _fill(fill); c.border = _BORDER
+        c.number_format = "#,##0"
+        c = ws.cell(n, 3, f"=B{n}/SUM($B${first}:$B${last})")
+        c.font = _f(); c.fill = _fill(fill); c.border = _BORDER; c.number_format = "0.0%"
+        c = ws.cell(n, 4, True); c.border = _BORDER; c.alignment = Alignment(horizontal="center")
+        _lever(c, "General")
+        c = ws.cell(n, 5, 1.0); c.border = _BORDER
+        _lever(c, "0%")
+        c = ws.cell(n, 6, None); c.border = _BORDER; c.fill = _fill(fill)
+    return {"first": first, "last": last}
+
+
+# ---------- Scope of Work tab ----------
+
+def _scope_of_work(wb, data, detail):
+    ws = wb.create_sheet("Scope of Work")
     m = data.get("multipliers", {})
     layers = data["cadence_layers"]
+    f, l = detail["first"], detail["last"]
 
-    # Logo
     if LOGO.exists():
         try:
             from openpyxl.drawing.image import Image as XLImage
-            img = XLImage(str(LOGO))
-            img.width, img.height = 200, 31
+            img = XLImage(str(LOGO)); img.width, img.height = 200, 31
             ws.add_image(img, "A1")
         except Exception:
             pass
     ws.row_dimensions[1].height = 30
+    ws["A2"] = "Scope of Work"; ws["A2"].font = _f(bold=True, size=16)
+    ws["A3"] = f"Prepared for {data.get('customer', '')}"; ws["A3"].font = _f(color=GRAY, size=10)
 
-    # Title
-    ws["A2"] = "Investment Model"
-    ws["A2"].font = _f(bold=True, size=16)
-    ws["A3"] = f"Prepared for {data.get('customer', '')}"
-    ws["A3"].font = _f(color=GRAY, size=10)
+    ws["A5"] = "INPUTS"; ws["A5"].font = _f(bold=True, size=11)
 
-    # INPUTS header
-    ws["A5"] = "INPUTS"
-    ws["A5"].font = _f(bold=True, size=11)
+    def label(row, text, note):
+        ws[f"A{row}"] = text; ws[f"A{row}"].font = _f(bold=True)
+        ws[f"C{row}"] = note; ws[f"C{row}"].font = _f(color=GRAY, size=9)
 
-    _input(ws, "B6", 6, "Validated pages", pc["anchor"])
-    _input(ws, "B7", 7, "Geographies", m.get("geographies", 1))
-    _input(ws, "B8", 8, "Consent scenarios", m.get("scenarios", 1))
-    _input(ws, "B9", 9, "Environments", m.get("environments", 1))
+    label(6, "Total Pages Found", "Sum of in-scope domain pages, linked from Scope detail")
+    b6 = ws["B6"]
+    b6.value = ArrayFormula("B6", f"=SUMPRODUCT(--'Scope Detail'!D{f}:D{l},"
+                                  f"'Scope Detail'!B{f}:B{l},'Scope Detail'!E{f}:E{l})")
+    b6.number_format = "#,##0"; b6.font = _f()
 
-    ws["A10"] = "Pages per full sweep"
-    ws["A10"].font = _f(bold=True)
-    ws["B10"] = "=B6*B7*B8*B9"
-    ws["B10"].number_format = "#,##0"
+    label(7, "Geographies", "State / Country / Jurisdiction")
+    _lever(ws["B7"], '"× "0'); ws["B7"].value = m.get("geographies", 1)
+    label(8, "Consent scenarios", "Opt-out/GPC/Default consent/etc.")
+    _lever(ws["B8"], '"× "0'); ws["B8"].value = m.get("scenarios", 1)
+    label(9, "Environments", "Prod / Pre-Prod / Authenticated / etc.")
+    _lever(ws["B9"], '"× "0'); ws["B9"].value = m.get("environments", 1)
 
-    # MONITORING CADENCE section
-    ws["A12"] = "MONITORING CADENCE"
-    ws["A12"].font = _f(bold=True, size=11)
+    ws["A10"] = "Combined Page Total"; ws["A10"].font = _f(bold=True)
+    ws["B10"] = "=B6*B7*B8*B9"; ws["B10"].number_format = "#,##0"
+    ws["C10"] = '=TEXT(B6,"#,##0")&" × "&B7&" × "&B8&" × "&B9&" = "&TEXT(B10,"#,##0")'
+    ws["C10"].font = _f(color=GRAY, size=9)
 
-    headers = ["Layer", "Why", "% of pages", "Runs/yr", "Pages each run", "Scans/yr"]
-    for i, h in enumerate(headers):
-        cc = ws.cell(13, i + 1, h)
-        cc.font = _f(bold=True, color=WHITE)
-        cc.fill = _fill(DARK)
+    ws["A12"] = "MONITORING CADENCE"; ws["A12"].font = _f(bold=True, size=11)
+    _headers(ws, ["Recommended Monitor Layer", "Recommended Cadence", "Why",
+                  "% of combined pages", "Runs/yr", "Pages each run", "Scans/yr"], 13)
 
-    for idx, L in enumerate(layers[:5]):
-        n = 14 + idx
-        ws.cell(n, 1, L["name"]).font = _f()
-        ws.cell(n, 2, L.get("why", "")).font = _f()
+    row = 14
+    for L in layers:
+        ws.cell(row, 1, L["name"]).font = _f()
+        ws.cell(row, 2, _cadence_word(L["runs_per_year"])).font = _f()
+        c = ws.cell(row, 3, L.get("why", "")); c.font = _f(); c.alignment = Alignment(wrap_text=True)
+        _lever(ws.cell(row, 4, L["pct"]), "0.##%")
+        _lever(ws.cell(row, 5, L["runs_per_year"]), "#,##0")
+        ws.cell(row, 6, f"=$B$10*D{row}").number_format = "#,##0"
+        ws.cell(row, 7, f"=ROUND(F{row}*E{row},2)").number_format = "#,##0"
+        row += 1
 
-        cpct = ws.cell(n, 3, L["pct"])
-        cpct.fill = _fill(INPUT_FILL)
-        cpct.number_format = "0.##%"
-        cpct.font = _f()
-        cpct.protection = _EDITABLE
+    buf = row
+    ws.cell(buf, 1, "Buffer %").font = _f(bold=True)
+    c = ws.cell(buf, 3, "Ad-hoc testing and projects regularly push scanning needs past the "
+                        "scheduled monitoring."); c.font = _f(); c.alignment = Alignment(wrap_text=True)
+    _lever(ws.cell(buf, 4, data.get("buffer_pct", 0.0)), "0%")
+    ws.cell(buf, 6, f"=$B$10*D{buf}").number_format = "#,##0"
+    ws.cell(buf, 7, f"=F{buf}").number_format = "#,##0"
 
-        crun = ws.cell(n, 4, L["runs_per_year"])
-        crun.fill = _fill(INPUT_FILL)
-        crun.number_format = "#,##0"
-        crun.font = _f()
-        crun.protection = _EDITABLE
+    total = buf + 1
+    ws.cell(total, 1, "Total annual page-scans (predicted)").font = _f(bold=True)
+    g = ws.cell(total, 7, f"=ROUND(SUM(G14:G{buf}),0)"); g.font = _f(bold=True); g.number_format = "#,##0"
 
-        ws.cell(n, 5).value = f"=$B$10*C{n}"
-        ws.cell(n, 5).number_format = "#,##0"
-
-        ws.cell(n, 6).value = f"=ROUND(E{n}*D{n},2)"
-        ws.cell(n, 6).number_format = "#,##0"
-
-    # Buffer %
-    ws["A19"] = "Buffer %"
-    ws["A19"].font = _f(bold=True)
-    b19 = ws["B19"]
-    b19.value = data.get("buffer_pct", 0.0)
-    b19.fill = _fill(INPUT_FILL)
-    b19.number_format = "0%"
-    b19.font = _f()
-    b19.protection = _EDITABLE
-
-    # Totals
-    ws["A20"] = "Total annual page-scans (predicted)"
-    ws["A20"].font = _f(bold=True)
-    ws["F20"] = "=ROUND(SUM(F14:F18),0)"
-    ws["F20"].number_format = "#,##0"
-
-    ws["A21"] = "Purchased page-scans"
-    ws["A21"].font = _f(bold=True)
-    ws["F21"] = "=ROUND(F20*(1+B19),0)"
-    ws["F21"].number_format = "#,##0"
-
-    # Investment reference (points to Pricing sheet total; Task 2 adds that sheet)
-    # Derive the total row the same way _pricing does so this stays in sync for
-    # any tier count (e.g. 5 tiers → E10, 6 tiers → E11).
     import compute_scope as _cs
     tiers = data.get("tiers") or _cs.BAKED_TIERS
-    total_row = 5 + len(tiers)
-    ws["A23"] = "Recommended investment / year (USD)"
-    ws["A23"].font = _f(bold=True, size=12)
-    ws["B23"] = f"='Pricing'!E{total_row}"
-    ws["B23"].number_format = "$#,##0"
-    ws["B23"].fill = _fill(YELLOW)
+    price_total_row = 5 + len(tiers)
+    inv = total + 2
+    ws.cell(inv, 1, "Recommended investment / year (USD)").font = _f(bold=True, size=12)
+    b = ws.cell(inv, 2, f"='Pricing'!E{price_total_row}")
+    b.number_format = "$#,##0"; b.fill = _fill(YELLOW); b.font = _f(bold=True, size=12)
 
-    # Note cell: guides the customer on editable (yellow) cells
-    ws["A25"] = "Yellow cells are editable — change them and the totals/price update automatically."
-    ws["A25"].font = _f(color=GRAY, size=9)
-
-    _widths(ws, [34, 30, 14, 12, 16, 14])
+    ws.cell(inv + 2, 1, "Yellow cells are editable — change them and the totals/price "
+                        "update automatically.").font = _f(color=GRAY, size=9)
+    _widths(ws, [34, 16, 46, 18, 10, 14, 14])
+    return {"predicted_row": total}
 
 
-# ---------- Pricing sheet ----------
+# ---------- Pricing ----------
 
-def _pricing(wb, data):
-    """Build the 'Pricing' sheet with graduated-tier band table and live price formula.
-
-    Derives Lo/Hi/Rate from data['tiers'] (cumulative widths) so a pricing change
-    flows through automatically. The last band's Hi is set to 10**12 (∞ sentinel)
-    to capture the final defined band AND graduated_price's tail-at-last-rate rule.
-
-    For 6 tiers the total is written to row 11 (E11); B23 in Investment Model
-    references '=Pricing'!E11 (written in Task 1 / _investment_model).
-    """
+def _pricing(wb, data, sow):
     import compute_scope as _cs
     tiers = data.get("tiers") or _cs.BAKED_TIERS
-
+    pr = sow["predicted_row"]
     ws = wb.create_sheet("Pricing")
     ws["A2"] = "ObservePoint published pricing — graduated tiers"
     ws["A2"].font = _f(bold=True, size=12)
-
-    # Header row 4
-    for i, h in enumerate(["Band", "From (scans)", "To (scans)", "Rate / scan", "Cost"]):
-        c = ws.cell(4, i + 1, h)
-        c.font = _f(bold=True, color=WHITE)
-        c.fill = _fill(DARK)
-
-    # Band rows (rows 5 … 4+len(tiers))
+    _headers(ws, ["Band", "From (scans)", "To (scans)", "Rate / scan", "Cost"], 4)
     lo = 0
     for i, t in enumerate(tiers):
         n = 5 + i
-        hi = lo + t["limit"]
-        if i == len(tiers) - 1:
-            hi = 10 ** 12   # ∞ sentinel: captures final band + tail at last rate
+        hi = 10 ** 12 if i == len(tiers) - 1 else lo + t["limit"]
         ws.cell(n, 1, i + 1).font = _f()
         ws.cell(n, 2, lo).number_format = "#,##0"
         ws.cell(n, 3, hi).number_format = "#,##0"
         ws.cell(n, 4, t["pricePerPage"]).number_format = "$#,##0.00"
-        ws.cell(n, 5).value = f"=MAX(0, MIN('Investment Model'!$F$21, C{n}) - B{n}) * D{n}"
-        ws.cell(n, 5).number_format = "$#,##0.00"
+        ws.cell(n, 5, f"=MAX(0, MIN('Scope of Work'!$G${pr}, C{n}) - B{n}) * D{n}").number_format = "$#,##0.00"
         lo += t["limit"]
-
-    # Total row (row 11 for 6 tiers; computed from len(tiers) for robustness)
-    total_row = 5 + len(tiers)   # = 11 for 6 tiers
+    total_row = 5 + len(tiers)
     ws.cell(total_row, 1, "Recommended investment / year").font = _f(bold=True)
-    ws.cell(total_row, 5).value = f"=ROUND(SUM(E5:E{total_row - 1}),2)"
-    ws.cell(total_row, 5).number_format = "$#,##0"
-
-    _widths(ws, [22, 16, 16, 14, 16])
-
-
-# ---------- Scope detail sheet ----------
-
-def _scope_detail(wb, data):
-    """Build the 'Scope detail' sheet: per-domain pages sorted desc with customer-fillable cols.
-
-    Same clean layout as the former evidence appendix pages-by-domain sheet, renamed Scope detail.
-    No Spiral? column, no raw URLs, no internal why. % of total computed from
-    rollup.spiral_adjusted_anchor.
-    """
-    ws = wb.create_sheet("Scope detail")
-    _widths(ws, [40, 16, 12, 16, 12, 26])
-    r = _title(ws, "Scope detail", 6, 1)
-    anchor = data["rollup"]["spiral_adjusted_anchor"] or 1
-    r = _headers(ws, ["Property (domain)", "Pages", "% of total"] + FILL_COLS, r)
-    ws.freeze_panes = ws.cell(r, 1)
-    for i, d in enumerate(sorted(data["per_domain"], key=lambda x: -x["defensible_pages"])):
-        pct = round(100.0 * d["defensible_pages"] / anchor, 1)
-        data_row = r
-        r = _row(ws, r, [d["hostname"], d["defensible_pages"], f"{pct}%", None, None, None],
-                 alt=(i % 2 == 1))
-        # Mark customer-fillable columns (Include in scope? / Priority / Notes) editable
-        # so they remain writable when sheet protection is enabled.
-        for col in (4, 5, 6):
-            ws.cell(data_row, col).protection = _EDITABLE
+    ws.cell(total_row, 5, f"=ROUND(SUM(E5:E{total_row - 1}),2)").number_format = "$#,##0"
+    ws.cell(total_row + 2, 1, "Tier bands and per-scan rates mirror ObservePoint's published "
+                              "pricing model.").font = _f(color=GRAY, size=9)
+    _widths(ws, [8, 16, 16, 14, 16])
 
 
-# ---------- Sample pages sheet ----------
+# ---------- Sample pages ----------
 
 def _sample_pages(wb, data):
-    """Build the 'Sample pages' sheet: per-domain url_samples.
-
-    Same clean layout as the former evidence appendix sample-pages sheet, renamed Sample pages.
-    """
     ws = wb.create_sheet("Sample pages")
     _widths(ws, [34, 70])
     r = _title(ws, "Sample pages — real examples found on each property", 2, 1)
     note = ws.cell(r, 1, "A handful of real example pages per property (the largest by page count) "
                          "— so you can see these are genuine pages.")
-    note.font = _f(color=GRAY, size=9)
-    note.alignment = Alignment(wrap_text=True, vertical="top")
+    note.font = _f(color=GRAY, size=9); note.alignment = Alignment(wrap_text=True, vertical="top")
     ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
     ws.row_dimensions[r].height = 26
     r = _headers(ws, ["Property (domain)", "Example page URL"], r + 1)
     ws.freeze_panes = ws.cell(r, 1)
-    any_rows = False
-    alt = False
+    any_rows, alt = False, False
     for d in sorted(data["per_domain"], key=lambda x: -x["defensible_pages"]):
-        samples = d.get("url_samples", [])
-        for s in samples:
-            r = _row(ws, r, [d["hostname"], s], alt=alt)
-            any_rows = True
-        if samples:
+        for s in d.get("url_samples", []):
+            fill = LIGHT if alt else WHITE
+            ws.cell(r, 1, d["hostname"]).fill = _fill(fill)
+            ws.cell(r, 2, s).fill = _fill(fill)
+            for col in (1, 2):
+                ws.cell(r, col).font = _f(); ws.cell(r, col).border = _BORDER
+            r += 1; any_rows = True
+        if d.get("url_samples"):
             alt = not alt
     if not any_rows:
-        _row(ws, r, ["(no per-URL samples captured)", ""])
+        ws.cell(r, 1, "(no per-URL samples captured)").font = _f()
 
 
 # ---------- public API ----------
 
 def build_workbook(data):
-    """Build the live Investment Model workbook.
-
-    Task 1: Investment Model sheet (inputs + scan formulas).
-    Task 2: Pricing sheet (graduated tiers + live price formula).
-    Task 3: Scope detail + Sample pages (per-domain pages + url samples, clean).
-    Task 4: sheet protection ON (no password); input cells editable; formulas locked.
-
-    Sheet order: Investment Model, Pricing, Scope detail, Sample pages.
-    """
+    """Build the live Scope of Work workbook. Sheets: Scope Detail · Scope of Work · Pricing · Sample pages.
+    No sheet protection — yellow cells mark the levers; integrity is validated at proposal time."""
     layers = data.get("cadence_layers", [])
-    if len(layers) != 5:
-        raise ValueError(
-            f"investment model: expected exactly 5 cadence layers (the fixed Investment Model "
-            f"layout has 5 rows); got {len(layers)}. The frequency-advisor ladder always has 5 — "
-            f"drop a layer by setting its pct=0, don't remove it.")
-
-    # Guard: check only agent-composed, customer-facing strings (cadence names + why).
-    # Per-domain why and identity fields are excluded — scoping is the caller's job.
-    strings = [L.get("name", "") for L in layers] + \
-              [L.get("why", "") for L in layers]
-    customer_clean.assert_clean(strings, where="investment model")
+    if not (1 <= len(layers) <= 6):
+        raise ValueError(f"scope of work: expected 1–6 cadence layers; got {len(layers)}.")
+    strings = [L.get("name", "") for L in layers] + [L.get("why", "") for L in layers]
+    customer_clean.assert_clean(strings, where="scope of work")
 
     wb = Workbook()
-    _investment_model(wb, data)
-    _pricing(wb, data)
-    _scope_detail(wb, data)
+    detail = _scope_detail(wb, data)
+    sow = _scope_of_work(wb, data, detail)
+    _pricing(wb, data, sow)
     _sample_pages(wb, data)
-    # Task 4: enable sheet protection on all sheets (no password — user can unprotect via Excel UI).
-    # Input cells are already marked locked=False via _EDITABLE; formula/label cells default locked=True.
-    for ws in wb.worksheets:
-        ws.protection.sheet = True
     return wb
 
 
@@ -366,6 +281,7 @@ _DOC_REF = "see references/deliverables-mapping.md"
 _REQUIRED = {
     "page_count": "{low, anchor, high}",
     "cadence_layers": "[{name, pct, runs_per_year}, …]",
+    "per_domain": "[{hostname, defensible_pages}, …]",
 }
 
 
@@ -388,7 +304,7 @@ def main(argv):
             raw = fh.read()
     else:
         raw = sys.stdin.read()
-    out = argv[2] if len(argv) > 2 else "investment-model.xlsx"
+    out = argv[2] if len(argv) > 2 else "scope-of-work.xlsx"
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as e:
