@@ -208,3 +208,12 @@ def test_clean_guard_rejects_internal_term_in_properties_note():
     d["properties_note"] = "Site census crawl excluded spiral pages."
     with pytest.raises(ValueError):
         bp.build_proposal(d)
+
+
+def test_frequency_advisor_reference_exists_and_has_ladder():
+    refs = pathlib.Path(__file__).resolve().parent.parent / "skills" / "scope-calculator" / "references"
+    doc = (refs / "frequency-advisor.md").read_text().lower()
+    for layer in ("baseline inventory", "inventory refresh", "compliance", "release catch", "critical watch"):
+        assert layer in doc
+    for pct in ("100%", "50%", "15%", "5%", "1%"):
+        assert pct in doc
