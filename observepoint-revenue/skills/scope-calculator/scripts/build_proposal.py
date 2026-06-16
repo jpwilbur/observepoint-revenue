@@ -1,5 +1,5 @@
 """Customer-facing scope & investment proposal (.docx). Clean by construction — internal
-derivation lives in the separate internal-evidence workbook (build_internal_evidence.py).
+derivation lives in the separate rep-only file (build_internal_evidence.py).
 
 All agent-composed customer-facing strings (monitoring_summary, properties_note, cadence layer
 names and "why" lines) are guarded by customer_clean.assert_clean before the document is built.
@@ -232,11 +232,12 @@ def build_proposal(data):
                f"{_int(_round_sig(pc['anchor']))} pages "
                f"(range {_int(_round_sig(pc['low']))}–{_int(_round_sig(pc['high']))}).")
     if data.get("properties_note"):
-        _para(doc, data["properties_note"] + " The full property list is in the attached evidence "
-                   "workbook — please review and confirm which properties are in scope.")
-    _para(doc, "The attached evidence workbook shows the detail: Pages by Domain (every property "
-               "and its page count), Sample Pages (real example pages we found on each), and "
-               "Annual Usage Breakdown (how the page-scan total is built).", size=9.5, color=GRAY)
+        _para(doc, data["properties_note"] + " The full property list is in the attached investment "
+                   "model — please review and confirm which properties are in scope.")
+    _para(doc, "The attached investment model is a live calculator — adjust the highlighted inputs "
+               "and your page-scans and annual investment update automatically. It also lists every "
+               "property's page count (Scope detail) and real example pages (Sample pages).",
+          size=9.5, color=GRAY)
     # Footprint badge (page count only — confidence is rep-only, in the internal file)
     badge_t = doc.add_table(rows=1, cols=1)
     _no_borders(badge_t)
@@ -286,7 +287,7 @@ def build_proposal(data):
 
     # §5 To finalize
     _section(doc, "5. To finalize")
-    for item in ("Confirm the in-scope property list (see the evidence workbook).",
+    for item in ("Confirm the in-scope property list (see the attached investment model).",
                  f"Confirm applicable regulations and consent states ({', '.join(data.get('regulations', []) or ['TBD'])}).",
                  "Confirm the monitoring cadence above matches your risk tolerance.",
                  "Finalize the agreement at the confirmed usage."):

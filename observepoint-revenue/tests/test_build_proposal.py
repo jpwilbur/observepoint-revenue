@@ -71,8 +71,9 @@ def test_customer_sections_and_derivation():
     assert "430,744" in t                       # annual page scans total
     assert "Recommended contract" in t
     assert "430,167" in t and "$54,000" in t    # the reconciling pair
-    assert "Sample Pages" in t                          # points to the evidence workbook sheets
-    assert "Annual Usage Breakdown" in t               # workbook sheet present in the customer doc
+    assert "Scope detail" in t                          # points to the live model tabs
+    assert "investment model" in t.lower()             # customer workbook is now the live model
+    assert "live" in t.lower()                         # emphasises the interactive nature
 
 
 def test_recommended_pair_reconciles_in_calculator():
