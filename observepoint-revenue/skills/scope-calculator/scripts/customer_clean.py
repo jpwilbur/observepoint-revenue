@@ -16,17 +16,24 @@ The guard intentionally has no identity special-casing; scoping is the caller's 
 FORBIDDEN = (
     "site census", "census", "spiral", "raw url", "defensible", "indefensible",
     "reduced", "discount", "query-param", "query-string", "crawl", "recursion",
-    "collapsed", "anchor", "fallback",
+    "collapsed", "anchor",  # "anchor" = internal point-estimate label, not the HTML element
+    "fallback",
 )
 
 
 def find_forbidden(strings):
-    """Return the forbidden terms present (substring, case-insensitive) across the given strings."""
+    """Return the forbidden terms present (substring, case-insensitive) across the given strings.
+
+    Note: some terms overlap intentionally — e.g. "site census" also matches "census", and
+    "indefensible" also matches "defensible".  Both appear in the result; this is harmless because
+    the guard still fails correctly and callers only need to know *something* leaked.
+    """
     blob = " ".join(s for s in strings if s).lower()
     return [t for t in FORBIDDEN if t in blob]
 
 
 def assert_clean(strings, where="customer deliverable"):
+    """Raise ValueError if find_forbidden detects any forbidden term in the given strings."""
     leaked = find_forbidden(strings)
     if leaked:
-        raise ValueError(f"{where} contains internal-only term(s): {sorted(set(leaked))}")
+        raise ValueError(f"{where} contains internal-only term(s): {sorted(leaked)}")

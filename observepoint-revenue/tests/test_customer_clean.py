@@ -33,3 +33,8 @@ def test_every_forbidden_term_is_documented_in_vocab():
     doc = VOCAB.read_text().lower()
     missing = [t for t in cc.FORBIDDEN if t not in doc]
     assert missing == [], f"terms in FORBIDDEN but not in customer-vocabulary.md: {missing}"
+
+
+@pytest.mark.parametrize("term", cc.FORBIDDEN)
+def test_each_forbidden_term_is_detected(term):
+    assert term in cc.find_forbidden([f"text with {term} inside"])
