@@ -124,15 +124,15 @@ per_domain[] = { hostname, raw_urls, paths, patterns, spiral_flag, spiral_ratio,
                  defensible_pages, discounted, why, url_samples }
    # why         e.g. "349x query-param spiral"
    # url_samples a small capped list (~5–10) of real sample URLs for that domain, pulled from the
-   #             census — populates the evidence workbook's "URL Samples" sheet so the customer can
+   #             census — populates the customer workbook's 'Sample pages' sheet so the customer can
    #             eyeball that these are genuine pages. Capture them when you size the census.
 rollup = { url_total, path_floor, spiral_adjusted_anchor, low, high, confidence,
            census_ids, crawl_status, thresholds_swept }
 ```
 
 `defensible_pages` = paths for spiral-flagged domains, distinct URLs otherwise. The per-domain
-`defensible_pages` MUST sum to `rollup.spiral_adjusted_anchor` (the evidence-appendix builder
-enforces this invariant).
+`defensible_pages` MUST sum to `rollup.spiral_adjusted_anchor` (the customer-workbook builder
+(`build_model.py`) enforces this invariant).
 
 **Truncated per-domain list → tail-aggregate row.** `size_site_census` lists only the top ~40
 hostnames in detail and rolls the rest into the totals. When the account has more domains than that

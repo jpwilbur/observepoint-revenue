@@ -8,7 +8,7 @@ file is the orchestration glue.
 > **Cadence layers now carry a `why` field.** Every `{name, pct, runs_per_year}` layer from the
 > frequency-advisor walk also carries `why` (the customer-facing rationale string from
 > `frequency-advisor.md`). The `why` rides into both customer deliverables (cadence table in the
-> proposal, Annual Usage Breakdown in the customer workbook) and is not used in math.
+> proposal, the cadence table on the Investment Model sheet in the customer workbook) and is not used in math.
 
 ## Output 1 — Proposal (customer-facing, clean): `build_proposal.py <proposal.json> <out.docx>`
 
