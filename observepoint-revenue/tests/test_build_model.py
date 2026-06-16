@@ -134,3 +134,20 @@ def test_price_emulator_matches_engine_anchor_and_perturbations():
         a = _cs_anchor(d)
         e = emulate_model(95_000, 1, 3, 1, layers, 0.0, TIERS)
         assert e["price"] == a["price"]["total"], f"price mismatch for {layers}"
+
+
+# ---------- Fix 1 (code-review): dynamic model→pricing total-row reference ----------
+
+def test_investment_model_b23_and_pricing_total_row_track_tier_count():
+    """5-tier custom set: B23 must reference E10; Pricing!E10 must sum E5:E9."""
+    five_tiers = cs.BAKED_TIERS[:-1]   # drop last band → 5 tiers
+    d = json.loads(json.dumps(DATA))
+    d["tiers"] = five_tiers
+
+    wb = bm.build_workbook(d)
+
+    # (a) Investment Model B23 references the correct total row for 5 tiers
+    assert wb["Investment Model"]["B23"].value == "='Pricing'!E10"
+
+    # (b) Pricing total cell at E10 sums the 5 band rows (E5:E9)
+    assert wb["Pricing"]["E10"].value == "=ROUND(SUM(E5:E9),2)"

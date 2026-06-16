@@ -150,9 +150,14 @@ def _investment_model(wb, data):
     ws["F21"].number_format = "#,##0"
 
     # Investment reference (points to Pricing sheet total; Task 2 adds that sheet)
+    # Derive the total row the same way _pricing does so this stays in sync for
+    # any tier count (e.g. 5 tiers → E10, 6 tiers → E11).
+    import compute_scope as _cs
+    tiers = data.get("tiers") or _cs.BAKED_TIERS
+    total_row = 5 + len(tiers)
     ws["A23"] = "Recommended investment / year (USD)"
     ws["A23"].font = _f(bold=True, size=12)
-    ws["B23"] = "='Pricing'!E11"
+    ws["B23"] = f"='Pricing'!E{total_row}"
     ws["B23"].number_format = "$#,##0"
     ws["B23"].fill = _fill(YELLOW)
 
@@ -197,7 +202,7 @@ def _pricing(wb, data):
         ws.cell(n, 4, t["pricePerPage"]).number_format = "$#,##0.00"
         ws.cell(n, 5).value = f"=MAX(0, MIN('Investment Model'!$F$21, C{n}) - B{n}) * D{n}"
         ws.cell(n, 5).number_format = "$#,##0.00"
-        lo = lo + t["limit"]
+        lo += t["limit"]
 
     # Total row (row 11 for 6 tiers; computed from len(tiers) for robustness)
     total_row = 5 + len(tiers)   # = 11 for 6 tiers
