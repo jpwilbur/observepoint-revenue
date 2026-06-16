@@ -15,7 +15,7 @@ import pathlib
 import sys
 
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Protection, Side
 from openpyxl.utils import get_column_letter
 
 import customer_clean
@@ -26,6 +26,11 @@ DARK, YELLOW, LIGHT, GRAY, WHITE = "1E1E1E", "F2CD14", "F2F2F2", "5C5C5C", "FFFF
 INPUT_FILL = "FFF7CC"   # pale yellow — marks editable input cells
 FILL_COLS = ["Include in scope?", "Priority", "Notes"]  # customer-fillable, left empty
 LOGO = pathlib.Path(__file__).resolve().parent.parent / "assets" / "op-logo.png"
+
+# Protection helper — marks a cell as editable under sheet protection.
+# openpyxl default: all cells are locked=True; protection is off at the sheet level.
+# Task 4 turns on ws.protection.sheet = True and explicitly unlocks input cells.
+_EDITABLE = Protection(locked=False)
 
 _THIN = Side(style="thin", color="D9D9D9")
 _BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
@@ -83,9 +88,11 @@ def _row(ws, row, values, *, alt=False, bold=(), fill=None):
 
 
 def _input(ws, cell_addr, label_row, label, value, fmt="#,##0"):
-    """Write a labelled INPUT cell (pale-yellow fill) to *ws*.
+    """Write a labelled INPUT cell (pale-yellow fill, unlocked) to *ws*.
 
     Shared by Investment Model (Task 1) and Pricing sheet (Task 2+).
+    Sets Protection(locked=False) so the cell remains editable when sheet
+    protection is enabled (Task 4).
     """
     ws[f"A{label_row}"] = label
     ws[f"A{label_row}"].font = _f(bold=True)
@@ -94,6 +101,7 @@ def _input(ws, cell_addr, label_row, label, value, fmt="#,##0"):
     c.fill = _fill(INPUT_FILL)
     c.number_format = fmt
     c.font = _f()
+    c.protection = _EDITABLE
     return c
 
 
@@ -157,11 +165,13 @@ def _investment_model(wb, data):
         cpct.fill = _fill(INPUT_FILL)
         cpct.number_format = "0.##%"
         cpct.font = _f()
+        cpct.protection = _EDITABLE
 
         crun = ws.cell(n, 4, L["runs_per_year"])
         crun.fill = _fill(INPUT_FILL)
         crun.number_format = "#,##0"
         crun.font = _f()
+        crun.protection = _EDITABLE
 
         ws.cell(n, 5).value = f"=$B$10*C{n}"
         ws.cell(n, 5).number_format = "#,##0"
@@ -177,6 +187,7 @@ def _investment_model(wb, data):
     b19.fill = _fill(INPUT_FILL)
     b19.number_format = "0%"
     b19.font = _f()
+    b19.protection = _EDITABLE
 
     # Totals
     ws["A20"] = "Total annual page-scans (predicted)"
@@ -200,6 +211,10 @@ def _investment_model(wb, data):
     ws["B23"] = f"='Pricing'!E{total_row}"
     ws["B23"].number_format = "$#,##0"
     ws["B23"].fill = _fill(YELLOW)
+
+    # Note cell: guides the customer on editable (yellow) cells
+    ws["A25"] = "Yellow cells are editable — change them and the totals/price update automatically."
+    ws["A25"].font = _f(color=GRAY, size=9)
 
     _widths(ws, [34, 30, 14, 12, 16, 14])
 
@@ -270,8 +285,13 @@ def _scope_detail(wb, data):
     ws.freeze_panes = ws.cell(r, 1)
     for i, d in enumerate(sorted(data["per_domain"], key=lambda x: -x["defensible_pages"])):
         pct = round(100.0 * d["defensible_pages"] / anchor, 1)
+        data_row = r
         r = _row(ws, r, [d["hostname"], d["defensible_pages"], f"{pct}%", None, None, None],
                  alt=(i % 2 == 1))
+        # Mark customer-fillable columns (Include in scope? / Priority / Notes) editable
+        # so they remain writable when sheet protection is enabled.
+        for col in (4, 5, 6):
+            ws.cell(data_row, col).protection = _EDITABLE
 
 
 # ---------- Sample pages sheet ----------
@@ -313,7 +333,7 @@ def build_workbook(data):
     Task 1: Investment Model sheet (inputs + scan formulas).
     Task 2: Pricing sheet (graduated tiers + live price formula).
     Task 3: Scope detail + Sample pages (per-domain pages + url samples, clean).
-    Task 4 will add cell locking.
+    Task 4: sheet protection ON (no password); input cells editable; formulas locked.
 
     Sheet order: Investment Model, Pricing, Scope detail, Sample pages.
     """
@@ -335,6 +355,10 @@ def build_workbook(data):
     _pricing(wb, data)
     _scope_detail(wb, data)
     _sample_pages(wb, data)
+    # Task 4: enable sheet protection on all sheets (no password — user can unprotect via Excel UI).
+    # Input cells are already marked locked=False via _EDITABLE; formula/label cells default locked=True.
+    for ws in wb.worksheets:
+        ws.protection.sheet = True
     return wb
 
 

@@ -184,3 +184,33 @@ def test_guard_rejects_internal_layer_name():
     d = json.loads(json.dumps(DATA)); d["cadence_layers"][0]["name"] = "Spiral baseline"
     with pytest.raises(ValueError):
         bm.build_workbook(d)
+
+
+# ---------- Task 3 review: fillable cells are empty ----------
+
+def test_scope_detail_fillable_cells_are_empty():
+    """Explicit assertion that the customer-fillable columns contain no pre-filled values."""
+    ws = bm.build_workbook(DATA)["Scope detail"]
+    # Header is row 3 (title at row 1 + blank row 2 from _title); first data row is row 4.
+    # Columns 4/5/6 are Include in scope? / Priority / Notes (the FILL_COLS).
+    assert ws.cell(4, 4).value is None, "Include in scope? should be empty"
+    assert ws.cell(4, 5).value is None, "Priority should be empty"
+    assert ws.cell(4, 6).value is None, "Notes should be empty"
+
+
+# ---------- Task 4: Lock formula cells, keep inputs editable ----------
+
+from openpyxl.styles import Protection  # noqa: E402
+
+
+def test_model_inputs_unlocked_outputs_locked():
+    ws = bm.build_workbook(DATA)["Investment Model"]
+    assert ws.protection.sheet is True
+    for cell in ("B6", "B7", "B8", "B9", "B19", "C14", "D14", "C18", "D18"):   # inputs
+        assert ws[cell].protection.locked is False, f"{cell} should be editable"
+    for cell in ("B10", "E14", "F14", "F20", "F21", "B23"):                     # formulas
+        assert ws[cell].protection.locked is True, f"{cell} should be locked"
+
+
+def test_pricing_sheet_protected():
+    assert bm.build_workbook(DATA)["Pricing"].protection.sheet is True
