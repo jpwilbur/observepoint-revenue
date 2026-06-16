@@ -25,6 +25,7 @@ Input schema (all keys tolerant; orchestrator assembles from derive-page-count +
   internal: {assumptions[]?, implied_frequency?, thresholds_swept?, precise_anchor?}
 }
 """
+import customer_clean
 import json
 import math
 import pathlib
@@ -47,8 +48,6 @@ DARK_HEX, YELLOW_HEX, LIGHT_HEX = "1E1E1E", "F2CD14", "F2F2F2"
 RED_HEX, GREEN_HEX, MIDGRAY_HEX, LINK_HEX = "F34146", "1F9D55", "E2E2E2", "0563C1"
 LOGO = pathlib.Path(__file__).resolve().parent.parent / "assets" / "op-logo.png"
 
-_NARRATIVE_FIELDS = ("monitoring_summary",)
-_FORBIDDEN = ("spiral", "discount", "query-param", "raw url", "indefensible", "fallback")
 _FREQ = {1: "Annually", 4: "Quarterly", 12: "Monthly", 26: "Bi-weekly", 52: "Weekly", 365: "Daily"}
 
 
@@ -224,12 +223,14 @@ def _set_base_style(doc):
 
 # ---------- guard ----------
 def _assert_clean(data):
-    """Guard the agent-composed customer narrative against internal-only language. Scoped to
-    `_NARRATIVE_FIELDS` only — NOT identity fields and NOT the intentional [INTERNAL] section."""
-    blob = " ".join(str(data.get(f, "")) for f in _NARRATIVE_FIELDS).lower()
-    leaked = [w for w in _FORBIDDEN if w in blob]
-    if leaked:
-        raise ValueError(f"proposal narrative contains internal-only term(s): {leaked}")
+    """Guard all agent-composed customer-facing text against internal-only language. Identity/
+    factual fields (customer, domains, prepared_by, regulations) are NOT scrubbed — see
+    customer_clean caller contract."""
+    strings = [data.get("monitoring_summary", ""), data.get("properties_note", "")]
+    for L in data.get("cadence_layers", []):
+        strings.append(L.get("name", ""))
+        strings.append(L.get("why", ""))
+    customer_clean.assert_clean(strings, where="proposal")
 
 
 # ---------- builder ----------

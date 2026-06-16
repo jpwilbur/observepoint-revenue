@@ -168,3 +168,25 @@ def test_cli_friendly_error_malformed_json(tmp_path):
     assert res.returncode != 0
     assert "Traceback" not in res.stderr
     assert "scope-calculator" in res.stderr
+
+
+def test_clean_guard_rejects_internal_term_in_cadence_name():
+    d = json.loads(json.dumps(DATA))
+    d["cadence_layers"][1]["name"] = "Quarterly spiral re-check"   # internal term in a customer label
+    with pytest.raises(ValueError):
+        bp.build_proposal(d)
+
+
+def test_clean_guard_rejects_internal_term_in_why():
+    d = json.loads(json.dumps(DATA))
+    d["cadence_layers"][0]["why"] = "Full crawl to find every defensible page."
+    with pytest.raises(ValueError):
+        bp.build_proposal(d)
+
+
+def test_clean_guard_allows_identity_collision_in_name_and_domain():
+    d = json.loads(json.dumps(DATA))
+    d["customer"] = "Discount Tire Co"
+    d["domains"] = ["spiral-galaxy.com"]
+    d["monitoring_summary"] = "Full-site privacy monitoring annually."
+    bp.build_proposal(d)  # identity fields are not scrubbed → must not raise
