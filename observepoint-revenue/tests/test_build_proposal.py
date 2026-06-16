@@ -27,12 +27,13 @@ DATA = {
                    "census_id": 711, "crawl_status": "running",
                    "spiral_note": "Excluded ~389,375 query-string-duplicate URLs across 6 properties."},
     "consent_states": {"count": 3, "names": ["Default", "Opt-Out", "GPC"]},
+    "multipliers": {"geographies": 1, "scenarios": 3, "environments": 1},
     "cadence_layers": [
-        {"name": "Full privacy sweep", "runs_per_year": 1, "pages": 287_163, "runs": 287_163,
+        {"name": "Full privacy sweep", "runs_per_year": 1, "pct": 1.0,
          "why": "A full sweep so nothing on the site is invisible."},
-        {"name": "Priority pages", "runs_per_year": 4, "pages": 14_358, "runs": 57_432,
+        {"name": "Priority pages", "runs_per_year": 4, "pct": 0.05,
          "why": "Sites drift — quarterly keeps the full picture current."},
-        {"name": "Consent-critical pages", "runs_per_year": 12, "pages": 7_179, "runs": 86_149,
+        {"name": "Consent-critical pages", "runs_per_year": 12, "pct": 0.025,
          "why": "Crown-jewel pages checked far more often."}],
     "usage": {"pages_per_sweep": 287_163, "annual_scans": 430_744},
     "pricing": {"recommended_price": 54_000, "recommended_scans": 430_167,
@@ -231,3 +232,86 @@ def test_frequency_advisor_reference_exists_and_has_ladder():
         assert layer in doc
     for pct in ("100%", "50%", "15%", "5%", "1%"):
         assert pct in doc
+
+
+# ---------------------------------------------------------------------------
+# Gilead-like fixture: multi-geography, full multiplier chain
+# ---------------------------------------------------------------------------
+GILEAD_DATA = {
+    "customer": "Gilead Sciences",
+    "prepared_by": "Jarrod Wilbur",
+    "date": "2026-06-16",
+    "use_case": "privacy / consent monitoring",
+    "domains": ["gilead.com"],
+    "monitoring_summary": "Annual full-site privacy monitoring across all regions and consent states.",
+    "page_count": {"low": 700, "anchor": 848, "high": 1000},
+    "consent_states": {"count": 3, "names": ["Pre-consent", "Opt-Out", "GPC"]},
+    "multipliers": {"geographies": 3, "scenarios": 3, "environments": 1},
+    "cadence_layers": [
+        {"name": "Baseline inventory",    "why": "Full sweep so nothing is invisible.",
+         "pct": 1.0,  "runs_per_year": 1},
+        {"name": "Quarterly re-check",    "why": "Sites drift — quarterly keeps the picture current.",
+         "pct": 0.5,  "runs_per_year": 4},
+        {"name": "Monthly compliance",    "why": "Crown-jewel pages checked far more often.",
+         "pct": 0.15, "runs_per_year": 12},
+        {"name": "Weekly critical watch", "why": "High-risk pages watched weekly.",
+         "pct": 0.05, "runs_per_year": 52},
+    ],
+    "usage": {"pages_per_sweep": 7632, "annual_scans": 56477},
+    "pricing": {"recommended_price": 8_000, "recommended_scans": 56_477,
+                "range_low_price": 7_500, "range_high_price": 9_000},
+    "regulations": ["CCPA/CPRA"],
+}
+
+
+def test_gilead_sweep_table_has_geographies_row():
+    """(a) A Geographies row with ×3 must appear; (b) consent states ×3 present;
+    (c) 7,632 is shown; (d) chain reconciles 848×3×3=7,632; (e+f) cadence rows derive
+    correctly from pct — not from missing pages/runs keys."""
+    t = _text(bp.build_proposal(GILEAD_DATA))
+
+    # (a) geographies row with ×3
+    assert "×3" in t or "x3" in t.lower() or "Geographies" in t, \
+        "Expected a Geographies ×3 row in the sweep table"
+    # narrow: geographies label + multiplier must both be present
+    assert "Geographies" in t
+    # find the ×3 occurrence near geographies
+    assert "×3" in t
+
+    # (b) consent states ×3
+    assert "Pre-consent" in t and "Opt-Out" in t and "GPC" in t
+    # consent states row also has ×3
+    assert t.count("×3") >= 2  # at least geographies row + consent row
+
+    # (c) pages per full sweep shown
+    assert "7,632" in t
+
+    # (d) chain reconciles: 848 × 3 × 3 = 7,632 — anchor must appear
+    assert "848" in t
+
+    # (e) first cadence row: pct=1.0, runs=1 → pages_each = round(7632*1.0) = 7,632
+    #     scans = round(7632*1.0*1) = 7,632   (NOT zero)
+    assert t.count("7,632") >= 2  # at minimum: pages_per_sweep cell + first cadence pages_each
+
+    # (f) quarterly row: pct=0.5, runs=4 → pages_each=3,816; scans=15,264
+    assert "3,816" in t
+    assert "15,264" in t
+
+
+def test_gilead_environments_row_hidden_when_one():
+    """environments=1 → no Environments row should appear."""
+    t = _text(bp.build_proposal(GILEAD_DATA))
+    assert "Environments" not in t
+
+
+def test_gilead_environments_row_shown_when_gt_one():
+    """environments=2 → an Environments row must appear."""
+    import copy
+    d = copy.deepcopy(GILEAD_DATA)
+    d["multipliers"]["environments"] = 2
+    # recalculate pages_per_sweep: 848*3*3*2 = 15264
+    d["usage"]["pages_per_sweep"] = 15264
+    d["usage"]["annual_scans"] = 112954
+    t = _text(bp.build_proposal(d))
+    assert "Environments" in t
+    assert "×2" in t

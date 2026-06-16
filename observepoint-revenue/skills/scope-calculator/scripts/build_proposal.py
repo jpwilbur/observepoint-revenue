@@ -17,7 +17,8 @@ Input schema (all keys tolerant; orchestrator assembles from derive-page-count +
                url_total?, defensible?, discounted?, census_id?, crawl_status?, spiral_note?,
                confidence?},               # internal-only keys present but ignored here
   consent_states: {count, names[]},
-  cadence_layers: [{name, why, runs_per_year, pages, runs}],  # why is customer-facing
+  multipliers: {geographies, scenarios, environments},  # all three multipliers; geo/env rows shown only when >1
+  cadence_layers: [{name, why, pct, runs_per_year}],    # pct required; pages/runs ignored (derived here)
   usage: {pages_per_sweep, annual_scans},
   pricing: {recommended_price, recommended_scans, range_low_price, range_high_price,
             price_by_band?: [{band_limit, rate, pages, cost}], pricing_source?,
@@ -206,6 +207,7 @@ def build_proposal(data):
     pr = data["pricing"]
     us = data["usage"]
     cs = data.get("consent_states", {"count": 1, "names": ["Default"]})
+    mx = data.get("multipliers", {"geographies": 1, "scenarios": cs.get("count", 1), "environments": 1})
 
     doc = Document()
     _set_base_style(doc)
@@ -254,17 +256,24 @@ def build_proposal(data):
     _section(doc, "3. How your annual usage is calculated")
     _para(doc, "A page scan = one page checked one time. Scanning your pages once is one pass; "
                "checking them on a recurring schedule multiplies that into annual usage.", size=9.5, color=GRAY)
-    _table(doc, ["From pages to one full sweep", "", "Pages"], [
+    sweep_rows = [
         ["Validated pages on your properties", "", _int(pc["anchor"])],
-        [f"× Consent states monitored ({', '.join(cs['names'])})", "", f"×{cs['count']}"],
-        ["**Pages per full sweep**", "", "**" + _int(us["pages_per_sweep"]) + "**"],
-    ])
+    ]
+    if mx.get("geographies", 1) > 1:
+        sweep_rows.append([f"× Geographies monitored", "", f"×{mx['geographies']}"])
+    sweep_rows.append([f"× Consent states monitored ({', '.join(cs['names'])})", "", f"×{mx['scenarios']}"])
+    if mx.get("environments", 1) not in (1, None):
+        sweep_rows.append(["× Environments (prod + staging)", "", f"×{mx['environments']}"])
+    sweep_rows.append(["**Pages per full sweep**", "", "**" + _int(us["pages_per_sweep"]) + "**"])
+    _table(doc, ["From pages to one full sweep", "", "Pages"], sweep_rows)
     _para(doc, "")
     cadence_rows = []
     for L in data.get("cadence_layers") or []:
         freq = _FREQ.get(L.get("runs_per_year"), f"{L.get('runs_per_year')}×/yr")
-        cadence_rows.append([L["name"], L.get("why", ""), freq, _int(L.get("pages", 0)),
-                             str(L.get("runs_per_year", "")), _int(L.get("runs", 0))])
+        pages_each = round(us["pages_per_sweep"] * L["pct"])
+        scans = round(us["pages_per_sweep"] * L["pct"] * L["runs_per_year"])
+        cadence_rows.append([L["name"], L.get("why", ""), freq, _int(pages_each),
+                             str(L.get("runs_per_year", "")), _int(scans)])
     cadence_rows.append(["**Total annual page scans**", "", "", "", "", "**" + _int(us["annual_scans"]) + "**"])
     _table(doc, ["What's monitored", "Why", "How often", "Pages each run", "Runs/yr", "Page scans/yr"],
            cadence_rows)
@@ -303,6 +312,7 @@ _REQUIRED = {
     "page_count": "{low, anchor, high}",
     "pricing": "{recommended_price, recommended_scans}",
     "usage": "{pages_per_sweep, annual_scans}",
+    "multipliers": "{geographies, scenarios, environments}",
 }
 
 
