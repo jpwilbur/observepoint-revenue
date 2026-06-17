@@ -51,3 +51,17 @@ def test_letter_builds_docx_with_logo_and_copyright(tmp_path):
     assert result["theme"] == "light"
     # at least one inline image (the logo) is embedded
     assert len(doc.inline_shapes) >= 1
+    assert "Block unapproved cookies" in text
+
+
+def test_letter_dark_theme_uses_dark_muted_color(tmp_path):
+    from docx import Document
+    from docx.shared import RGBColor
+    out = tmp_path / "letter_dark.docx"
+    result = make_document.build("letter", CONTENT, str(out), theme="dark")
+    assert result["theme"] == "dark"
+    doc = Document(result["path"])
+    # the subtitle paragraph ("Acme Pharma") should use the dark muted color #9AA1AD
+    subtitle_runs = [r for p in doc.paragraphs for r in p.runs if r.text == "Acme Pharma"]
+    assert subtitle_runs, "subtitle run not found"
+    assert subtitle_runs[0].font.color.rgb == RGBColor(0x9A, 0xA1, 0xAD)

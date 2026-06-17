@@ -75,6 +75,7 @@ def build_docx(kind: str, content: dict, out_path: str, theme: str) -> dict:
     year = datetime.date.today().year
     family = brand_kit.font()["family"]
     ink = brand_kit.colors()["ink"]
+    muted = brand_kit.theme(theme).get("muted") or brand_kit.colors()["light"]["gray"]
     doc = Document()
     style = doc.styles["Normal"]
     style.font.name, style.font.size, style.font.color.rgb = family, Pt(10.5), brand_kit.rgbcolor(ink)
@@ -90,7 +91,7 @@ def build_docx(kind: str, content: dict, out_path: str, theme: str) -> dict:
     hr.bold, hr.font.size, hr.font.name = True, Pt(16), family
     if content.get("subtitle") or content.get("prepared_for"):
         s = doc.add_paragraph().add_run(content.get("subtitle") or content["prepared_for"])
-        s.font.size, s.font.color.rgb, s.font.name = Pt(10), brand_kit.rgbcolor(brand_kit.colors()["light"]["gray"]), family
+        s.font.size, s.font.color.rgb, s.font.name = Pt(10), brand_kit.rgbcolor(muted), family
     # Body sections
     for sec in content.get("sections", []):
         hp = doc.add_paragraph().add_run(sec.get("heading", ""))
@@ -102,7 +103,7 @@ def build_docx(kind: str, content: dict, out_path: str, theme: str) -> dict:
     # Footer copyright
     foot = doc.add_paragraph()
     fr = foot.add_run(content.get("footer") or brand_kit.copyright(year))
-    fr.font.size, fr.font.color.rgb, fr.font.name = Pt(8), brand_kit.rgbcolor(brand_kit.colors()["light"]["gray"]), family
+    fr.font.size, fr.font.color.rgb, fr.font.name = Pt(8), brand_kit.rgbcolor(muted), family
     out = pathlib.Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     doc.save(str(out))
