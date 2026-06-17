@@ -19,9 +19,10 @@ A growing suite of Claude Code tools for the **ObservePoint revenue team** — p
    confirmed-domain list that feeds scope-calculator.
 4. **scope-calculator** — *size and price a contract, end to end.* One tool with three stages you can
    run whole or individually: derive a defensible page count (Site Census), size annual page-scan
-   usage from geographies × scenarios × environments × test cadences, and price it against
-   ObservePoint's *live* pricing — producing a customer **proposal (`.docx`)** plus an **evidence
-   workbook (`.xlsx`)**.
+   usage from geographies × scenarios × environments × a 4-layer cadence + additive buffer, and price
+   it against ObservePoint's *live* pricing. The default deliverable is a live **Scope of Work workbook
+   (`.xlsx`)** the rep tunes; a clean customer **proposal (`.docx`)** is recomputed from that edited
+   workbook on request.
 
 More revenue tooling (outreach sequencing, enrichment, QBR prep) is planned.
 
@@ -68,5 +69,5 @@ export GH_TOKEN=...        # or GITHUB_TOKEN
 ## Tests
 
 ```
-/opt/homebrew/bin/python3 -m pytest observepoint-revenue/tests -q     # 227 passing
+/opt/homebrew/bin/python3 -m pytest observepoint-revenue/tests -q     # 243 passing
 ```

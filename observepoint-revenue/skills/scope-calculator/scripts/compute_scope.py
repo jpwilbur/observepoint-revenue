@@ -89,6 +89,21 @@ def use_case_pages(base_pages, geographies=1, scenarios=1, environments=1.0):
     return base_pages * geographies * scenarios * environments
 
 
+def total_pages_found(per_domain):
+    """Σ over domains of (in_scope ? pages × sample_size : 0).
+
+    Drives the Scope of Work's 'Total Pages Found' (the workbook does this as a SUMPRODUCT).
+    Defaults: include=True, sample_size=1.0 (so the total equals the anchor when untouched).
+    Accepts 'defensible_pages' or 'pages' as the per-domain count key."""
+    total = 0.0
+    for d in per_domain:
+        if not d.get("include", True):
+            continue
+        pages = d.get("defensible_pages", d.get("pages", 0)) or 0
+        total += pages * d.get("sample_size", 1.0)
+    return round(total)
+
+
 def annual_scans(ucp, cadence_layers):
     """Additive layered cadence model. cadence_layers: list of
     {name, pct, runs_per_year}. A page may appear in multiple layers (layers are
@@ -110,31 +125,25 @@ def annual_scans(ucp, cadence_layers):
     return {"total": round(total), "by_layer": by_layer}
 
 
-def apply_buffer(scans, buffer_pct=0.0):
-    """purchased = round(predicted × (1 + buffer))."""
-    return round(scans * (1 + buffer_pct))
-
-
 def _compute_one(base, multipliers, layers, buffer_pct, tiers):
-    ucp = use_case_pages(base, multipliers.get("geographies", 1),
-                         multipliers.get("scenarios", 1),
-                         multipliers.get("environments", 1))
-    sc = annual_scans(ucp, layers)
-    predicted = sc["total"]
-    purchased = apply_buffer(predicted, buffer_pct)
+    combined = use_case_pages(base, multipliers.get("geographies", 1),
+                              multipliers.get("scenarios", 1),
+                              multipliers.get("environments", 1))
+    sc = annual_scans(combined, layers)
+    # Buffer is ADDITIVE (mirrors the workbook's Buffer row = combined × buffer%, one pass).
+    # Sum the per-layer 2dp runs + the buffer, then round once — matches G19=ROUND(SUM(G14:G18),0).
+    layer_sum = sum(l["runs"] for l in sc["by_layer"])
+    predicted = round(layer_sum + combined * buffer_pct)
     return {
         "base_pages": base,
-        "use_case_pages": round(ucp),
-        "predicted_scans": predicted,
-        "purchased_scans": purchased,
+        "combined_pages": round(combined),
         "buffer_pct": buffer_pct,
+        "buffer_scans": round(combined * buffer_pct),
+        "predicted_scans": predicted,
         "cadence_by_layer": sc["by_layer"],
-        "implied_blended_frequency": round(predicted / ucp, 3) if ucp else 0,
-        "tier": classify_tier(purchased),
-        # True when the buffer pushes the purchased count into a different pricing tier than the
-        # predicted count would land in — so the rep-facing breakdown can call out the jump.
-        "tier_changed_by_buffer": classify_tier(purchased) != classify_tier(predicted),
-        "price": graduated_price(purchased, tiers),
+        "implied_blended_frequency": round(predicted / combined, 3) if combined else 0,
+        "tier": classify_tier(predicted),
+        "price": graduated_price(predicted, tiers),
     }
 
 
@@ -164,28 +173,17 @@ def compute(inputs):
         "anchor": anchor,
         "range": {
             "low": {"predicted_scans": low["predicted_scans"],
-                    "purchased_scans": low["purchased_scans"],
                     "price_total": low["price"]["total"]},
             "high": {"predicted_scans": high["predicted_scans"],
-                     "purchased_scans": high["purchased_scans"],
                      "price_total": high["price"]["total"]},
         },
         "recommended_quote": {
-            "purchased_scans": anchor["purchased_scans"],
+            "predicted_scans": anchor["predicted_scans"],
             "price_total": anchor["price"]["total"],
             "tier": anchor["tier"],
         },
-        "recommended_contract": _recommended_contract(anchor["price"]["total"], tiers),
     }
 
-
-def _recommended_contract(anchor_price, tiers):
-    """A clean, reconciling contract pair: round the price to the nearest $1,000 and back-solve
-    the EXACT scans that price to it (so price and scans always match the calculator)."""
-    price = round(anchor_price / 1000) * 1000
-    scans = scans_for_price(price, tiers)
-    return {"price": price, "scans": scans,
-            "exact_price": graduated_price(scans, tiers)["total"]}
 
 
 _DOC_REF = "see references/deliverables-mapping.md"

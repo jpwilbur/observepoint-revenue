@@ -26,24 +26,18 @@ Pricing is **graduated/marginal**: each band's width is priced at its own rate, 
 ## 2. Tier classifier
 
 `annual_scans < 600,000` → **starter**; `≤ 6,000,000` → **professional**; else **enterprise**.
-(Tier is classified on the **purchased** number — after buffer — since that's what's bought.)
+(Tier is classified on `predicted_scans` — the single sized total, buffer already folded in — since that's what's bought.)
 
-## 3. Buffer (purchased vs predicted)
+## 3. Buffer (additive)
 
-Optional `buffer_pct` (default 0). `purchased_scans = round(predicted_scans × (1 + buffer_pct))`.
-**Pricing and tier classification use `purchased_scans`.** Always show BOTH numbers in the output,
-e.g. "110,000 purchased = 100,000 predicted + 10% buffer." A buffer can push a deal across a tier
-boundary — make that visible if it happens.
-
-## 3b. Recommended contract — clean price ↔ exact scans
-
-`compute_scope.py` exposes `scans_for_price(target_price, tiers)` (the inverse of `graduated_price`)
-and emits `recommended_contract = {price, scans, exact_price}` on every `compute()`. It rounds the
-anchor price to the nearest $1,000 and **back-solves the exact page-scans that price to it**, so the
-two numbers a customer sees (price and page-scans) always reconcile in ObservePoint's published
-calculator. Present the clean price and the exact scans together; show the precise modeled
-pair (`predicted_scans` / `anchor.price.total`) in the internal/rep view. Never round one of the
-pair independently — that produces figures the customer can't verify in the calculator.
+The buffer is **additive**, not a multiplier. A single extra pass over `combined_pages` is added on
+top of the cadence layers: `buffer_scans = round(combined_pages × buffer_pct)`, and
+`predicted_scans = Σ over layers (combined_pages × layer_pct × runs) + buffer_scans`. Default
+`buffer_pct = 15%`. There is no separate "purchased" number — `predicted_scans` is the one sized
+total, and **both pricing and tier classification use `predicted_scans`** via the exact
+`graduated_price(predicted_scans)`. Show the buffer as a contributing line in the scope breakdown
+(e.g. "Buffer 15% → +N scans") so the rep can see what it adds, but do not present a second
+grand total.
 
 ## 4. Journeys (v1)
 

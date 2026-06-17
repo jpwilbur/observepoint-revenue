@@ -19,8 +19,9 @@ Input schema (all keys tolerant; orchestrator assembles from derive-page-count +
   consent_states: {count, names[]},
   multipliers: {geographies, scenarios, environments},  # all three multipliers; geo/env rows shown only when >1
   cadence_layers: [{name, why, pct, runs_per_year}],    # pct required; pages/runs ignored (derived here)
-  usage: {pages_per_sweep, annual_scans},
-  pricing: {recommended_price, recommended_scans, range_low_price, range_high_price,
+  buffer_pct?,                              # additive buffer fraction (e.g. 0.15) — one pass over combined
+  usage: {combined_pages, predicted_scans}, # combined_pages = anchor × multipliers; predicted_scans = Σ(combined×pct×runs)+round(combined×buffer%)
+  pricing: {predicted_price, range_low_price, range_high_price,
             price_by_band?: [{band_limit, rate, pages, cost}], pricing_source?,
             modeled_scans?, modeled_price?},
   internal: {…}                            # present but ignored — goes to internal-evidence file
@@ -238,11 +239,11 @@ def build_proposal(data):
                f"{_int(_round_sig(pc['anchor']))} pages "
                f"(range {_int(_round_sig(pc['low']))}–{_int(_round_sig(pc['high']))}).")
     if data.get("properties_note"):
-        _para(doc, data["properties_note"] + " The full property list is in the attached investment "
-                   "model — please review and confirm which properties are in scope.")
-    _para(doc, "The attached investment model is a live calculator — adjust the highlighted inputs "
-               "and your page-scans and annual investment update automatically. It also lists every "
-               "property's page count (Scope detail) and real example pages (Sample pages).",
+        _para(doc, data["properties_note"] + " The full property list is in the attached Scope of "
+                   "Work workbook — please review and confirm which properties are in scope.")
+    _para(doc, "The attached Scope of Work workbook is a live calculator — adjust the highlighted "
+               "inputs and your page-scans and annual investment update automatically. It also lists "
+               "every property's page count (Scope Detail) and real example pages (Sample pages).",
           size=9.5, color=GRAY)
     # Footprint badge (page count only — confidence is rep-only, in the internal file)
     badge_t = doc.add_table(rows=1, cols=1)
@@ -260,47 +261,59 @@ def build_proposal(data):
     _section(doc, "3. How your annual usage is calculated")
     _para(doc, "A page scan = one page checked one time. Scanning your pages once is one pass; "
                "checking them on a recurring schedule multiplies that into annual usage.", size=9.5, color=GRAY)
+    combined = us["combined_pages"]
+    predicted = us["predicted_scans"]
     sweep_rows = [
-        ["Validated pages on your properties", "", _int(pc["anchor"])],
+        ["Total Pages Found on your properties", "", _int(pc["anchor"])],
     ]
     if mx.get("geographies", 1) > 1:
         sweep_rows.append([f"× Geographies monitored", "", f"×{mx['geographies']}"])
     sweep_rows.append([f"× Consent states monitored ({', '.join(cs['names'])})", "", f"×{mx['scenarios']}"])
     if mx.get("environments", 1) not in (1, None):
         sweep_rows.append(["× Environments (prod + staging)", "", f"×{mx['environments']}"])
-    sweep_rows.append(["**Pages per full sweep**", "", "**" + _int(us["pages_per_sweep"]) + "**"])
-    _table(doc, ["From pages to one full sweep", "", "Pages"], sweep_rows)
+    sweep_rows.append(["**Combined pages monitored**", "", "**" + _int(combined) + "**"])
+    _table(doc, ["From pages to combined scope", "", "Pages"], sweep_rows)
     _para(doc, "")
     cadence_rows = []
     for L in data.get("cadence_layers") or []:
         freq = _FREQ.get(L.get("runs_per_year"), f"{L.get('runs_per_year')}×/yr")
-        pages_each = round(us["pages_per_sweep"] * L["pct"])
-        scans = round(us["pages_per_sweep"] * L["pct"] * L["runs_per_year"])
+        pages_each = round(combined * L["pct"])
+        scans = round(combined * L["pct"] * L["runs_per_year"])
         cadence_rows.append([L["name"], L.get("why", ""), freq, _int(pages_each),
                              str(L.get("runs_per_year", "")), _int(scans)])
-    cadence_rows.append(["**Total annual page scans**", "", "", "", "", "**" + _int(us["annual_scans"]) + "**"])
+    # Additive buffer — one pass over combined*buffer%, NOT multiplied by a cadence.
+    buffer_pct = data.get("buffer_pct")
+    if buffer_pct:
+        buffer_scans = round(combined * buffer_pct)
+        cadence_rows.append(["Buffer",
+                             "Headroom for new pages, campaigns, and ad-hoc re-scans.",
+                             "One pass", _int(buffer_scans), "1", _int(buffer_scans)])
+    cadence_rows.append(["**Total annual page scans (predicted)**", "", "", "", "",
+                         "**" + _int(predicted) + "**"])
     _table(doc, ["What's monitored", "Why", "How often", "Pages each run", "Runs/yr", "Page scans/yr"],
            cadence_rows)
 
     # §4 Investment
-    _section(doc, "4. Recommended contract & investment")
-    _highlight(doc, f"{_int(pr['recommended_scans'])} page scans   ·   {_usd(pr['recommended_price'])} / year")
-    # NERD callout for the reconcile note
+    _section(doc, "4. Annual investment")
+    predicted_price = pr["predicted_price"]
+    _highlight(doc, f"{_int(predicted)} page scans   ·   {_usd(predicted_price)} / year")
+    # NERD callout for the pricing note
     callout_t = doc.add_table(rows=1, cols=1)
     _no_borders(callout_t)
     callout_cell = callout_t.rows[0].cells[0]
     _shade(callout_cell, LIGHT_HEX)
     _left_accent(callout_cell, YELLOW_HEX)
     p_note = callout_cell.paragraphs[0]
-    _run(p_note, "Usage-based pricing at ObservePoint's published rates. The two figures above "
-                 "reconcile exactly in ObservePoint's pricing calculator.", size=9.5, color=GRAY)
+    _run(p_note, "Usage-based pricing at ObservePoint's published graduated rates. The annual "
+                 "investment is the exact price of your predicted page scans — the cadence above, "
+                 "plus buffer headroom.", size=9.5, color=GRAY)
     if pr.get("range_low_price") and pr.get("range_high_price"):
         _para(doc, f"As your property list and monitoring cadence are confirmed, expect a range of "
                    f"{_usd(pr['range_low_price'])}–{_usd(pr['range_high_price'])} per year.")
 
     # §5 To finalize
     _section(doc, "5. To finalize")
-    for item in ("Confirm the in-scope property list (see the attached investment model).",
+    for item in ("Confirm the in-scope property list (see the attached Scope of Work workbook).",
                  f"Confirm applicable regulations and consent states ({', '.join(data.get('regulations', []) or ['TBD'])}).",
                  "Confirm the monitoring cadence above matches your risk tolerance.",
                  "Finalize the agreement at the confirmed usage."):
@@ -314,42 +327,60 @@ _DOC_REF = "see references/deliverables-mapping.md"
 # Required top-level key → short expected-shape hint, surfaced in the friendly error.
 _REQUIRED = {
     "page_count": "{low, anchor, high}",
-    "pricing": "{recommended_price, recommended_scans}",
-    "usage": "{pages_per_sweep, annual_scans}",
+    "pricing": "{predicted_price}",
+    "usage": "{combined_pages, predicted_scans}",
     "multipliers": "{geographies, scenarios, environments}",
 }
 
 
 def _sweep_reconcile_error(data):
-    """Return an actionable message if the §3 multiplier chain does NOT reconcile to
-    usage.pages_per_sweep, else None.
+    """Return an actionable message if the §3 multiplier/cadence chain does NOT reconcile, else None.
 
-    The §3 sweep table walks anchor pages → × geographies → × consent states → × environments
-    → 'pages per full sweep'. Those factors MUST multiply the anchor up to the same
-    pages_per_sweep the engine (compute_scope) computed. If a factor is dropped from the
-    hand-assembled proposal payload (the production bug: geographies forgotten while the engine
-    used geos=3), the table silently omits a row and the chain no longer adds up. This guard
-    refuses to render a non-reconciling proposal — the §3 factors are not allowed to drift from
-    compute_scope's authoritative output. Returns None when other validation owns the failure
-    (missing blocks)."""
+    Two identities are checked:
+    1. anchor × geographies × scenarios × environments == usage.combined_pages
+       (within 1% tolerance to absorb fractional-environment rounding; a dropped factor is ≫1%).
+    2. Σ round(combined × pct × runs_per_year) + round(combined × buffer_pct) == usage.predicted_scans
+       (tolerance floor = max(len(layers)+1, 1% of predicted) to absorb per-layer int rounding at
+       large layer counts).
+
+    Returns None when other validation owns the failure (missing/non-numeric blocks)."""
     pc = data.get("page_count") or {}
     us = data.get("usage") or {}
     cs = data.get("consent_states") or {}
     mx = data.get("multipliers") or {}
-    anchor, pps = pc.get("anchor"), us.get("pages_per_sweep")
-    if not isinstance(anchor, (int, float)) or not isinstance(pps, (int, float)):
+    combined = us.get("combined_pages")
+    anchor = pc.get("anchor")
+    if not isinstance(anchor, (int, float)) or not isinstance(combined, (int, float)):
         return None  # _REQUIRED / page_count validation handles missing/garbage blocks
     geos = mx.get("geographies", 1) or 1
     scen = mx.get("scenarios", cs.get("count", 1)) or 1
     env = mx.get("environments", 1) or 1
     product = anchor * geos * scen * env
-    tol = max(1, round(0.01 * pps))   # absorb fractional-environment rounding; a dropped factor is ≫1%
-    if abs(round(product) - round(pps)) > tol:
+    tol = max(1, round(0.01 * combined))   # absorb fractional-environment rounding; a dropped factor is ≫1%
+    if abs(round(product) - round(combined)) > tol:
         return (f"scope inputs don't reconcile — multipliers "
                 f"(geographies×scenarios×environments = {geos}×{scen}×{env}) on {_int(anchor)} "
-                f"anchor pages give {_int(product)}, but usage.pages_per_sweep is {_int(pps)}. "
+                f"anchor pages give {_int(product)}, but usage.combined_pages is {_int(combined)}. "
                 f"A factor (often geographies) was dropped from the proposal payload — copy "
                 f"compute_scope's emitted 'multipliers' into proposal.json verbatim; {_DOC_REF}")
+    # Additive-buffer predicted-scans identity: Σ round(combined×pct×runs) + round(combined×buffer%)
+    # MUST equal the engine's emitted predicted total. A dropped layer or buffer silently undercounts.
+    predicted = us.get("predicted_scans")
+    if isinstance(predicted, (int, float)):
+        layers = data.get("cadence_layers") or []
+        layers_sum = sum(round(combined * L["pct"] * L["runs_per_year"]) for L in layers
+                         if isinstance(L.get("pct"), (int, float))
+                         and isinstance(L.get("runs_per_year"), (int, float)))
+        buffer_pct = data.get("buffer_pct") or 0
+        recomputed = layers_sum + round(combined * buffer_pct)
+        ptol = max(len(layers) + 1, round(0.01 * predicted))
+        if abs(recomputed - round(predicted)) > ptol:
+            return (f"predicted scans don't reconcile — cadence layers "
+                    f"(Σ combined×pct×runs = {_int(layers_sum)}) plus buffer "
+                    f"(combined×{buffer_pct} = {_int(round(combined * buffer_pct))}) give "
+                    f"{_int(recomputed)}, but usage.predicted_scans is {_int(predicted)}. "
+                    f"A cadence layer or the buffer was dropped/edited in the proposal payload — "
+                    f"copy compute_scope's emitted 'cadence_layers' + 'buffer_pct' verbatim; {_DOC_REF}")
     return None
 
 
@@ -365,6 +396,11 @@ def _validate(data):
     if not isinstance(pc, dict) or any(k not in pc for k in ("low", "anchor", "high")):
         sys.exit("scope-calculator: missing/malformed 'page_count' — expected "
                  f"{_REQUIRED['page_count']}; {_DOC_REF}")
+    us, pr = data.get("usage") or {}, data.get("pricing") or {}
+    if not isinstance(us.get("combined_pages"), (int, float)) or not isinstance(us.get("predicted_scans"), (int, float)):
+        sys.exit(f"scope-calculator: 'usage' must include numeric combined_pages and predicted_scans; {_DOC_REF}")
+    if not isinstance(pr.get("predicted_price"), (int, float)):
+        sys.exit(f"scope-calculator: 'pricing' must include a numeric predicted_price; {_DOC_REF}")
     err = _sweep_reconcile_error(data)
     if err:
         sys.exit("scope-calculator: " + err)

@@ -1,3 +1,4 @@
+import copy
 import json
 import pathlib
 import subprocess
@@ -11,6 +12,36 @@ import compute_scope as cs
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "skills" / "scope-calculator" / "scripts" / "build_proposal.py"
+
+# ---------------------------------------------------------------------------
+# Step-1 recomputed numbers (engine is authoritative; never hand-arithmetic)
+# Regenerate: cs.compute({"page_count":{...anchor...}, "multipliers":{...}, "cadence_layers":_CADENCE_LAYERS,
+#   "buffer_pct":0.15, "tiers":cs.BAKED_TIERS})["anchor"] → combined_pages / predicted_scans / price["total"].
+# GALLAGHER: anchor=95721, geos=1, scen=3, env=1 → combined=287163
+#   Baseline inventory: pages_each=287163, scans=287163
+#   High Priority:      pages_each=4307,   scans=223987
+#   Moderate Priority:  pages_each=21537,  scans=258447
+#   Low Priority:       pages_each=57433,  scans=229730
+#   buffer_scans=43074  predicted=1042402  price=97984.12
+# GILEAD: anchor=848, geos=3, scen=3, env=1 → combined=7632
+#   Low Priority Pages: pages_each=1526,   scans=6106
+#   buffer_scans=1145   predicted=27704    price=4539.68
+# GILEAD_env2: geos=3, scen=3, env=2 → combined=15264
+#   predicted=55408  price=9028.96
+# GILEAD_env1.5: geos=1, scen=3, env=1.5 → combined=3816
+#   predicted=13852
+# ---------------------------------------------------------------------------
+
+_CADENCE_LAYERS = [
+    {"name": "Baseline inventory",      "pct": 1.0,   "runs_per_year": 1,
+     "why": "A full sweep so nothing on the site is invisible."},
+    {"name": "High Priority",           "pct": 0.015, "runs_per_year": 52,
+     "why": "Crown-jewel pages checked weekly."},
+    {"name": "Moderate Priority Pages", "pct": 0.075, "runs_per_year": 12,
+     "why": "Key templates re-checked monthly."},
+    {"name": "Low Priority Pages",      "pct": 0.20,  "runs_per_year": 4,
+     "why": "Broad cross-section kept current quarterly."},
+]
 
 DATA = {
     "customer": "Arthur J. Gallagher",
@@ -28,25 +59,29 @@ DATA = {
                    "spiral_note": "Excluded ~389,375 query-string-duplicate URLs across 6 properties."},
     "consent_states": {"count": 3, "names": ["Default", "Opt-Out", "GPC"]},
     "multipliers": {"geographies": 1, "scenarios": 3, "environments": 1},
-    "cadence_layers": [
-        {"name": "Full privacy sweep", "runs_per_year": 1, "pct": 1.0,
-         "why": "A full sweep so nothing on the site is invisible."},
-        {"name": "Priority pages", "runs_per_year": 4, "pct": 0.05,
-         "why": "Sites drift — quarterly keeps the full picture current."},
-        {"name": "Consent-critical pages", "runs_per_year": 12, "pct": 0.025,
-         "why": "Crown-jewel pages checked far more often."}],
-    "usage": {"pages_per_sweep": 287_163, "annual_scans": 430_744},
-    "pricing": {"recommended_price": 54_000, "recommended_scans": 430_167,
-                "range_low_price": 54_069, "range_high_price": 60_784,
-                "price_by_band": [{"band_limit": 1000, "rate": 0.0, "pages": 1000, "cost": 0.0},
-                                  {"band_limit": 50000, "rate": 0.17, "pages": 50000, "cost": 8500.0},
-                                  {"band_limit": 500000, "rate": 0.12, "pages": 379744, "cost": 45569.28}],
-                "pricing_source": "live @ https://app.observepoint.com/www-pricing/main.js",
-                "modeled_scans": 430_744, "modeled_price": 54_069.28},
-    "internal": {"assumptions": ["Geographies defaulted to 1 — confirm regions.",
-                                 "Consent states assumed CCPA (3) — confirm regulations."],
-                 "implied_frequency": 1.5,
-                 "thresholds_swept": "5000/1.3=95721; 10000/1.5=95721; 20000/2.0=106638"},
+    "cadence_layers": _CADENCE_LAYERS,
+    "buffer_pct": 0.15,
+    # combined_pages = 95721 × 1 × 3 × 1 = 287163
+    # predicted_scans from engine = 1042402
+    "usage": {"combined_pages": 287_163, "predicted_scans": 1_042_402},
+    "pricing": {
+        "predicted_price": 97_984.12,
+        "range_low_price": 90_000,
+        "range_high_price": 110_000,
+        "price_by_band": [
+            {"band_limit": 1000,    "rate": 0.0,  "pages": 1000,   "cost": 0.0},
+            {"band_limit": 50000,   "rate": 0.17, "pages": 50000,  "cost": 8500.0},
+            {"band_limit": 500000,  "rate": 0.12, "pages": 500000, "cost": 60000.0},
+            {"band_limit": 1000000, "rate": 0.06, "pages": 491402, "cost": 29484.12},
+        ],
+        "pricing_source": "live @ https://app.observepoint.com/www-pricing/main.js",
+    },
+    "internal": {
+        "assumptions": ["Geographies defaulted to 1 — confirm regions.",
+                        "Consent states assumed CCPA (3) — confirm regulations."],
+        "implied_blended_frequency": 3.629,
+        "thresholds_swept": "5000/1.3=95721; 10000/1.5=95721; 20000/2.0=106638",
+    },
 }
 
 
@@ -63,24 +98,31 @@ def test_customer_sections_and_derivation():
     t = _text(bp.build_proposal(DATA))
     assert "Arthur J. Gallagher" in t
     assert "Your web footprint" in t
-    assert "96,000" in t                       # anchor rounded for the customer (not 95,721)
+    assert "96,000" in t                              # anchor rounded for customer (not 95,721)
     assert "How your annual usage is calculated" in t
-    assert "page scan" in t.lower()            # the unit is defined
+    assert "page scan" in t.lower()                   # the unit is defined
     assert "Default" in t and "Opt-Out" in t and "GPC" in t
-    assert "287,163" in t                       # pages per full sweep (the consent-state multiply)
-    assert "Annually" in t and "Quarterly" in t and "Monthly" in t  # the frequencies, explicit
-    assert "430,744" in t                       # annual page scans total
-    assert "Recommended contract" in t
-    assert "430,167" in t and "$54,000" in t    # the reconciling pair
-    assert "Scope detail" in t                          # points to the live model tabs
-    assert "investment model" in t.lower()             # customer workbook is now the live model
-    assert "live" in t.lower()                         # emphasises the interactive nature
+    assert "287,163" in t                             # combined pages monitored
+    # Four cadence-layer frequencies
+    assert "Annually" in t                            # Baseline inventory (runs=1)
+    assert "Weekly" in t                              # High Priority (runs=52)
+    assert "Monthly" in t                             # Moderate Priority (runs=12)
+    assert "Quarterly" in t                           # Low Priority (runs=4)
+    assert "1,042,402" in t                           # predicted total
+    # Section 4 uses "Annual investment", NOT "Recommended contract"
+    assert "Annual investment" in t
+    assert "Recommended contract" not in t
+    # Exact price = graduated_price(predicted_scans)
+    expected_price = cs.graduated_price(DATA["usage"]["predicted_scans"], cs.BAKED_TIERS)["total"]
+    assert bp._usd(expected_price) in t               # e.g. "$97,984"
+    assert "Scope of Work" in t
+    assert "live" in t.lower()
 
 
-def test_recommended_pair_reconciles_in_calculator():
-    # The page-scans and price shown MUST match the graduated calculator (the rep's whole ask).
-    s = DATA["pricing"]["recommended_scans"]
-    assert abs(cs.graduated_price(s, cs.BAKED_TIERS)["total"] - DATA["pricing"]["recommended_price"]) < 1
+def test_price_is_exact_graduated_price_of_predicted_scans():
+    # The price shown MUST match the graduated calculator (the rep's whole ask).
+    s = DATA["usage"]["predicted_scans"]
+    assert abs(cs.graduated_price(s, cs.BAKED_TIERS)["total"] - DATA["pricing"]["predicted_price"]) < 1
 
 
 def test_no_internal_section_or_confidence_in_customer_doc():
@@ -128,7 +170,17 @@ def _with_anchor(low, anchor, high):
     # Keep the sweep chain consistent with the mutated anchor so the §3 reconciliation guard
     # doesn't trip — these tests exercise §1 footprint rounding, not §3.
     mx = d["multipliers"]
-    d["usage"]["pages_per_sweep"] = anchor * mx["geographies"] * mx["scenarios"] * mx["environments"]
+    combined = round(anchor * mx["geographies"] * mx["scenarios"] * mx["environments"])
+    d["usage"]["combined_pages"] = combined
+    # Recompute predicted_scans from the engine so the predicted-scan guard also passes.
+    out = cs.compute({
+        "page_count": {"low": anchor, "anchor": anchor, "high": anchor},
+        "multipliers": mx,
+        "buffer_pct": d["buffer_pct"],
+        "tiers": cs.BAKED_TIERS,
+        "cadence_layers": d["cadence_layers"],
+    })
+    d["usage"]["predicted_scans"] = out["anchor"]["predicted_scans"]
     return d
 
 
@@ -176,6 +228,16 @@ def test_cli_friendly_error_missing_required_key(tmp_path):
     assert res.returncode != 0
     assert "missing" in res.stderr.lower() and "page_count" in res.stderr
     assert "Traceback" not in res.stderr and "KeyError" not in res.stderr
+
+
+def test_cli_friendly_error_missing_usage_keys(tmp_path):
+    bad = json.loads(json.dumps(DATA)); bad["usage"] = {"predicted_scans": 1}   # missing combined_pages
+    f = tmp_path / "bad.json"; f.write_text(json.dumps(bad)); out = tmp_path / "p.docx"
+    res = subprocess.run([sys.executable, str(SCRIPT), str(f), str(out)], capture_output=True, text=True)
+    assert res.returncode != 0
+    assert "combined_pages" in res.stderr
+    assert "Traceback" not in res.stderr
+    assert not out.exists()
 
 
 def test_cli_friendly_error_malformed_json(tmp_path):
@@ -232,14 +294,17 @@ def test_proposal_does_not_mention_removed_methodology_sheet_or_internal_terms()
 def test_frequency_advisor_reference_exists_and_has_ladder():
     refs = pathlib.Path(__file__).resolve().parent.parent / "skills" / "scope-calculator" / "references"
     doc = (refs / "frequency-advisor.md").read_text().lower()
-    for layer in ("baseline inventory", "inventory refresh", "compliance", "release catch", "critical watch"):
-        assert layer in doc
-    for pct in ("100%", "50%", "15%", "5%", "1%"):
-        assert pct in doc
+    for layer in ("baseline inventory", "high priority", "moderate priority", "low priority", "buffer"):
+        assert layer in doc, f"layer missing from frequency-advisor.md: {layer!r}"
+    for pct in ("100%", "1.5%", "7.5%", "20%", "15%"):
+        assert pct in doc, f"pct missing from frequency-advisor.md: {pct!r}"
 
 
 # ---------------------------------------------------------------------------
 # Gilead-like fixture: multi-geography, full multiplier chain
+# combined = 848 × 3 × 3 × 1 = 7,632
+# predicted = 27,704   price = 4,539.68   buffer_scans = 1,145
+# Low Priority Pages: pages_each=1526, scans=6106
 # ---------------------------------------------------------------------------
 GILEAD_DATA = {
     "customer": "Gilead Sciences",
@@ -251,19 +316,17 @@ GILEAD_DATA = {
     "page_count": {"low": 700, "anchor": 848, "high": 1000},
     "consent_states": {"count": 3, "names": ["Pre-consent", "Opt-Out", "GPC"]},
     "multipliers": {"geographies": 3, "scenarios": 3, "environments": 1},
-    "cadence_layers": [
-        {"name": "Baseline inventory",    "why": "Full sweep so nothing is invisible.",
-         "pct": 1.0,  "runs_per_year": 1},
-        {"name": "Quarterly re-check",    "why": "Sites drift — quarterly keeps the picture current.",
-         "pct": 0.5,  "runs_per_year": 4},
-        {"name": "Monthly compliance",    "why": "Crown-jewel pages checked far more often.",
-         "pct": 0.15, "runs_per_year": 12},
-        {"name": "Weekly critical watch", "why": "High-risk pages watched weekly.",
-         "pct": 0.05, "runs_per_year": 52},
-    ],
-    "usage": {"pages_per_sweep": 7632, "annual_scans": 56477},
-    "pricing": {"recommended_price": 8_000, "recommended_scans": 56_477,
-                "range_low_price": 7_500, "range_high_price": 9_000},
+    "cadence_layers": _CADENCE_LAYERS,
+    "buffer_pct": 0.15,
+    # combined = 848 × 3 × 3 × 1 = 7,632
+    # predicted from engine = 27,704
+    "usage": {"combined_pages": 7_632, "predicted_scans": 27_704},
+    "pricing": {
+        "predicted_price": 4_539.68,
+        "range_low_price": 4_000,
+        "range_high_price": 5_500,
+        "pricing_source": "live @ https://app.observepoint.com/www-pricing/main.js",
+    },
     "regulations": ["CCPA/CPRA"],
 }
 
@@ -275,11 +338,7 @@ def test_gilead_sweep_table_has_geographies_row():
     t = _text(bp.build_proposal(GILEAD_DATA))
 
     # (a) geographies row with ×3
-    assert "×3" in t or "x3" in t.lower() or "Geographies" in t, \
-        "Expected a Geographies ×3 row in the sweep table"
-    # narrow: geographies label + multiplier must both be present
-    assert "Geographies" in t
-    # find the ×3 occurrence near geographies
+    assert "Geographies" in t, "Expected a Geographies row in the sweep table"
     assert "×3" in t
 
     # (b) consent states ×3
@@ -293,13 +352,13 @@ def test_gilead_sweep_table_has_geographies_row():
     # (d) chain reconciles: 848 × 3 × 3 = 7,632 — anchor must appear
     assert "848" in t
 
-    # (e) first cadence row: pct=1.0, runs=1 → pages_each = round(7632*1.0) = 7,632
-    #     scans = round(7632*1.0*1) = 7,632   (NOT zero)
-    assert t.count("7,632") >= 2  # at minimum: pages_per_sweep cell + first cadence pages_each
+    # (e) Low Priority Pages: pct=0.20, runs=4 → pages_each=round(7632*0.20)=1526; scans=round(7632*0.20*4)=6106
+    assert "1,526" in t
+    assert "6,106" in t
 
-    # (f) quarterly row: pct=0.5, runs=4 → pages_each=3,816; scans=15,264
-    assert "3,816" in t
-    assert "15,264" in t
+    # (f) Buffer: round(7632 * 0.15) = 1145; predicted total = 27,704
+    assert "1,145" in t
+    assert "27,704" in t
 
 
 def test_gilead_environments_row_hidden_when_one():
@@ -309,62 +368,51 @@ def test_gilead_environments_row_hidden_when_one():
 
 
 def test_gilead_environments_row_shown_when_gt_one():
-    """environments=2 → an Environments row must appear."""
-    import copy
+    """environments=2 → an Environments row must appear.
+    GILEAD_env2: combined=15264, predicted=55408, price=9028.96"""
     d = copy.deepcopy(GILEAD_DATA)
     d["multipliers"]["environments"] = 2
-    # recalculate pages_per_sweep: 848*3*3*2 = 15264
-    d["usage"]["pages_per_sweep"] = 15264
-    d["usage"]["annual_scans"] = 112954
+    # combined = 848 × 3 × 3 × 2 = 15264; predicted from engine = 55408
+    d["usage"]["combined_pages"] = 15_264
+    d["usage"]["predicted_scans"] = 55_408
+    d["pricing"]["predicted_price"] = 9_028.96
     t = _text(bp.build_proposal(d))
     assert "Environments" in t
     assert "×2" in t
 
 
 # ---------------------------------------------------------------------------
-# Regression: the §3 multiplier chain MUST reconcile to usage.pages_per_sweep.
-# Production bug (Gilead, geos=3): the orchestrator passed geographies=1 in the
-# proposal payload while usage.pages_per_sweep already baked geos in (848×3×3 =
-# 7,632). The geographies row was silently dropped and §3 showed 848 → 7,632
-# with no factor explaining the jump. A non-reconciling proposal must be
-# REFUSED, not shipped as a wrong customer doc. The §3 factors are not allowed
-# to drift from compute_scope's authoritative output.
+# Reconciliation guard tests — the adapted _sweep_reconcile_error guard must
+# reject payloads where the multiplier chain or predicted total is inconsistent.
 # ---------------------------------------------------------------------------
-def _gilead_with_dropped_geo():
-    """The exact production failure: multipliers.geographies forgotten (defaults to 1),
-    but usage still reflects the real geos=3 the engine used (848×3×3 = 7,632)."""
-    d = json.loads(json.dumps(GILEAD_DATA))
-    d["multipliers"]["geographies"] = 1            # dropped by the orchestrator
-    assert d["usage"]["pages_per_sweep"] == 7632   # engine still used geos=3
-    return d
 
-
-def test_dropped_geo_multiplier_is_rejected_not_silently_rendered():
+def test_reconcile_guard_rejects_combined_mismatch():
+    """combined_pages=848 (anchor only, no multipliers) while multipliers imply 7,632 → ValueError."""
+    d = copy.deepcopy(GILEAD_DATA)
+    d["usage"]["combined_pages"] = 848   # wrong: multipliers imply 7,632
     with pytest.raises(ValueError):
-        bp.build_proposal(_gilead_with_dropped_geo())
+        bp.build_proposal(d)
 
 
-def test_cli_friendly_error_on_unreconciled_sweep(tmp_path):
-    f = tmp_path / "bad.json"; f.write_text(json.dumps(_gilead_with_dropped_geo()))
-    out = tmp_path / "p.docx"
-    res = subprocess.run([sys.executable, str(SCRIPT), str(f), str(out)],
-                         capture_output=True, text=True)
-    assert res.returncode != 0
-    assert "Traceback" not in res.stderr and "KeyError" not in res.stderr
-    assert "reconcile" in res.stderr.lower()
-    assert "7,632" in res.stderr            # the message names the mismatch so it can be fixed
-    assert not out.exists()                 # a wrong customer doc must NOT be written
+def test_reconcile_guard_rejects_predicted_mismatch():
+    """predicted_scans set to half the real total while combined_pages is correct → ValueError."""
+    d = copy.deepcopy(GILEAD_DATA)
+    d["usage"]["predicted_scans"] = round(27_704 / 2)   # half: wrong total
+    with pytest.raises(ValueError):
+        bp.build_proposal(d)
 
 
-def test_consistent_chain_still_renders():
-    # The correct payload (geos=3, pages_per_sweep=7,632) must still build cleanly.
-    bp.build_proposal(GILEAD_DATA)          # must not raise
+def test_consistent_payload_still_renders():
+    """The correct GILEAD payload (geos=3, combined=7,632) must build cleanly."""
+    bp.build_proposal(GILEAD_DATA)   # must not raise
 
 
 def test_environments_one_point_five_reconciles():
-    # Fractional environment multiplier (1.5) must not trip the reconciliation guard.
-    d = json.loads(json.dumps(GILEAD_DATA))
+    """Fractional environment multiplier (1.5) must not trip the reconciliation guard.
+    GILEAD_env1.5: geos=1, scen=3, env=1.5 → combined=3816, predicted=13852"""
+    d = copy.deepcopy(GILEAD_DATA)
     d["multipliers"] = {"geographies": 1, "scenarios": 3, "environments": 1.5}
-    d["usage"]["pages_per_sweep"] = round(848 * 1 * 3 * 1.5)   # 3,816
-    d["usage"]["annual_scans"] = 28239
-    bp.build_proposal(d)                    # must not raise
+    d["usage"]["combined_pages"] = round(848 * 1 * 3 * 1.5)   # 3816
+    d["usage"]["predicted_scans"] = 13_852
+    d["pricing"]["predicted_price"] = 2_184.84
+    bp.build_proposal(d)   # must not raise

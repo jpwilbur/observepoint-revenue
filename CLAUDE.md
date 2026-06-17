@@ -13,8 +13,9 @@ a config edit. When adding or editing a skill, preserve this boundary.
 
 ## Skills (4)
 
-- **scope-calculator** — size/price a contract end to end. One skill, three stages (derive page
-  count → size usage → price → proposal `.docx` + evidence `.xlsx`). Runs whole or one stage.
+- **scope-calculator** — size/price a contract end to end. Three stages (derive page count → size
+  usage → price); the default deliverable is the live **Scope of Work** workbook (`.xlsx`), and a
+  clean proposal `.docx` is recomputed from the AE-edited workbook on request. Runs whole or one stage.
 - **research-account** — qualify a named prospect → scored ICP dossier (HTML→PDF).
 - **owned-properties** — discover an org's owned domains → confirmable `.xlsx` + confirmed-domain list.
 - **find-accounts** — surface new in-territory triggered prospects → ranked list (+ optional `.xlsx`).
@@ -31,7 +32,7 @@ a config edit. When adding or editing a skill, preserve this boundary.
 
 ## Dev
 
-- **Tests:** `cd observepoint-revenue && /opt/homebrew/bin/python3 -m pytest tests -q` (227 passing).
+- **Tests:** `cd observepoint-revenue && /opt/homebrew/bin/python3 -m pytest tests -q` (243 passing).
   **Interpreter trap:** bare `python3` may resolve to `/usr/bin/python3` (CLT 3.9, no pytest/openpyxl);
   always use `/opt/homebrew/bin/python3`. Never pipe pytest through `| tail` in an `&&` chain — it
   masks a missing-pytest failure.
