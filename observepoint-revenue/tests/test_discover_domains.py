@@ -208,6 +208,31 @@ def test_crt_url_refuses_bare_suffix_or_tld():
     assert dd.crt_url("com") is None       # bare TLD
 
 
+def test_cli_crt_json_parses_without_network(tmp_path, monkeypatch, capsys):
+    # --crt-json feeds a pre-fetched payload; the network fetcher must NOT be called.
+    monkeypatch.setattr(dd, "_default_fetcher",
+                        lambda url: (_ for _ in ()).throw(AssertionError("hit the network")))
+    monkeypatch.setattr(dd, "_default_whois", lambda d: WHOIS_SAMPLE)
+    crt = tmp_path / "crt.json"
+    crt.write_text(CRT_SAMPLE)
+    out = tmp_path / "hosts.json"
+    dd.main(["discover_domains.py", "ajg.com", str(out), "--crt-json", str(crt)])
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["host_count"] == 3
+    assert summary["crt_status"] == "ok"
+    saved = json.loads(out.read_text())
+    assert len(saved["all_hosts"]) == 3
+
+
+def test_cli_crt_json_empty_file_errors(tmp_path):
+    import pytest
+    empty = tmp_path / "empty.json"
+    empty.write_text("   \n")
+    out = tmp_path / "hosts.json"
+    with pytest.raises(SystemExit):
+        dd.main(["discover_domains.py", "ajg.com", str(out), "--crt-json", str(empty)])
+
+
 def test_cli_print_crt_url(monkeypatch, capsys):
     # --print-crt-url emits the URL and exits WITHOUT touching the network or WHOIS.
     monkeypatch.setattr(dd, "_default_fetcher",

@@ -208,7 +208,18 @@ def main(argv):
     if not args.apex or not args.out_hosts:
         ap.error("the following arguments are required: apex, out_hosts")
 
-    summary, hosts = discover(args.apex)
+    fetcher = None
+    if args.crt_json:
+        try:
+            crt_text = pathlib.Path(args.crt_json).read_text()
+        except OSError as e:
+            sys.exit(f"could not read --crt-json file {args.crt_json!r}: {e}")
+        if not crt_text.strip():
+            sys.exit(f"--crt-json file is empty: {args.crt_json!r} — fetch the URL from "
+                     "--print-crt-url first, then pass the saved JSON here")
+        fetcher = lambda _url: crt_text  # noqa: E731 - parse-only: feed the pre-fetched body, no net
+
+    summary, hosts = discover(args.apex, fetcher=fetcher)
     pathlib.Path(args.out_hosts).write_text(json.dumps(
         {"registrable": summary["registrable"], "all_hosts": hosts}, indent=2))
     summary["all_hosts_file"] = args.out_hosts
