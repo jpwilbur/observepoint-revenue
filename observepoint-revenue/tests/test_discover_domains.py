@@ -1,4 +1,6 @@
 import json
+import socket
+import urllib.error
 
 import discover_domains as dd
 
@@ -128,6 +130,153 @@ def test_discover_crt_status_ok_with_hosts():
     summary, _ = dd.discover("ajg.com", fetcher=lambda url: CRT_SAMPLE, whois_fn=lambda d: WHOIS_SAMPLE)
     assert summary["host_count"] == 3
     assert summary["crt_status"] == "ok"
+
+
+def test_discover_surfaces_blocked_status(monkeypatch):
+    # A blocked CT fetch must surface crt_status "blocked" in the summary (host_count 0, but NOT a real 0).
+    # A block fails fast, so the retry backoff must never run — make sleep blow up to prove it.
+    monkeypatch.setattr(dd.time, "sleep", lambda s: (_ for _ in ()).throw(AssertionError("slept on block")))
+
+    def blocked(url):
+        raise urllib.error.HTTPError("https://crt.sh/", 403, "Forbidden", {}, None)
+
+    summary, hosts = dd.discover("ajg.com", fetcher=blocked, whois_fn=lambda d: WHOIS_SAMPLE)
+    assert summary["crt_status"] == "blocked"
+    assert summary["host_count"] == 0
+    assert hosts == []
+
+
+def test_enumerate_crt_blocked_fails_fast(monkeypatch):
+    # A policy block (e.g. 403 at the egress proxy) must NOT burn the retry budget: one call, then stop.
+    monkeypatch.setattr(dd.time, "sleep", lambda s: (_ for _ in ()).throw(AssertionError("slept")))
+    calls = {"n": 0}
+
+    def blocked(url):
+        calls["n"] += 1
+        raise OSError("Tunnel connection failed: 403 Forbidden")
+
+    hosts, status = dd.enumerate_crt_with_status("ajg.com", fetcher=blocked)
+    assert hosts == set()
+    assert status == "blocked"
+    assert calls["n"] == 1                  # failed fast — did NOT retry CRT_ATTEMPTS times
+
+
+def test_enumerate_crt_transient_still_retries_to_unreachable(monkeypatch):
+    # A transient error keeps the existing behavior: retry CRT_ATTEMPTS times, end "unreachable".
+    monkeypatch.setattr(dd.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+
+    def flaky(url):
+        calls["n"] += 1
+        raise RuntimeError("503 Service Unavailable")
+
+    hosts, status = dd.enumerate_crt_with_status("ajg.com", fetcher=flaky)
+    assert hosts == set()
+    assert status == "unreachable"
+    assert calls["n"] == dd.CRT_ATTEMPTS
+
+
+def test_classify_fetch_error_blocked_signals():
+    # Forbidden / proxy-auth-required / unavailable-for-legal-reasons HTTP codes are permanent here.
+    for code in (403, 407, 451):
+        err = urllib.error.HTTPError("https://crt.sh/", code, "blocked", {}, None)
+        assert dd._classify_fetch_error(err) == "blocked"
+    # Proxy rejects the CONNECT tunnel (the exact sandbox symptom), raw and URLError-wrapped:
+    assert dd._classify_fetch_error(OSError("Tunnel connection failed: 403 Forbidden")) == "blocked"
+    assert dd._classify_fetch_error(
+        urllib.error.URLError(OSError("Tunnel connection failed: 403 Forbidden"))) == "blocked"
+    # DNS blackholed at egress:
+    assert dd._classify_fetch_error(
+        urllib.error.URLError(socket.gaierror(8, "nodename nor servname provided, or not known"))) == "blocked"
+
+
+def test_classify_fetch_error_transient_signals():
+    assert dd._classify_fetch_error(
+        urllib.error.HTTPError("https://crt.sh/", 503, "Service Unavailable", {}, None)) == "transient"
+    assert dd._classify_fetch_error(RuntimeError("503 Service Unavailable")) == "transient"
+    assert dd._classify_fetch_error(socket.timeout("timed out")) == "transient"
+    assert dd._classify_fetch_error(ConnectionResetError("connection reset by peer")) == "transient"
+
+
+def test_crt_url_builds_query():
+    assert dd.crt_url("ajg.com") == "https://crt.sh/?q=%25.ajg.com&output=json"
+    assert dd.crt_url("postholdings.com") == "https://crt.sh/?q=%25.postholdings.com&output=json"
+
+
+def test_crt_url_refuses_bare_suffix_or_tld():
+    assert dd.crt_url("co.uk") is None     # bare multi-label public suffix
+    assert dd.crt_url("com") is None       # bare TLD
+
+
+def test_cli_blocked_prints_remediation(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(dd.time, "sleep", lambda s: None)
+    monkeypatch.setattr(dd, "_default_whois", lambda d: WHOIS_SAMPLE)
+
+    def blocked(url):
+        raise OSError("Tunnel connection failed: 403 Forbidden")
+
+    monkeypatch.setattr(dd, "_default_fetcher", blocked)
+    out = tmp_path / "hosts.json"
+    dd.main(["discover_domains.py", "ajg.com", str(out)])
+    captured = capsys.readouterr()
+    summary = json.loads(captured.out)
+    assert summary["crt_status"] == "blocked"
+    # The remediation hint goes to stderr and names the two-step recovery flags.
+    assert "blocked" in captured.err
+    assert "--print-crt-url" in captured.err
+    assert "--crt-json" in captured.err
+
+
+def test_cli_crt_json_parses_without_network(tmp_path, monkeypatch, capsys):
+    # --crt-json feeds a pre-fetched payload; the network fetcher must NOT be called.
+    monkeypatch.setattr(dd, "_default_fetcher",
+                        lambda url: (_ for _ in ()).throw(AssertionError("hit the network")))
+    monkeypatch.setattr(dd, "_default_whois", lambda d: WHOIS_SAMPLE)
+    crt = tmp_path / "crt.json"
+    crt.write_text(CRT_SAMPLE)
+    out = tmp_path / "hosts.json"
+    dd.main(["discover_domains.py", "ajg.com", str(out), "--crt-json", str(crt)])
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["host_count"] == 3
+    assert summary["crt_status"] == "ok"
+    saved = json.loads(out.read_text())
+    assert len(saved["all_hosts"]) == 3
+
+
+def test_cli_crt_json_empty_file_errors(tmp_path):
+    import pytest
+    empty = tmp_path / "empty.json"
+    empty.write_text("   \n")
+    out = tmp_path / "hosts.json"
+    with pytest.raises(SystemExit) as exc:
+        dd.main(["discover_domains.py", "ajg.com", str(out), "--crt-json", str(empty)])
+    assert "empty" in str(exc.value)         # the empty-file guard fired (not some other exit)
+
+
+def test_cli_crt_json_missing_file_errors(tmp_path):
+    import pytest
+    out = tmp_path / "hosts.json"
+    with pytest.raises(SystemExit) as exc:
+        dd.main(["discover_domains.py", "ajg.com", str(out),
+                 "--crt-json", str(tmp_path / "does_not_exist.json")])
+    assert "could not read" in str(exc.value)  # the OSError guard fired
+
+
+def test_cli_print_crt_url(monkeypatch, capsys):
+    # --print-crt-url emits the URL and exits WITHOUT touching the network or WHOIS.
+    monkeypatch.setattr(dd, "_default_fetcher",
+                        lambda url: (_ for _ in ()).throw(AssertionError("fetched")))
+    monkeypatch.setattr(dd, "_default_whois",
+                        lambda d: (_ for _ in ()).throw(AssertionError("whois ran")))
+    dd.main(["discover_domains.py", "ajg.com", "--print-crt-url"])
+    out = capsys.readouterr().out.strip()
+    assert out == "https://crt.sh/?q=%25.ajg.com&output=json"
+
+
+def test_cli_print_crt_url_refuses_bare_suffix():
+    import pytest
+    with pytest.raises(SystemExit):
+        dd.main(["discover_domains.py", "com", "--print-crt-url"])
 
 
 def test_cli_main_writes_hosts_and_compact_summary(tmp_path, monkeypatch, capsys):

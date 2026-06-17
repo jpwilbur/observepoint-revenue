@@ -16,7 +16,7 @@ The scripts do the bulky network work and rendering; you do the ownership judgme
 > **reverse-WHOIS / passive-DNS is NOT implemented in v1**. So the `.xlsx` is **"a starting inventory
 > for the customer to confirm and extend,"** not a guaranteed-complete footprint. Say this plainly in
 > the chat summary, and make sure the workbook's Methodology sheet carries the same one-liner (see
-> step 6). If `crt_status` is `unreachable` for an apex, that apex's enumeration is incomplete — flag
+> step 6). If `crt_status` is `unreachable` **or `blocked`** for an apex, that apex's enumeration is incomplete — flag
 > it for re-run; don't present it as a complete 0-host apex.
 
 Set `SKILL=${CLAUDE_PLUGIN_ROOT}/skills/owned-properties`.
@@ -34,11 +34,26 @@ Set `SKILL=${CLAUDE_PLUGIN_ROOT}/skills/owned-properties`.
    ```
    It prints a compact summary (registrable domain, WHOIS registrant, host_count, sample_hosts,
    `all_hosts_file`, and **`crt_status`**). Note the registrant — it confirms ownership of that apex.
-   **Check `crt_status`:** `"ok"` means crt.sh answered (so `host_count: 0` is a genuine no-cert
-   apex); **`"unreachable"`** means the crt.sh fetch failed after all retries, so a `host_count: 0`
-   here is a LOST enumeration, not a real zero. If `crt_status` is `unreachable` for an apex, FLAG
-   that apex in the workbook (Notes) and in chat as **"enumeration incomplete — re-run"** — do NOT
-   report it as a complete 0-host apex, and do NOT pass its (missing) subdomains downstream.
+   **Check `crt_status`** — one of three states:
+   - `"ok"` — crt.sh answered, so `host_count: 0` is a genuine no-cert apex.
+   - `"unreachable"` — the fetch failed after all retries (crt.sh flaky/down); `host_count: 0` is a
+     LOST enumeration, not a real zero.
+   - `"blocked"` — a permanent egress/policy block (e.g. HTTP 403 at an allowlisting proxy, common in
+     sandboxed runtimes); the script fails fast. `host_count: 0` is a LOST enumeration, not a zero.
+
+   For **`unreachable`** or **`blocked`**, FLAG that apex in the workbook (Notes) and in chat as
+   **"enumeration incomplete — re-run"** — never report it as a complete 0-host apex, and never pass
+   its (missing) subdomains downstream.
+
+   **Two-step recovery when direct egress is blocked.** If your runtime blocks the script's own
+   network but you have a sanctioned web-fetch tool, fetch crt.sh yourself and feed it back:
+   ```bash
+   python3 "$SKILL/scripts/discover_domains.py" <apex> --print-crt-url    # prints the crt.sh URL
+   # fetch that URL with your web tool, save the JSON to /tmp/<apex>-crt.json, then:
+   python3 "$SKILL/scripts/discover_domains.py" <apex> /tmp/<apex>-hosts.json --crt-json /tmp/<apex>-crt.json
+   ```
+   The second call parses your saved payload with no network access. (If crt.sh is off your web
+   tool's allowlist too, fall back to EDGAR Exhibit-21 + brand-page research per Step 3.)
 
 3. **Find other owned registrable domains (the judgment crt.sh can't do)** via `WebSearch`/`WebFetch`:
    - SEC **10-K Exhibit 21** subsidiaries (public orgs); the org's **"our brands"/footer/family-of-
@@ -115,7 +130,7 @@ Set `SKILL=${CLAUDE_PLUGIN_ROOT}/skills/owned-properties`.
 | "I'll add the likely ones to the confirmed feed too." | No. Only confirmed domains feed scoping; we don't scope on guesses. |
 | "I'll list a domain I assume exists." | Never fabricate a domain. Every entry needs a real source. |
 | "WHOIS is redacted, so I can't confirm it — For Review." | Redaction ≠ not-owned (it's the GDPR norm). A strong web match (SEC Exhibit-21, the org's own brand/footer page) confirms it. |
-| "host_count is 0, so this apex has no subdomains." | Only if `crt_status` is `ok`. If `unreachable`, that's a LOST enumeration — flag "enumeration incomplete — re-run", don't report it as a complete 0. |
+| "host_count is 0, so this apex has no subdomains." | Only if `crt_status` is `ok`. If `unreachable` or `blocked`, that's a LOST enumeration — flag "enumeration incomplete — re-run" (and try the `--print-crt-url`/`--crt-json` two-step), don't report it as a complete 0. |
 | "A partner/customer logo on their site means they own it." | A logo wall / integration / "trusted by" list is co-marketing, not ownership → `excluded`. Owned = on the org's own "our brands" page. |
 
 ## What this skill does not do (v1)
