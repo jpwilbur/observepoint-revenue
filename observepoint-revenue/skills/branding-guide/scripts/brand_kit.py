@@ -10,6 +10,7 @@ CLI:
   python brand_kit.py --emit-json    # print the canonical spec as JSON (any consumer)
 """
 from __future__ import annotations
+import base64
 import json
 import os
 import pathlib
@@ -77,6 +78,84 @@ def copyright(year: int) -> str:
 
 def boilerplate(key: str) -> str:
     return load_spec()["boilerplate"][key]
+
+
+# ---- docx helpers ----
+def rgbcolor(hex_str: str):
+    from docx.shared import RGBColor
+    h = hex_str.lstrip("#")
+    return RGBColor(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+
+
+# ---- xlsx helpers ----
+def xlsx_font(bold: bool = False, color: str | None = None, size: int = 10):
+    from openpyxl.styles import Font
+    return Font(name=font()["family"], bold=bold,
+                color=(color or colors()["ink"]).lstrip("#"), size=size)
+
+
+def xlsx_fill(hex_str: str):
+    from openpyxl.styles import PatternFill
+    return PatternFill("solid", fgColor=hex_str.lstrip("#"))
+
+
+# ---- html helpers ----
+def css_vars(theme_name: str = "dark") -> str:
+    """A :root{} block of CSS variables for a theme (--op-bg, --op-text, --op-accent, --op-font)."""
+    t = theme(theme_name)
+    rows = [f"--op-{k}:{v.upper()};" for k, v in t.items()
+            if isinstance(v, str) and v.startswith("#")]
+    rows.append(f"--op-font:'{font()['family']}',{font()['fallback']};")
+    return ":root{" + "".join(rows) + "}"
+
+
+def logo_data_uri(theme_name: str = "dark", variant: str | None = None) -> str:
+    """Base64 data: URI for embedding the logo inline in HTML (so output is self-contained)."""
+    p = logo_path(theme_name, variant)
+    b = base64.b64encode(pathlib.Path(p).read_bytes()).decode()
+    return "data:image/png;base64," + b
+
+
+# ---- HTML -> PDF (headless Chrome -> weasyprint -> None) ----
+def _find_chrome():
+    import shutil
+    for p in (
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+    ):
+        if os.path.exists(p):
+            return p
+    for name in ("google-chrome", "google-chrome-stable", "chromium",
+                 "chromium-browser", "microsoft-edge", "brave-browser"):
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+
+def html_to_pdf(html_path: str, pdf_path: str):
+    """Render html_path -> pdf_path. Returns the engine name used, or None if none worked."""
+    chrome = _find_chrome()
+    if chrome:
+        try:
+            subprocess.run(
+                [chrome, "--headless=new", "--disable-gpu", "--no-pdf-header-footer",
+                 f"--print-to-pdf={pdf_path}", pathlib.Path(html_path).resolve().as_uri()],
+                check=True, capture_output=True, timeout=60)
+            if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                return "chrome"
+        except Exception:
+            pass
+    try:
+        from weasyprint import HTML
+        HTML(filename=str(html_path)).write_pdf(str(pdf_path))
+        if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+            return "weasyprint"
+    except Exception:
+        pass
+    return None
 
 
 def _main(argv) -> int:

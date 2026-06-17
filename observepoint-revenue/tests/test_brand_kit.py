@@ -59,3 +59,58 @@ def test_naming_company_and_disallowed():
     n = brand_kit.naming()
     assert n["company"] == "ObservePoint"
     assert "Observepoint" in n["disallowed"]
+
+
+import subprocess as _sp
+import sys as _sys
+
+
+def test_rgbcolor_parses_hex():
+    from docx.shared import RGBColor
+    assert brand_kit.rgbcolor("#1E1E1E") == RGBColor(0x1E, 0x1E, 0x1E)
+    assert brand_kit.rgbcolor("F2CD14") == RGBColor(0xF2, 0xCD, 0x14)
+
+
+def test_xlsx_font_and_fill_use_brand():
+    f = brand_kit.xlsx_font(bold=True, size=12)
+    assert f.name == "Montserrat" and f.bold is True
+    fill = brand_kit.xlsx_fill("#F2CD14")
+    assert fill.fgColor.rgb.endswith("F2CD14")
+
+
+def test_css_vars_block_contains_accent_and_font():
+    block = brand_kit.css_vars("dark")
+    assert block.startswith(":root{") and block.endswith("}")
+    assert "--op-accent:#F2CD14;" in block
+    assert "--op-bg:#14151A;" in block
+    assert "Montserrat" in block
+
+
+def test_logo_data_uri_is_base64_png():
+    uri = brand_kit.logo_data_uri("dark")
+    assert uri.startswith("data:image/png;base64,")
+    assert len(uri) > 200
+
+
+def test_html_to_pdf_returns_none_without_engine(tmp_path, monkeypatch):
+    monkeypatch.setattr(brand_kit, "_find_chrome", lambda: None)
+    import builtins
+    real_import = builtins.__import__
+
+    def no_weasy(name, *a, **k):
+        if name == "weasyprint":
+            raise ImportError("blocked for test")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", no_weasy)
+    html = tmp_path / "x.html"
+    html.write_text("<html><body>hi</body></html>")
+    assert brand_kit.html_to_pdf(str(html), str(tmp_path / "x.pdf")) is None
+
+
+def test_emit_json_cli_prints_spec():
+    out = _sp.run([_sys.executable, str(brand_kit.__file__), "--emit-json"],
+                  capture_output=True, text=True)
+    assert out.returncode == 0
+    import json as _json
+    assert _json.loads(out.stdout)["colors"]["brand_yellow"].upper() == "#F2CD14"
