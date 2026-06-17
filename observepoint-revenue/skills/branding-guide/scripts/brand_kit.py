@@ -135,15 +135,18 @@ def _find_chrome():
     return None
 
 
-def html_to_pdf(html_path: str, pdf_path: str):
-    """Render html_path -> pdf_path. Returns the engine name used, or None if none worked."""
+def html_to_pdf(html_path: str, pdf_path: str, timeout: int = 60):
+    """Render html_path -> pdf_path. Returns the engine name used, or None if none worked.
+
+    timeout: max seconds for the headless-Chrome attempt (heavy pages may need more;
+    the dossier passes 90)."""
     chrome = _find_chrome()
     if chrome:
         try:
             subprocess.run(
                 [chrome, "--headless=new", "--disable-gpu", "--no-pdf-header-footer",
                  f"--print-to-pdf={pdf_path}", pathlib.Path(html_path).resolve().as_uri()],
-                check=True, capture_output=True, timeout=60)
+                check=True, capture_output=True, timeout=timeout)
             if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
                 return "chrome"
         except Exception:

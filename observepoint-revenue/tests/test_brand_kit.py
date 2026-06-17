@@ -106,6 +106,7 @@ def test_html_to_pdf_returns_none_without_engine(tmp_path, monkeypatch):
     html = tmp_path / "x.html"
     html.write_text("<html><body>hi</body></html>")
     assert brand_kit.html_to_pdf(str(html), str(tmp_path / "x.pdf")) is None
+    assert brand_kit.html_to_pdf(str(html), str(tmp_path / "x2.pdf"), timeout=5) is None
 
 
 def test_emit_json_cli_prints_spec():
