@@ -36,3 +36,18 @@ def test_report_respects_light_override(tmp_path, monkeypatch):
     result = make_document.build("report", CONTENT, str(out), theme="light")
     assert "#FFFFFF" in result["html"].upper()
     assert result["theme"] == "light"
+
+
+def test_letter_builds_docx_with_logo_and_copyright(tmp_path):
+    from docx import Document
+    out = tmp_path / "letter.docx"
+    result = make_document.build("letter", CONTENT, str(out))
+    assert pathlib.Path(result["path"]).suffix == ".docx"
+    doc = Document(result["path"])
+    text = "\n".join(p.text for p in doc.paragraphs)
+    assert "Privacy Scan Overview" in text
+    assert "ObservePoint" in text
+    # light theme is the default for working docs
+    assert result["theme"] == "light"
+    # at least one inline image (the logo) is embedded
+    assert len(doc.inline_shapes) >= 1

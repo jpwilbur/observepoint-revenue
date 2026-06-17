@@ -23,6 +23,7 @@ import tempfile
 import brand_kit
 
 HTML_KINDS = {"onepager", "report"}
+DOCX_KINDS = {"letter", "memo"}
 
 
 def _esc(s) -> str:
@@ -68,10 +69,52 @@ ul{{margin:6px 0 6px 18px}}
 </body></html>"""
 
 
+def build_docx(kind: str, content: dict, out_path: str, theme: str) -> dict:
+    from docx import Document
+    from docx.shared import Inches, Pt
+    year = datetime.date.today().year
+    family = brand_kit.font()["family"]
+    ink = brand_kit.colors()["ink"]
+    doc = Document()
+    style = doc.styles["Normal"]
+    style.font.name, style.font.size, style.font.color.rgb = family, Pt(10.5), brand_kit.rgbcolor(ink)
+    # Letterhead: ink logo (light bg) + yellow rule
+    doc.add_picture(brand_kit.logo_path(theme), width=Inches(2.0))
+    rule = doc.add_paragraph()
+    rule.paragraph_format.space_before = Pt(2)
+    r = rule.add_run("_" * 60)
+    r.font.color.rgb = brand_kit.rgbcolor(brand_kit.brand_yellow())
+    # Title + subtitle
+    h = doc.add_paragraph()
+    hr = h.add_run(content.get("title", ""))
+    hr.bold, hr.font.size, hr.font.name = True, Pt(16), family
+    if content.get("subtitle") or content.get("prepared_for"):
+        s = doc.add_paragraph().add_run(content.get("subtitle") or content["prepared_for"])
+        s.font.size, s.font.color.rgb, s.font.name = Pt(10), brand_kit.rgbcolor(brand_kit.colors()["light"]["gray"]), family
+    # Body sections
+    for sec in content.get("sections", []):
+        hp = doc.add_paragraph().add_run(sec.get("heading", ""))
+        hp.bold, hp.font.size, hp.font.name = True, Pt(12), family
+        if sec.get("body"):
+            doc.add_paragraph(sec["body"])
+        for b in sec.get("bullets", []):
+            doc.add_paragraph(b, style="List Bullet")
+    # Footer copyright
+    foot = doc.add_paragraph()
+    fr = foot.add_run(content.get("footer") or brand_kit.copyright(year))
+    fr.font.size, fr.font.color.rgb, fr.font.name = Pt(8), brand_kit.rgbcolor(brand_kit.colors()["light"]["gray"]), family
+    out = pathlib.Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    doc.save(str(out))
+    return {"path": str(out), "engine": "python-docx", "theme": theme, "html": None}
+
+
 def build(kind: str, content: dict, out_path: str, theme: str | None = None) -> dict:
-    if kind not in HTML_KINDS:
-        raise ValueError(f"{kind!r} is not an HTML kind; handled elsewhere")
     theme = theme or brand_kit.default_theme_for(kind)
+    if kind in DOCX_KINDS:
+        return build_docx(kind, content, out_path, theme)
+    if kind not in HTML_KINDS:
+        raise ValueError(f"unknown kind {kind!r}")
     doc_html = render_html(content, theme)
     out = pathlib.Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
