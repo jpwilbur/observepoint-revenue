@@ -248,8 +248,18 @@ def test_cli_crt_json_empty_file_errors(tmp_path):
     empty = tmp_path / "empty.json"
     empty.write_text("   \n")
     out = tmp_path / "hosts.json"
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit) as exc:
         dd.main(["discover_domains.py", "ajg.com", str(out), "--crt-json", str(empty)])
+    assert "empty" in str(exc.value)         # the empty-file guard fired (not some other exit)
+
+
+def test_cli_crt_json_missing_file_errors(tmp_path):
+    import pytest
+    out = tmp_path / "hosts.json"
+    with pytest.raises(SystemExit) as exc:
+        dd.main(["discover_domains.py", "ajg.com", str(out),
+                 "--crt-json", str(tmp_path / "does_not_exist.json")])
+    assert "could not read" in str(exc.value)  # the OSError guard fired
 
 
 def test_cli_print_crt_url(monkeypatch, capsys):

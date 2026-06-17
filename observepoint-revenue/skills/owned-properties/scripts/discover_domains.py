@@ -7,7 +7,9 @@ summary; the full hostname list is written to a sidecar file so it never floods 
 Network I/O is injected (fetcher, whois_fn) so tests run offline. Optional paid reverse-WHOIS /
 passive-DNS is a documented hook (see references/discovery-methodology.md) — a no-op without a key.
 
-CLI:  discover_domains.py <apex> <out_hosts.json>   # writes hosts file, prints compact summary JSON
+CLI:  discover_domains.py <apex> <out_hosts.json>              # full run (crt.sh + WHOIS); summary JSON
+      discover_domains.py <apex> --print-crt-url               # emit the crt.sh URL only, no network
+      discover_domains.py <apex> <out_hosts.json> --crt-json F # parse a pre-fetched payload, no CT fetch
 """
 import argparse
 import json
@@ -182,19 +184,20 @@ def discover(apex, fetcher=None, whois_fn=None):
     return summary, hosts
 
 
-def main(argv):
+def main(argv=None):
     ap = argparse.ArgumentParser(
         prog="discover_domains.py",
         description="Enumerate an apex's hostnames via Certificate Transparency (crt.sh) + WHOIS.")
     ap.add_argument("apex", nargs="?", help="seed apex, e.g. example.com")
     ap.add_argument("out_hosts", nargs="?", help="path to write the full hostnames JSON sidecar")
     ap.add_argument("--print-crt-url", action="store_true",
-                    help="print the crt.sh URL for <apex> and exit; fetch it via your own egress, "
-                         "then feed the saved JSON back with --crt-json")
+                    help="print the crt.sh URL for <apex> and exit (skips <out_hosts> if also given); "
+                         "fetch it via your own egress, then feed the saved JSON back with --crt-json")
     ap.add_argument("--crt-json", metavar="FILE",
                     help="parse a pre-fetched crt.sh JSON payload from FILE instead of the network "
-                         "(use when direct egress to crt.sh is blocked)")
-    args = ap.parse_args(argv[1:])
+                         "(use when direct egress to crt.sh is blocked); WHOIS still runs and "
+                         "degrades to null in a blocked env")
+    args = ap.parse_args(argv[1:] if argv else None)
 
     if args.print_crt_url:
         if not args.apex:
@@ -219,6 +222,8 @@ def main(argv):
                      "--print-crt-url first, then pass the saved JSON here")
         fetcher = lambda _url: crt_text  # noqa: E731 - parse-only: feed the pre-fetched body, no net
 
+    # Note: only the CT fetch is decoupled here; WHOIS still runs over the network and degrades to
+    # null if it's blocked too (registrant is a secondary signal — see the plan's out-of-scope list).
     summary, hosts = discover(args.apex, fetcher=fetcher)
     pathlib.Path(args.out_hosts).write_text(json.dumps(
         {"registrable": summary["registrable"], "all_hosts": hosts}, indent=2))
