@@ -132,6 +132,36 @@ def test_discover_crt_status_ok_with_hosts():
     assert summary["crt_status"] == "ok"
 
 
+def test_enumerate_crt_blocked_fails_fast(monkeypatch):
+    # A policy block (e.g. 403 at the egress proxy) must NOT burn the retry budget: one call, then stop.
+    monkeypatch.setattr(dd.time, "sleep", lambda s: (_ for _ in ()).throw(AssertionError("slept")))
+    calls = {"n": 0}
+
+    def blocked(url):
+        calls["n"] += 1
+        raise OSError("Tunnel connection failed: 403 Forbidden")
+
+    hosts, status = dd.enumerate_crt_with_status("ajg.com", fetcher=blocked)
+    assert hosts == set()
+    assert status == "blocked"
+    assert calls["n"] == 1                  # failed fast — did NOT retry CRT_ATTEMPTS times
+
+
+def test_enumerate_crt_transient_still_retries_to_unreachable(monkeypatch):
+    # A transient error keeps the existing behavior: retry CRT_ATTEMPTS times, end "unreachable".
+    monkeypatch.setattr(dd.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+
+    def flaky(url):
+        calls["n"] += 1
+        raise RuntimeError("503 Service Unavailable")
+
+    hosts, status = dd.enumerate_crt_with_status("ajg.com", fetcher=flaky)
+    assert hosts == set()
+    assert status == "unreachable"
+    assert calls["n"] == dd.CRT_ATTEMPTS
+
+
 def test_classify_fetch_error_blocked_signals():
     # Forbidden / proxy-auth-required / unavailable-for-legal-reasons HTTP codes are permanent here.
     for code in (403, 407, 451):

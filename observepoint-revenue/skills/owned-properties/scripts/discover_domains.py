@@ -108,9 +108,11 @@ def enumerate_crt_with_status(apex, fetcher=None):
     """Like enumerate_crt, but ALSO reports whether crt.sh was reachable so callers can tell a
     FETCH-FAILED apex (lost subdomains) apart from a TRULY-ZERO one (no certs).
 
-    Returns (hosts:set, crt_status:str) where crt_status is:
-      - "ok"          the fetch succeeded (a body came back), even if it parsed to 0 hosts;
-      - "unreachable" every attempt raised or returned empty after all retries.
+    Returns (hosts:set, crt_status:str) where crt_status is one of:
+      - "ok"          a body came back (even if it parsed to 0 hosts — a genuine no-cert apex);
+      - "blocked"     a PERMANENT egress/policy block (e.g. 403 at an allowlisting proxy); we fail
+                      fast, so host_count:0 is a LOST enumeration, never a real zero;
+      - "unreachable" every attempt raised/returned empty after all retries (crt.sh flaky/down).
     A refused seed (bare public suffix / TLD) is "unreachable" — we never queried crt.sh."""
     fetcher = fetcher or _default_fetcher
     reg = registrable_domain(apex)
@@ -121,8 +123,12 @@ def enumerate_crt_with_status(apex, fetcher=None):
     for attempt in range(CRT_ATTEMPTS):  # crt.sh is flaky (503/empty); retry transient failures
         try:
             text = fetcher(url)
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - classify below: a policy block is permanent
             text = ""
+            if _classify_fetch_error(exc) == "blocked":
+                # Permanent egress/policy block (e.g. 403 at an allowlisting proxy). Retrying is
+                # futile, so fail fast — and report "blocked" so host_count:0 isn't read as a real 0.
+                return set(), "blocked"
         if text:
             break
         if attempt < CRT_ATTEMPTS - 1:
