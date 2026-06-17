@@ -26,3 +26,30 @@ def test_flags_off_palette_hex():
 def test_fix_text_corrects_naming():
     fixed = brand_check.fix_text("Observepoint and Observe Point rock.")
     assert "ObservePoint and ObservePoint rock." == fixed
+
+
+import subprocess as _sp
+import sys as _sys
+import brand_check as _bc
+
+
+def test_cli_exit_codes(tmp_path):
+    script = _bc.__file__
+    dirty = tmp_path / "dirty.txt"
+    dirty.write_text("We use Observepoint daily.")
+    # report mode: issues found -> exit 1
+    r = _sp.run([_sys.executable, script, str(dirty)], capture_output=True, text=True)
+    assert r.returncode == 1
+    # --fix rewrites and exits 0; file no longer contains the bad spelling
+    r = _sp.run([_sys.executable, script, str(dirty), "--fix"], capture_output=True, text=True)
+    assert r.returncode == 0
+    assert "Observepoint" not in dirty.read_text()
+    assert "ObservePoint" in dirty.read_text()
+    # clean file -> exit 0
+    clean = tmp_path / "clean.txt"
+    clean.write_text("ObservePoint is great.")
+    r = _sp.run([_sys.executable, script, str(clean)], capture_output=True, text=True)
+    assert r.returncode == 0
+    # no args -> usage error exit 2
+    r = _sp.run([_sys.executable, script], capture_output=True, text=True)
+    assert r.returncode == 2

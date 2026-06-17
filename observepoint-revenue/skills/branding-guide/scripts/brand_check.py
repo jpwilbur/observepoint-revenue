@@ -33,6 +33,18 @@ def _approved_hexes() -> set[str]:
 
 
 def check_text(text: str) -> list[dict]:
+    """Return a list of brand violations found in *text*.
+
+    Matching is case-sensitive by design — disallowed spellings like
+    "Observepoint" and "Observe Point" are caught, but bare all-lowercase
+    "observepoint" is intentionally NOT flagged to avoid false positives in
+    domains, URLs, and code identifiers.
+
+    The ``pos`` value in each returned dict is the character offset within the
+    *text* argument passed to this call.  If you call fix_text() and want to
+    re-check, call check_text() again on the fixed text rather than reusing
+    the offsets from a previous call.
+    """
     issues: list[dict] = []
     n = brand_kit.naming()
     for bad in n["disallowed"]:
@@ -50,6 +62,7 @@ def check_text(text: str) -> list[dict]:
 def fix_text(text: str) -> str:
     """Apply only the safe, unambiguous fixes (naming). Colors are reported, not auto-changed."""
     n = brand_kit.naming()
+    # Safe with the current disallowed list (no entry is a substring of another). Review this if short-form entries (e.g. "OP") are ever added.
     for bad in n["disallowed"]:
         text = re.sub(re.escape(bad), n["company"], text)
     return text
