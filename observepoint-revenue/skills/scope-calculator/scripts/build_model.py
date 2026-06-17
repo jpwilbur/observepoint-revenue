@@ -21,10 +21,19 @@ from openpyxl.worksheet.formula import ArrayFormula
 import customer_clean
 
 # ---------- theme ----------
-FONT = "Montserrat"
-DARK, YELLOW, LIGHT, GRAY, WHITE = "1E1E1E", "F2CD14", "F2F2F2", "5C5C5C", "FFFFFF"
-INPUT_FILL = "FFF7CC"   # pale yellow — marks the editable levers
-LOGO = pathlib.Path(__file__).resolve().parent.parent / "assets" / "op-logo.png"
+# --- ObservePoint brand authority (single source of truth) ---
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "branding-guide" / "scripts"))
+import brand_kit  # noqa: E402
+
+FONT = brand_kit.font()["family"]
+_c = brand_kit.colors()
+DARK = _c["ink"].lstrip("#")
+YELLOW = brand_kit.brand_yellow().lstrip("#")
+LIGHT = _c["light"]["fill"].lstrip("#")
+GRAY = _c["light"]["gray"].lstrip("#")
+WHITE = _c["white"].lstrip("#")
+INPUT_FILL = _c["light"]["input"].lstrip("#")   # pale yellow — marks the editable levers
+LOGO = pathlib.Path(brand_kit.logo_path("light"))
 
 _THIN = Side(style="thin", color="D9D9D9")
 _BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)

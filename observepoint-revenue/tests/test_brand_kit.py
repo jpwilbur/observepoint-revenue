@@ -122,3 +122,16 @@ def test_proposal_uses_brand_kit_constants():
     assert build_proposal.YELLOW_HEX.upper() == brand_kit.brand_yellow().lstrip("#").upper()
     assert build_proposal.DARK_HEX.upper() == brand_kit.colors()["ink"].lstrip("#").upper()
     assert build_proposal.LIGHT_HEX.upper() == brand_kit.colors()["light"]["fill"].lstrip("#").upper()
+
+
+def test_model_uses_brand_kit_constants():
+    import build_model
+    assert build_model.FONT == brand_kit.font()["family"]
+    assert build_model.YELLOW.upper() == brand_kit.brand_yellow().lstrip("#").upper()
+    assert build_model.DARK.upper() == brand_kit.colors()["ink"].lstrip("#").upper()
+
+
+def test_internal_evidence_uses_brand_kit_constants():
+    import build_internal_evidence as bie
+    assert bie.YELLOW.upper() == brand_kit.brand_yellow().lstrip("#").upper()
+    assert bie.RED.upper() == brand_kit.colors()["semantic"]["alert"].lstrip("#").upper()
