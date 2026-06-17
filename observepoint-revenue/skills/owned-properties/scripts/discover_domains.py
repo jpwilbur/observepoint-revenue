@@ -34,7 +34,7 @@ CRT_BACKOFF = 2.0  # seconds; multiplied by attempt number between retries
 # crt.sh being flaky (503/timeout — worth a retry). Drives the "blocked" vs "unreachable" distinction.
 _BLOCK_HTTP_CODES = {403, 407, 451}  # forbidden / proxy-auth-required / unavailable-for-legal-reasons
 _BLOCK_PHRASES = (
-    "tunnel connection failed", "after connect",       # proxy rejected the HTTPS CONNECT tunnel
+    "tunnel connection failed",                         # urllib's exact string when a proxy 403s CONNECT
     "name or service not known", "nodename nor servname",  # DNS blackholed at the egress allowlist
     "temporary failure in name resolution",
 )

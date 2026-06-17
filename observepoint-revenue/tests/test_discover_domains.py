@@ -134,7 +134,8 @@ def test_discover_crt_status_ok_with_hosts():
 
 def test_discover_surfaces_blocked_status(monkeypatch):
     # A blocked CT fetch must surface crt_status "blocked" in the summary (host_count 0, but NOT a real 0).
-    monkeypatch.setattr(dd.time, "sleep", lambda s: None)
+    # A block fails fast, so the retry backoff must never run — make sleep blow up to prove it.
+    monkeypatch.setattr(dd.time, "sleep", lambda s: (_ for _ in ()).throw(AssertionError("slept on block")))
 
     def blocked(url):
         raise urllib.error.HTTPError("https://crt.sh/", 403, "Forbidden", {}, None)
