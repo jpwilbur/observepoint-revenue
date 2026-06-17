@@ -14,14 +14,15 @@ CONTENT = {
 }
 
 
-def test_onepager_builds_html_with_brand(tmp_path):
+def test_onepager_builds_html_with_brand(tmp_path, monkeypatch):
+    monkeypatch.setattr(make_document.brand_kit, "html_to_pdf", lambda h, p: None)
     cj = tmp_path / "c.json"
     cj.write_text(json.dumps(CONTENT))
     out = tmp_path / "onepager.pdf"
     result = make_document.build("onepager", json.loads(cj.read_text()), str(out))
-    # PDF if an engine exists, else a .html fallback — at least one deliverable exists
+    assert result["engine"] is None
     produced = pathlib.Path(result["path"])
-    assert produced.exists() and produced.stat().st_size > 0
+    assert produced.suffix == ".html" and produced.exists() and produced.stat().st_size > 0
     html = result["html"]
     assert "#14151A" in html.upper()            # dark theme by default
     assert "data:image/png;base64," in html      # logo embedded
@@ -29,7 +30,8 @@ def test_onepager_builds_html_with_brand(tmp_path):
     assert "© " in html and "ObservePoint" in html
 
 
-def test_report_respects_light_override(tmp_path):
+def test_report_respects_light_override(tmp_path, monkeypatch):
+    monkeypatch.setattr(make_document.brand_kit, "html_to_pdf", lambda h, p: None)
     out = tmp_path / "r.pdf"
     result = make_document.build("report", CONTENT, str(out), theme="light")
     assert "#FFFFFF" in result["html"].upper()

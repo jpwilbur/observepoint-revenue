@@ -15,6 +15,7 @@ from __future__ import annotations
 import datetime
 import html as _html
 import json
+import os
 import pathlib
 import sys
 import tempfile
@@ -25,7 +26,7 @@ HTML_KINDS = {"onepager", "report"}
 
 
 def _esc(s) -> str:
-    return _html.escape(str(s))
+    return _html.escape("" if s is None else str(s))
 
 
 def _sections_html(sections) -> str:
@@ -74,10 +75,16 @@ def build(kind: str, content: dict, out_path: str, theme: str | None = None) -> 
     doc_html = render_html(content, theme)
     out = pathlib.Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False, encoding="utf-8") as tf:
-        tf.write(doc_html)
-        tmp_html = tf.name
-    engine = brand_kit.html_to_pdf(tmp_html, str(out))
+    fd, tmp_html = tempfile.mkstemp(suffix=".html")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(doc_html)
+        engine = brand_kit.html_to_pdf(tmp_html, str(out))
+    finally:
+        try:
+            os.unlink(tmp_html)
+        except OSError:
+            pass
     if engine:
         produced = str(out)
     else:                                   # no PDF engine — write the HTML beside it
