@@ -84,3 +84,4 @@ def test_deck_builds_pptx_with_title_and_section_slides(tmp_path):
     joined = "\n".join(all_text)
     assert "Privacy Scan Overview" in joined
     assert "What we found" in joined
+    assert "Block unapproved cookies" in joined   # bullets rendered on the section slide

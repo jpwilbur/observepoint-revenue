@@ -120,6 +120,7 @@ def _hex_to_rgb(hex_str: str):
 def build_pptx(kind: str, content: dict, out_path: str, theme: str) -> dict:
     from pptx import Presentation
     from pptx.util import Inches, Pt
+    from pptx.enum.shapes import MSO_SHAPE
     t = brand_kit.theme(theme)
     bg = _hex_to_rgb(t.get("bg", t.get("page")))
     text_col = _hex_to_rgb(t["text"])
@@ -144,7 +145,7 @@ def build_pptx(kind: str, content: dict, out_path: str, theme: str) -> dict:
         return box
 
     def accent_bar(slide):
-        bar = slide.shapes.add_shape(1, Inches(0.6), Inches(1.7), Inches(2.0), Inches(0.06))
+        bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.6), Inches(1.7), Inches(2.0), Inches(0.06))
         bar.fill.solid(); bar.fill.fore_color.rgb = accent; bar.line.fill.background()
 
     # Title slide
