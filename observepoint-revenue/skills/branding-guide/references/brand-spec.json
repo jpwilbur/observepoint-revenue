@@ -44,8 +44,7 @@
     "secondary": { "file": "logo-secondary.png", "background": "dark", "description": "White Observe + yellow Point wordmark (decks). FILE NOT YET PROVIDED — falls back to primary." },
     "ink":       { "file": "logo-ink.png", "background": "light", "description": "Dark logotype for light backgrounds (generated from primary)" },
     "favicon":   { "file": "favicon.png", "background": "any", "description": "OP monogram, gray on yellow" },
-    "min_width_px": 120,
-    "clear_space": "0.5× logo height on all sides"
+    "usage":     { "min_width_px": 120, "clear_space": "0.5× logo height on all sides" }
   },
   "themes": {
     "dark":  { "surface": "dark",  "logo": "primary", "default": true },
