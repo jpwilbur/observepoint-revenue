@@ -130,6 +130,16 @@ def test_discover_crt_status_ok_with_hosts():
     assert summary["crt_status"] == "ok"
 
 
+def test_crt_url_builds_query():
+    assert dd.crt_url("ajg.com") == "https://crt.sh/?q=%25.ajg.com&output=json"
+    assert dd.crt_url("postholdings.com") == "https://crt.sh/?q=%25.postholdings.com&output=json"
+
+
+def test_crt_url_refuses_bare_suffix_or_tld():
+    assert dd.crt_url("co.uk") is None     # bare multi-label public suffix
+    assert dd.crt_url("com") is None       # bare TLD
+
+
 def test_cli_main_writes_hosts_and_compact_summary(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(dd, "_default_fetcher", lambda url: CRT_SAMPLE)
     monkeypatch.setattr(dd, "_default_whois", lambda d: WHOIS_SAMPLE)

@@ -57,6 +57,15 @@ def parse_crt_json(text):
     return hosts
 
 
+def crt_url(apex):
+    """The crt.sh JSON URL for an apex, or None if the seed is a bare public suffix / TLD — which we
+    refuse, because "%.com" would over-match every unrelated domain under that suffix."""
+    reg = registrable_domain(apex)
+    if "." not in reg or reg in _MULTI_SUFFIXES:
+        return None
+    return "https://crt.sh/?q=" + urllib.parse.quote("%." + apex) + "&output=json"
+
+
 def _default_fetcher(url):
     req = urllib.request.Request(url, headers={"User-Agent": "observepoint-revenue/owned-properties"})
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -81,11 +90,9 @@ def enumerate_crt_with_status(apex, fetcher=None):
     A refused seed (bare public suffix / TLD) is "unreachable" — we never queried crt.sh."""
     fetcher = fetcher or _default_fetcher
     reg = registrable_domain(apex)
-    # Refuse a bare public suffix / TLD as the seed (e.g. "co.uk", "com") — it would over-match every
-    # unrelated domain under that suffix.
-    if "." not in reg or reg in _MULTI_SUFFIXES:
+    url = crt_url(apex)
+    if url is None:  # bare public suffix / TLD seed — refused, never queried
         return set(), "unreachable"
-    url = "https://crt.sh/?q=" + urllib.parse.quote("%." + apex) + "&output=json"
     text = ""
     for attempt in range(CRT_ATTEMPTS):  # crt.sh is flaky (503/empty); retry transient failures
         try:
