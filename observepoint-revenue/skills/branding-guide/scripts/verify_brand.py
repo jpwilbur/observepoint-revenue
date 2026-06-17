@@ -17,7 +17,7 @@ import urllib.request
 import brand_kit
 
 SITE = "https://www.observepoint.com/"
-_YELLOW_RE = re.compile(r"\.logo\s*\{[^}]*color\s*:\s*(#[0-9a-fA-F]{6})", re.I)
+_YELLOW_RE = re.compile(r"\.logo\s*\{[^}]*\bcolor\s*:\s*(#[0-9a-fA-F]{6})", re.I)
 
 
 def fetch(url: str) -> str:
