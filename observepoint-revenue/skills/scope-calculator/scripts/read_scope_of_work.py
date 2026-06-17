@@ -132,6 +132,11 @@ def _norm(formula_or_af) -> str:
     # Normalize sheet reference quoting: 'SCOPE DETAIL'! → SCOPEDETAIL!
     # both quoted and unquoted forms normalise to the same string
     s = re.sub(r"'([^']+)'!", lambda m: m.group(1).upper().replace(" ", "") + "!", s)
+    # Locale argument separator: Excel/LibreOffice may use ';' instead of ','
+    s = s.replace(";", ",")
+    # Strip newer-function / dynamic-array prefixes that re-saves may inject
+    s = s.replace("_XLFN.", "")   # e.g. _XLFN.SUM → SUM  (uppercased already)
+    s = s.replace("@", "")        # implicit-intersection prefix: @F14 → F14
     return s
 
 

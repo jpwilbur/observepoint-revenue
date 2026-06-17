@@ -437,3 +437,128 @@ def test_cli_integrity_report_nonzero(tmp_path):
     assert "Traceback" not in output, f"Unexpected traceback in output:\n{output}"
     # Itemized bullet point
     assert "•" in output or "failed integrity" in output.lower() or "HARD-STOP" in output.upper() or "B6" in output
+
+
+# ---------------------------------------------------------------------------
+# Fix 2: Regression test — _norm tolerates spreadsheet re-save variants
+# ---------------------------------------------------------------------------
+
+def test_norm_tolerates_spreadsheet_resave_variants():
+    """_norm must treat locale ';' separators, '@' implicit-intersection, '_xlfn.' prefixes,
+    '$' references, case differences, and sheet-quote style as equivalent."""
+    import sys
+    import pathlib
+    sys.path.insert(0, str(
+        pathlib.Path(__file__).resolve().parent.parent
+        / "skills/scope-calculator/scripts"
+    ))
+    from read_scope_of_work import _norm
+
+    # locale ';' separator  ↔  standard ',' separator
+    assert _norm("=ROUND(F14*E14;2)") == _norm("=ROUND(F14*E14,2)")
+
+    # '@' implicit-intersection prefix stripped
+    assert _norm("=@F14") == _norm("=F14")
+
+    # '_xlfn.' newer-function prefix stripped (any case on input)
+    assert _norm("=_xlfn.SUM(E5:E9)") == _norm("=SUM(E5:E9)")
+
+    # '$' stripped from cell references
+    assert _norm("=$B$10*D14") == _norm("=B10*D14")
+
+    # case normalisation
+    assert _norm("=round(f14*e14,2)") == _norm("=ROUND(F14*E14,2)")
+
+    # sheet-quote normalisation: 'Scope Detail'! ≡ Scope Detail!
+    assert _norm("='Scope Detail'!B6") == _norm("=Scope Detail!B6")
+
+
+# ---------------------------------------------------------------------------
+# Fix 3: 5-layer-ladder geometry test
+# ---------------------------------------------------------------------------
+
+LAYERS_5 = [
+    {"name": "Baseline inventory",
+     "why": "A full sweep so nothing is invisible.",
+     "pct": 1.0, "runs_per_year": 1},
+    {"name": "High Priority",
+     "why": "Aligned to release cadence.",
+     "pct": 0.015, "runs_per_year": 52},
+    {"name": "Moderate Priority Pages",
+     "why": "Monthly audit of the main body.",
+     "pct": 0.075, "runs_per_year": 12},
+    {"name": "Low Priority Pages",
+     "why": "Quarterly sweep of the long tail.",
+     "pct": 0.20, "runs_per_year": 4},
+    {"name": "Daily watch",
+     "why": "Near-real-time alerting on critical paths.",
+     "pct": 0.005, "runs_per_year": 365},
+]
+
+
+def test_five_layer_ladder_geometry(tmp_path):
+    """Build a 5-layer workbook, read it back: no hard-stops; cadence_layers has 5 entries
+    with matching names and pcts. Proves n_layers/buf discovery generalizes beyond 4 layers."""
+    import read_scope_of_work as rsow
+
+    model_5 = {
+        "customer": "Five Layer Corp",
+        "date": "2026-06-16",
+        "page_count": {"low": BASE - 5_000, "anchor": BASE, "high": BASE + 7_000},
+        "multipliers": {"geographies": 1, "scenarios": 3, "environments": 1},
+        "cadence_layers": LAYERS_5,
+        "buffer_pct": 0.15,
+        "tiers": TIERS,
+        "per_domain": PER_DOMAIN,
+    }
+
+    wb = bm.build_workbook(copy.deepcopy(model_5))
+    path = tmp_path / "Five Layer Corp - Scope of Work.xlsx"
+    wb.save(str(path))
+
+    result = rsow.read_scope_of_work(str(path))
+
+    # No hard-stops (the call would have raised IntegrityError)
+    assert "cadence_layers" in result
+
+    layers_out = result["cadence_layers"]
+    assert len(layers_out) == 5, f"Expected 5 cadence layers, got {len(layers_out)}: {layers_out}"
+
+    # Names and pcts round-trip correctly
+    for i, expected in enumerate(LAYERS_5):
+        assert layers_out[i]["name"] == expected["name"], (
+            f"Layer {i} name mismatch: {layers_out[i]['name']!r} != {expected['name']!r}"
+        )
+        assert abs(layers_out[i]["pct"] - expected["pct"]) < 1e-9, (
+            f"Layer {i} pct mismatch: {layers_out[i]['pct']} != {expected['pct']}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Fix 4: Tightened clean-workbook lock test
+# ---------------------------------------------------------------------------
+
+def test_validator_passes_clean_workbook_no_unexpected_warnings(tmp_path):
+    """A fresh openpyxl-built workbook must have zero hard_stops AND only the
+    cache-absent/reconciliation-skip warning (no formula, structure, or input WARNINGs)."""
+    import read_scope_of_work as rsow
+    from openpyxl import load_workbook
+
+    path = _build_wb(tmp_path)
+    wb_f = load_workbook(str(path), data_only=False)
+    wb_v = load_workbook(str(path), data_only=True)
+
+    geom = rsow._discover_geometry(wb_f)
+    hard_stops, warnings = rsow.validate_scope_of_work(wb_f, wb_v, geom=geom)
+
+    assert hard_stops == [], f"Unexpected hard_stops: {hard_stops}"
+
+    # Every warning must be about cache/recalc/reconciliation — not formulas or structure
+    _ACCEPTABLE = ("cache", "recalc", "reconcil")
+    unexpected = [
+        w for w in warnings
+        if not any(kw in w.lower() for kw in _ACCEPTABLE)
+    ]
+    assert unexpected == [], (
+        f"Unexpected non-cache/recalc warnings on a clean workbook: {unexpected}"
+    )
