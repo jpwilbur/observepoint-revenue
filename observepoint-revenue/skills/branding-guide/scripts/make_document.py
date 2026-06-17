@@ -1,0 +1,106 @@
+# observepoint-revenue/skills/branding-guide/scripts/make_document.py
+"""Render a net-new ObservePoint-branded document from a content JSON.
+
+Kinds: onepager, report  (HTML->PDF, this file)
+       letter, memo       (DOCX, added in a later task)
+       deck               (PPTX, added in a later task)
+
+Claude assembles the content (judgment); this renders it (deterministic) with the
+canonical brand via brand_kit. Theme defaults come from brand_kit.default_theme_for;
+pass theme="dark"/"light" to override.
+
+CLI:  python make_document.py <kind> <content.json> <out_path> [--theme dark|light]
+"""
+from __future__ import annotations
+import datetime
+import html as _html
+import json
+import pathlib
+import sys
+import tempfile
+
+import brand_kit
+
+HTML_KINDS = {"onepager", "report"}
+
+
+def _esc(s) -> str:
+    return _html.escape(str(s))
+
+
+def _sections_html(sections) -> str:
+    out = []
+    for s in sections:
+        out.append(f'<h2>{_esc(s.get("heading", ""))}</h2>')
+        if s.get("body"):
+            out.append(f'<p>{_esc(s["body"])}</p>')
+        if s.get("bullets"):
+            out.append("<ul>" + "".join(f"<li>{_esc(b)}</li>" for b in s["bullets"]) + "</ul>")
+    return "\n".join(out)
+
+
+def render_html(content: dict, theme: str) -> str:
+    year = datetime.date.today().year
+    footer = content.get("footer") or brand_kit.copyright(year)
+    sub = content.get("subtitle") or content.get("prepared_for") or ""
+    return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+@import url('{brand_kit.font()["google_fonts"]}');
+{brand_kit.css_vars(theme)}
+*{{box-sizing:border-box}}
+body{{margin:0;background:var(--op-bg,var(--op-page));color:var(--op-text);
+  font-family:var(--op-font);font-size:13px;line-height:1.55;padding:48px}}
+.brandbar{{display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--op-accent);padding-bottom:16px}}
+.brandbar img{{height:30px}}
+h1{{font-weight:800;font-size:28px;margin:22px 0 2px}}
+.sub{{color:var(--op-muted,var(--op-gray));font-size:13px;margin-bottom:18px}}
+h2{{font-weight:800;font-size:15px;margin:20px 0 4px}}
+ul{{margin:6px 0 6px 18px}}
+.footer{{margin-top:40px;border-top:1px solid var(--op-border,var(--op-hairline));
+  padding-top:10px;color:var(--op-muted,var(--op-gray));font-size:11px}}
+</style></head><body>
+<div class="brandbar"><img src="{brand_kit.logo_data_uri(theme)}" alt="ObservePoint"></div>
+<h1>{_esc(content.get("title", ""))}</h1>
+<div class="sub">{_esc(sub)}</div>
+{_sections_html(content.get("sections", []))}
+<div class="footer">{_esc(footer)}</div>
+</body></html>"""
+
+
+def build(kind: str, content: dict, out_path: str, theme: str | None = None) -> dict:
+    if kind not in HTML_KINDS:
+        raise ValueError(f"{kind!r} is not an HTML kind; handled elsewhere")
+    theme = theme or brand_kit.default_theme_for(kind)
+    doc_html = render_html(content, theme)
+    out = pathlib.Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False, encoding="utf-8") as tf:
+        tf.write(doc_html)
+        tmp_html = tf.name
+    engine = brand_kit.html_to_pdf(tmp_html, str(out))
+    if engine:
+        produced = str(out)
+    else:                                   # no PDF engine — write the HTML beside it
+        produced = str(out.with_suffix(".html"))
+        pathlib.Path(produced).write_text(doc_html, encoding="utf-8")
+    return {"path": produced, "engine": engine, "theme": theme, "html": doc_html}
+
+
+def _main(argv) -> int:
+    theme = None
+    if "--theme" in argv:
+        i = argv.index("--theme")
+        theme = argv[i + 1]
+        argv = argv[:i] + argv[i + 2:]
+    if len(argv) < 3:
+        sys.stderr.write("usage: make_document.py <kind> <content.json> <out_path> [--theme dark|light]\n")
+        return 2
+    kind, content_path, out_path = argv[0], argv[1], argv[2]
+    content = json.loads(pathlib.Path(content_path).read_text())
+    result = build(kind, content, out_path, theme=theme)
+    print(f"wrote {result['path']} (engine={result['engine']}, theme={result['theme']})")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main(sys.argv[1:]))
