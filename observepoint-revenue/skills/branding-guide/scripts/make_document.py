@@ -24,6 +24,7 @@ import brand_kit
 
 HTML_KINDS = {"onepager", "report"}
 DOCX_KINDS = {"letter", "memo"}
+PPTX_KINDS = {"deck"}
 
 
 def _esc(s) -> str:
@@ -110,10 +111,72 @@ def build_docx(kind: str, content: dict, out_path: str, theme: str) -> dict:
     return {"path": str(out), "engine": "python-docx", "theme": theme, "html": None}
 
 
+def _hex_to_rgb(hex_str: str):
+    from pptx.dml.color import RGBColor
+    h = hex_str.lstrip("#")
+    return RGBColor(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+
+
+def build_pptx(kind: str, content: dict, out_path: str, theme: str) -> dict:
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+    t = brand_kit.theme(theme)
+    bg = _hex_to_rgb(t.get("bg", t.get("page")))
+    text_col = _hex_to_rgb(t["text"])
+    accent = _hex_to_rgb(t["accent"])
+    family = brand_kit.font()["family"]
+    prs = Presentation()                       # 10 x 7.5 in default
+    blank = prs.slide_layouts[6]
+
+    def paint_bg(slide):
+        slide.background.fill.solid()
+        slide.background.fill.fore_color.rgb = bg
+
+    def add_text(slide, text, left, top, width, height, size, bold, color):
+        box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
+        tf = box.text_frame
+        tf.word_wrap = True
+        p = tf.paragraphs[0]
+        run = p.add_run()
+        run.text = text
+        run.font.size, run.font.bold, run.font.name = Pt(size), bold, family
+        run.font.color.rgb = color
+        return box
+
+    def accent_bar(slide):
+        bar = slide.shapes.add_shape(1, Inches(0.6), Inches(1.7), Inches(2.0), Inches(0.06))
+        bar.fill.solid(); bar.fill.fore_color.rgb = accent; bar.line.fill.background()
+
+    # Title slide
+    s = prs.slides.add_slide(blank); paint_bg(s)
+    s.shapes.add_picture(brand_kit.logo_path(theme), Inches(0.6), Inches(0.6), height=Inches(0.5))
+    add_text(s, content.get("title", ""), 0.6, 1.9, 9.0, 1.5, 40, True, text_col)
+    if content.get("subtitle") or content.get("prepared_for"):
+        add_text(s, content.get("subtitle") or content["prepared_for"], 0.6, 3.2, 9.0, 0.8, 18, False, accent)
+
+    # One content slide per section
+    for sec in content.get("sections", []):
+        cs = prs.slides.add_slide(blank); paint_bg(cs)
+        add_text(cs, sec.get("heading", ""), 0.6, 0.7, 9.0, 1.0, 28, True, text_col)
+        accent_bar(cs)
+        body = sec.get("body", "")
+        if sec.get("bullets"):
+            body = (body + "\n" if body else "") + "\n".join("• " + b for b in sec["bullets"])
+        if body:
+            add_text(cs, body, 0.6, 2.0, 9.0, 4.5, 16, False, text_col)
+
+    out = pathlib.Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    prs.save(str(out))
+    return {"path": str(out), "engine": "python-pptx", "theme": theme, "html": None}
+
+
 def build(kind: str, content: dict, out_path: str, theme: str | None = None) -> dict:
     theme = theme or brand_kit.default_theme_for(kind)
     if kind in DOCX_KINDS:
         return build_docx(kind, content, out_path, theme)
+    if kind in PPTX_KINDS:
+        return build_pptx(kind, content, out_path, theme)
     if kind not in HTML_KINDS:
         raise ValueError(f"unknown kind {kind!r}")
     doc_html = render_html(content, theme)

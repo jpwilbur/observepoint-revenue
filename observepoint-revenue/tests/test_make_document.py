@@ -65,3 +65,22 @@ def test_letter_dark_theme_uses_dark_muted_color(tmp_path):
     subtitle_runs = [r for p in doc.paragraphs for r in p.runs if r.text == "Acme Pharma"]
     assert subtitle_runs, "subtitle run not found"
     assert subtitle_runs[0].font.color.rgb == RGBColor(0x9A, 0xA1, 0xAD)
+
+
+def test_deck_builds_pptx_with_title_and_section_slides(tmp_path):
+    from pptx import Presentation
+    out = tmp_path / "deck.pptx"
+    result = make_document.build("deck", CONTENT, str(out))
+    assert pathlib.Path(result["path"]).suffix == ".pptx"
+    assert result["theme"] == "dark"
+    prs = Presentation(result["path"])
+    # title slide + one slide per section
+    assert len(prs.slides) == 1 + len(CONTENT["sections"])
+    all_text = []
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                all_text.append(shape.text_frame.text)
+    joined = "\n".join(all_text)
+    assert "Privacy Scan Overview" in joined
+    assert "What we found" in joined
