@@ -19,16 +19,19 @@ import html as _html
 import json
 import os
 import pathlib
-import shutil
-import subprocess
 import sys
 import tempfile
 
-# ---------- palette (dark, NERD-like) ----------
-BG, PANEL, PANEL2, BORDER = "#14151a", "#1e2027", "#262932", "#313440"
-TEXT, MUTED = "#e8e9ec", "#9aa1ad"
-YELLOW, RED, GREEN, LINK = "#F2CD14", "#F34146", "#27a567", "#7cb8ff"
-GRAYCHIP = "#3a3e49"
+# --- ObservePoint brand authority (single source of truth) ---
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "branding-guide" / "scripts"))
+import brand_kit  # noqa: E402
+
+_d = brand_kit.theme("dark")
+_sem = brand_kit.colors()["semantic"]
+BG, PANEL, PANEL2, BORDER = _d["bg"], _d["panel"], _d["panel2"], _d["border"]
+TEXT, MUTED = _d["text"], _d["muted"]
+YELLOW, RED, GREEN, LINK = brand_kit.brand_yellow(), _sem["alert"], _sem["success"], _sem["link"]
+GRAYCHIP = "#3a3e49"   # dossier-only chip shade (not a brand token)
 
 # why-now category -> (chip bg, chip text color)
 _CAT = {
@@ -271,46 +274,10 @@ ul{{margin:6px 0;padding-left:20px}} li{{margin:4px 0}}
 </div></body></html>"""
 
 
-# ---------- PDF rendering ----------
-def _find_chrome():
-    cands = [
-        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-        "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
-        "/Applications/Chromium.app/Contents/MacOS/Chromium",
-    ]
-    for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser",
-                 "brave-browser", "microsoft-edge"):
-        p = shutil.which(name)
-        if p:
-            cands.insert(0, p)
-    for c in cands:
-        if c and os.path.exists(c):
-            return c
-    return None
-
-
+# ---------- PDF rendering (delegated to brand_kit) ----------
 def to_pdf(html_path, pdf_path):
-    """Render html_path -> pdf_path. Returns the engine name used, or None if none worked."""
-    chrome = _find_chrome()
-    if chrome:
-        try:
-            subprocess.run(
-                [chrome, "--headless=new", "--disable-gpu", "--no-pdf-header-footer",
-                 f"--print-to-pdf={pdf_path}", pathlib.Path(html_path).resolve().as_uri()],
-                check=True, capture_output=True, timeout=90)
-            if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
-                return "chrome"
-        except Exception:
-            pass
-    try:
-        from weasyprint import HTML  # type: ignore
-        HTML(filename=html_path).write_pdf(pdf_path)
-        if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
-            return "weasyprint"
-    except Exception:
-        pass
-    return None
+    """Render html_path -> pdf_path via the shared brand_kit engine cascade."""
+    return brand_kit.html_to_pdf(html_path, pdf_path)
 
 
 def main(argv):

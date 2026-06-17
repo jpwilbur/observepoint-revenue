@@ -1,0 +1,65 @@
+{
+  "meta": {
+    "version": "1.0.0",
+    "last_verified": "2026-06-17",
+    "sources": [
+      "https://www.observepoint.com/ — site CSS `.logo{color:#f2cd14}`, theme op-logo.png, favicon.png",
+      "observepoint-revenue scope-calculator + research-account renderers (existing constants)"
+    ],
+    "notes": "Dark-theme surface hexes reverse-engineered from the dossier renderer; confirm against the official ObservePoint brand guide when available."
+  },
+  "naming": {
+    "company": "ObservePoint",
+    "disallowed": ["Observepoint", "Observe Point", "observePoint", "OBSERVEPOINT", "Observe point"],
+    "monogram": "OP",
+    "products": [
+      "Website Privacy Scan", "Analytics Validation Scan", "Website Accessibility Scan",
+      "Full Website Audit", "Consent Banner Audit", "Marketing Landing Page & Email Scan",
+      "Tag and Cookie Debugger"
+    ]
+  },
+  "colors": {
+    "brand_yellow": "#F2CD14",
+    "ink": "#1E1E1E",
+    "white": "#FFFFFF",
+    "dark": {
+      "bg": "#14151A", "panel": "#1E2027", "panel2": "#262932",
+      "border": "#313440", "text": "#E8E9EC", "muted": "#9AA1AD"
+    },
+    "light": {
+      "page": "#FFFFFF", "fill": "#F2F2F2", "gray": "#5C5C5C",
+      "input": "#FFF7CC", "hairline": "#D9D9D9", "text": "#1E1E1E"
+    },
+    "semantic": { "success": "#27A567", "alert": "#F34146", "link": "#7CB8FF" },
+    "dataviz": ["#2874FC", "#27A567", "#F34146", "#E0249A", "#1FB6B6", "#9B51E0", "#FF8C1A", "#F2CD14"]
+  },
+  "typography": {
+    "family": "Montserrat",
+    "fallback": "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    "google_fonts": "https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap",
+    "weights": { "body": 400, "semibold": 600, "bold": 700, "heavy": 800 }
+  },
+  "logos": {
+    "primary":   { "file": "logo-primary.png", "background": "dark",  "description": "All-yellow angular logotype" },
+    "secondary": { "file": "logo-secondary.png", "background": "dark", "description": "White Observe + yellow Point wordmark (decks). FILE NOT YET PROVIDED — falls back to primary." },
+    "ink":       { "file": "logo-ink.png", "background": "light", "description": "Dark logotype for light backgrounds (generated from primary)" },
+    "favicon":   { "file": "favicon.png", "background": "any", "description": "OP monogram, gray on yellow" },
+    "usage":     { "min_width_px": 120, "clear_space": "0.5× logo height on all sides" }
+  },
+  "themes": {
+    "dark":  { "surface": "dark",  "logo": "primary", "default": true },
+    "light": { "surface": "light", "logo": "ink" }
+  },
+  "format_defaults": {
+    "html": "dark", "pdf": "dark", "dossier": "dark", "onepager": "dark",
+    "report": "dark", "deck": "dark", "pptx": "dark",
+    "letter": "light", "memo": "light", "docx": "light", "proposal": "light",
+    "xlsx": "light", "workbook": "light"
+  },
+  "boilerplate": {
+    "tagline": "The Automated Website Scanner for Privacy, Accessibility, Tag Accuracy, and More",
+    "about_confirmed": false,
+    "about": "ObservePoint is the automated website scanner for privacy, accessibility, and tag accuracy, helping the world's most trusted brands govern their digital properties. (PROVISIONAL — confirm official boilerplate; about_confirmed=false.)",
+    "copyright": "© {year} ObservePoint. All rights reserved."
+  }
+}

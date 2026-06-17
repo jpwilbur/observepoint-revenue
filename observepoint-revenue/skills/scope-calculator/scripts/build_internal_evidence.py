@@ -14,6 +14,7 @@ Key shape reference (see references/deliverables-mapping.md for full schema):
   internal:   {assumptions?, implied_frequency?}
 """
 import json
+import pathlib
 import sys
 
 from openpyxl import Workbook
@@ -22,8 +23,18 @@ from openpyxl.utils import get_column_letter
 
 from anchor_guard import DOMINANCE_THRESHOLD, dominant_host  # noqa: F401  (re-exported; used by _derivation)
 
-FONT = "Montserrat"
-DARK, YELLOW, LIGHT, GRAY, WHITE, RED = "1E1E1E", "F2CD14", "F2F2F2", "5C5C5C", "FFFFFF", "F34146"
+# --- ObservePoint brand authority (single source of truth) ---
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "branding-guide" / "scripts"))
+import brand_kit  # noqa: E402
+
+FONT = brand_kit.font()["family"]
+_c = brand_kit.colors()
+DARK = _c["ink"].lstrip("#")
+YELLOW = brand_kit.brand_yellow().lstrip("#")
+LIGHT = _c["light"]["fill"].lstrip("#")
+GRAY = _c["light"]["gray"].lstrip("#")
+WHITE = _c["white"].lstrip("#")
+RED = _c["semantic"]["alert"].lstrip("#")
 _THIN = Side(style="thin", color="D9D9D9")
 _BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
 

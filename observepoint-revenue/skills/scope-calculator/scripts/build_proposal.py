@@ -40,12 +40,19 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
-FONT = "Montserrat"
-DARK = RGBColor(0x1E, 0x1E, 0x1E)
-GRAY = RGBColor(0x5C, 0x5C, 0x5C)
-WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-DARK_HEX, YELLOW_HEX, LIGHT_HEX = "1E1E1E", "F2CD14", "F2F2F2"
-LOGO = pathlib.Path(__file__).resolve().parent.parent / "assets" / "op-logo.png"
+# --- ObservePoint brand authority (single source of truth) ---
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "branding-guide" / "scripts"))
+import brand_kit  # noqa: E402
+
+FONT = brand_kit.font()["family"]
+DARK = brand_kit.rgbcolor(brand_kit.colors()["ink"])
+GRAY = brand_kit.rgbcolor(brand_kit.colors()["light"]["gray"])
+WHITE = brand_kit.rgbcolor(brand_kit.colors()["white"])
+
+DARK_HEX = brand_kit.colors()["ink"].lstrip("#")
+YELLOW_HEX = brand_kit.brand_yellow().lstrip("#")
+LIGHT_HEX = brand_kit.colors()["light"]["fill"].lstrip("#")
+LOGO = pathlib.Path(brand_kit.logo_path("light"))   # proposal is a light/print doc -> ink logo
 
 _FREQ = {1: "Annually", 4: "Quarterly", 12: "Monthly", 26: "Bi-weekly", 52: "Weekly", 365: "Daily"}
 
