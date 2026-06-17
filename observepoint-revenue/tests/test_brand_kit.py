@@ -146,3 +146,13 @@ def test_dossier_uses_brand_kit_palette():
     assert build_dossier.PANEL.upper() == d["panel"].upper()
     assert build_dossier.TEXT.upper() == d["text"].upper()
     assert build_dossier.RED.upper() == brand_kit.colors()["semantic"]["alert"].upper()
+
+
+def test_no_duplicate_per_skill_logos():
+    import pathlib as _pl
+    skills = _pl.Path(__file__).resolve().parent.parent / "skills"
+    stale = list(skills.glob("scope-calculator/assets/op-logo.png")) + \
+            list(skills.glob("research-account/assets/op-logo.png"))
+    assert stale == [], f"stale per-skill logos still present: {stale}"
+    # the one canonical asset exists
+    assert (skills / "branding-guide" / "assets" / "logo-primary.png").exists()
