@@ -135,3 +135,13 @@ def test_internal_evidence_uses_brand_kit_constants():
     import build_internal_evidence as bie
     assert bie.YELLOW.upper() == brand_kit.brand_yellow().lstrip("#").upper()
     assert bie.RED.upper() == brand_kit.colors()["semantic"]["alert"].lstrip("#").upper()
+
+
+def test_dossier_uses_brand_kit_palette():
+    import build_dossier
+    d = brand_kit.theme("dark")
+    assert build_dossier.YELLOW.upper() == brand_kit.brand_yellow().upper()
+    assert build_dossier.BG.upper() == d["bg"].upper()
+    assert build_dossier.PANEL.upper() == d["panel"].upper()
+    assert build_dossier.TEXT.upper() == d["text"].upper()
+    assert build_dossier.RED.upper() == brand_kit.colors()["semantic"]["alert"].upper()
