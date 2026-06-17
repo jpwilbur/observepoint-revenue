@@ -15,6 +15,8 @@ SCRIPT = ROOT / "skills" / "scope-calculator" / "scripts" / "build_proposal.py"
 
 # ---------------------------------------------------------------------------
 # Step-1 recomputed numbers (engine is authoritative; never hand-arithmetic)
+# Regenerate: cs.compute({"page_count":{...anchor...}, "multipliers":{...}, "cadence_layers":_CADENCE_LAYERS,
+#   "buffer_pct":0.15, "tiers":cs.BAKED_TIERS})["anchor"] → combined_pages / predicted_scans / price["total"].
 # GALLAGHER: anchor=95721, geos=1, scen=3, env=1 → combined=287163
 #   Baseline inventory: pages_each=287163, scans=287163
 #   High Priority:      pages_each=4307,   scans=223987
@@ -226,6 +228,16 @@ def test_cli_friendly_error_missing_required_key(tmp_path):
     assert res.returncode != 0
     assert "missing" in res.stderr.lower() and "page_count" in res.stderr
     assert "Traceback" not in res.stderr and "KeyError" not in res.stderr
+
+
+def test_cli_friendly_error_missing_usage_keys(tmp_path):
+    bad = json.loads(json.dumps(DATA)); bad["usage"] = {"predicted_scans": 1}   # missing combined_pages
+    f = tmp_path / "bad.json"; f.write_text(json.dumps(bad)); out = tmp_path / "p.docx"
+    res = subprocess.run([sys.executable, str(SCRIPT), str(f), str(out)], capture_output=True, text=True)
+    assert res.returncode != 0
+    assert "combined_pages" in res.stderr
+    assert "Traceback" not in res.stderr
+    assert not out.exists()
 
 
 def test_cli_friendly_error_malformed_json(tmp_path):
