@@ -173,8 +173,9 @@ def discover(apex, fetcher=None, whois_fn=None):
     summary = {
         "seed": apex, "registrable": registrable_domain(apex), "registrant": registrant,
         "host_count": len(hosts), "sample_hosts": hosts[:SAMPLE_CAP], "sources": sources,
-        # "ok" = crt.sh answered (0 hosts means genuinely no certs); "unreachable" = fetch failed
-        # after retries, so host_count:0 is a LOST enumeration, not a real zero — flag & re-run.
+        # "ok" = crt.sh answered (0 hosts = genuinely no certs). "blocked" = permanent egress/policy
+        # block; "unreachable" = flaky/down after retries. For BOTH non-ok states host_count:0 is a
+        # LOST enumeration, not a real zero — flag the apex & recover via the two-step --crt-json path.
         "crt_status": crt_status,
     }
     return summary, hosts

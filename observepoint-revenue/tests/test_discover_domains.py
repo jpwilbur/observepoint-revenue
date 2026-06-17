@@ -132,6 +132,19 @@ def test_discover_crt_status_ok_with_hosts():
     assert summary["crt_status"] == "ok"
 
 
+def test_discover_surfaces_blocked_status(monkeypatch):
+    # A blocked CT fetch must surface crt_status "blocked" in the summary (host_count 0, but NOT a real 0).
+    monkeypatch.setattr(dd.time, "sleep", lambda s: None)
+
+    def blocked(url):
+        raise urllib.error.HTTPError("https://crt.sh/", 403, "Forbidden", {}, None)
+
+    summary, hosts = dd.discover("ajg.com", fetcher=blocked, whois_fn=lambda d: WHOIS_SAMPLE)
+    assert summary["crt_status"] == "blocked"
+    assert summary["host_count"] == 0
+    assert hosts == []
+
+
 def test_enumerate_crt_blocked_fails_fast(monkeypatch):
     # A policy block (e.g. 403 at the egress proxy) must NOT burn the retry budget: one call, then stop.
     monkeypatch.setattr(dd.time, "sleep", lambda s: (_ for _ in ()).throw(AssertionError("slept")))
