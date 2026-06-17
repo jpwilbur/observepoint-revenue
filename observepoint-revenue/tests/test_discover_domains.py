@@ -1,4 +1,6 @@
 import json
+import socket
+import urllib.error
 
 import discover_domains as dd
 
@@ -128,6 +130,28 @@ def test_discover_crt_status_ok_with_hosts():
     summary, _ = dd.discover("ajg.com", fetcher=lambda url: CRT_SAMPLE, whois_fn=lambda d: WHOIS_SAMPLE)
     assert summary["host_count"] == 3
     assert summary["crt_status"] == "ok"
+
+
+def test_classify_fetch_error_blocked_signals():
+    # Forbidden / proxy-auth-required / unavailable-for-legal-reasons HTTP codes are permanent here.
+    for code in (403, 407, 451):
+        err = urllib.error.HTTPError("https://crt.sh/", code, "blocked", {}, None)
+        assert dd._classify_fetch_error(err) == "blocked"
+    # Proxy rejects the CONNECT tunnel (the exact sandbox symptom), raw and URLError-wrapped:
+    assert dd._classify_fetch_error(OSError("Tunnel connection failed: 403 Forbidden")) == "blocked"
+    assert dd._classify_fetch_error(
+        urllib.error.URLError(OSError("Tunnel connection failed: 403 Forbidden"))) == "blocked"
+    # DNS blackholed at egress:
+    assert dd._classify_fetch_error(
+        urllib.error.URLError(socket.gaierror(8, "nodename nor servname provided, or not known"))) == "blocked"
+
+
+def test_classify_fetch_error_transient_signals():
+    assert dd._classify_fetch_error(
+        urllib.error.HTTPError("https://crt.sh/", 503, "Service Unavailable", {}, None)) == "transient"
+    assert dd._classify_fetch_error(RuntimeError("503 Service Unavailable")) == "transient"
+    assert dd._classify_fetch_error(socket.timeout("timed out")) == "transient"
+    assert dd._classify_fetch_error(ConnectionResetError("connection reset by peer")) == "transient"
 
 
 def test_crt_url_builds_query():

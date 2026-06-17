@@ -11,9 +11,11 @@ CLI:  discover_domains.py <apex> <out_hosts.json>   # writes hosts file, prints 
 """
 import json
 import pathlib
+import socket
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -28,6 +30,14 @@ _MULTI_SUFFIXES = {
 SAMPLE_CAP = 25  # max hosts shown in the compact summary; the full list goes to the sidecar file
 CRT_ATTEMPTS = 3  # crt.sh is frequently overloaded (503) — retry transient failures
 CRT_BACKOFF = 2.0  # seconds; multiplied by attempt number between retries
+# Fetch-failure signatures that mean a PERMANENT egress/policy block (retrying is futile) rather than
+# crt.sh being flaky (503/timeout — worth a retry). Drives the "blocked" vs "unreachable" distinction.
+_BLOCK_HTTP_CODES = {403, 407, 451}  # forbidden / proxy-auth-required / unavailable-for-legal-reasons
+_BLOCK_PHRASES = (
+    "tunnel connection failed", "after connect",       # proxy rejected the HTTPS CONNECT tunnel
+    "name or service not known", "nodename nor servname",  # DNS blackholed at the egress allowlist
+    "temporary failure in name resolution",
+)
 
 
 def registrable_domain(host):
@@ -64,6 +74,20 @@ def crt_url(apex):
     if "." not in reg or reg in _MULTI_SUFFIXES:
         return None
     return "https://crt.sh/?q=" + urllib.parse.quote("%." + apex) + "&output=json"
+
+
+def _classify_fetch_error(exc):
+    """'blocked' = a policy/egress block that will never clear on retry (403/407/451, a proxy CONNECT
+    rejection, or a DNS blackhole); 'transient' = flaky/overloaded (503, timeout, reset) — retry.
+    Unknown errors default to 'transient' so a retryable blip is never mistaken for a hard block."""
+    if isinstance(exc, urllib.error.HTTPError) and exc.code in _BLOCK_HTTP_CODES:
+        return "blocked"
+    if isinstance(exc, urllib.error.URLError) and isinstance(exc.reason, socket.gaierror):
+        return "blocked"
+    msg = str(getattr(exc, "reason", "") or exc).lower()
+    if any(phrase in msg for phrase in _BLOCK_PHRASES):
+        return "blocked"
+    return "transient"
 
 
 def _default_fetcher(url):
