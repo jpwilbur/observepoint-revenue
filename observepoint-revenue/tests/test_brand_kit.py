@@ -114,3 +114,11 @@ def test_emit_json_cli_prints_spec():
     assert out.returncode == 0
     import json as _json
     assert _json.loads(out.stdout)["colors"]["brand_yellow"].upper() == "#F2CD14"
+
+
+def test_proposal_uses_brand_kit_constants():
+    import build_proposal
+    assert build_proposal.FONT == brand_kit.font()["family"]
+    assert build_proposal.YELLOW_HEX.upper() == brand_kit.brand_yellow().lstrip("#").upper()
+    assert build_proposal.DARK_HEX.upper() == brand_kit.colors()["ink"].lstrip("#").upper()
+    assert build_proposal.LIGHT_HEX.upper() == brand_kit.colors()["light"]["fill"].lstrip("#").upper()
