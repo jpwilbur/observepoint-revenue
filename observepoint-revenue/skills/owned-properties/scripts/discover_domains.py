@@ -9,6 +9,7 @@ passive-DNS is a documented hook (see references/discovery-methodology.md) — a
 
 CLI:  discover_domains.py <apex> <out_hosts.json>   # writes hosts file, prints compact summary JSON
 """
+import argparse
 import json
 import pathlib
 import socket
@@ -182,12 +183,35 @@ def discover(apex, fetcher=None, whois_fn=None):
 
 
 def main(argv):
-    if len(argv) < 3:
-        sys.exit("usage: discover_domains.py <apex> <out_hosts.json>")
-    summary, hosts = discover(argv[1])
-    pathlib.Path(argv[2]).write_text(json.dumps(
+    ap = argparse.ArgumentParser(
+        prog="discover_domains.py",
+        description="Enumerate an apex's hostnames via Certificate Transparency (crt.sh) + WHOIS.")
+    ap.add_argument("apex", nargs="?", help="seed apex, e.g. example.com")
+    ap.add_argument("out_hosts", nargs="?", help="path to write the full hostnames JSON sidecar")
+    ap.add_argument("--print-crt-url", action="store_true",
+                    help="print the crt.sh URL for <apex> and exit; fetch it via your own egress, "
+                         "then feed the saved JSON back with --crt-json")
+    ap.add_argument("--crt-json", metavar="FILE",
+                    help="parse a pre-fetched crt.sh JSON payload from FILE instead of the network "
+                         "(use when direct egress to crt.sh is blocked)")
+    args = ap.parse_args(argv[1:])
+
+    if args.print_crt_url:
+        if not args.apex:
+            ap.error("--print-crt-url requires <apex>")
+        url = crt_url(args.apex)
+        if url is None:
+            sys.exit(f"refusing bare public suffix / TLD as seed: {args.apex!r}")
+        print(url)
+        return
+
+    if not args.apex or not args.out_hosts:
+        ap.error("the following arguments are required: apex, out_hosts")
+
+    summary, hosts = discover(args.apex)
+    pathlib.Path(args.out_hosts).write_text(json.dumps(
         {"registrable": summary["registrable"], "all_hosts": hosts}, indent=2))
-    summary["all_hosts_file"] = argv[2]
+    summary["all_hosts_file"] = args.out_hosts
     print(json.dumps(summary, indent=2))
 
 

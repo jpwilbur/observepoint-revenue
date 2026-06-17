@@ -208,6 +208,23 @@ def test_crt_url_refuses_bare_suffix_or_tld():
     assert dd.crt_url("com") is None       # bare TLD
 
 
+def test_cli_print_crt_url(monkeypatch, capsys):
+    # --print-crt-url emits the URL and exits WITHOUT touching the network or WHOIS.
+    monkeypatch.setattr(dd, "_default_fetcher",
+                        lambda url: (_ for _ in ()).throw(AssertionError("fetched")))
+    monkeypatch.setattr(dd, "_default_whois",
+                        lambda d: (_ for _ in ()).throw(AssertionError("whois ran")))
+    dd.main(["discover_domains.py", "ajg.com", "--print-crt-url"])
+    out = capsys.readouterr().out.strip()
+    assert out == "https://crt.sh/?q=%25.ajg.com&output=json"
+
+
+def test_cli_print_crt_url_refuses_bare_suffix():
+    import pytest
+    with pytest.raises(SystemExit):
+        dd.main(["discover_domains.py", "com", "--print-crt-url"])
+
+
 def test_cli_main_writes_hosts_and_compact_summary(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(dd, "_default_fetcher", lambda url: CRT_SAMPLE)
     monkeypatch.setattr(dd, "_default_whois", lambda d: WHOIS_SAMPLE)
