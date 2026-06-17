@@ -22,8 +22,7 @@ DATA = {
          "spiral_flag": True, "why": "64x query-param spiral"}],
     "pricing": {"price_by_band": [{"band_limit": 1000, "rate": 0.0, "pages": 1000, "cost": 0.0},
                                   {"band_limit": 50000, "rate": 0.17, "pages": 50000, "cost": 8500.0}],
-                "modeled_scans": 430_744, "modeled_price": 54_069.28,
-                "recommended_scans": 430_167, "recommended_price": 54_000,
+                "predicted_scans": 430_744, "modeled_price": 54_069.28,
                 "pricing_source": "live @ https://app.observepoint.com/www-pricing/main.js"},
     "internal": {"assumptions": ["Geographies defaulted to 1 — confirm regions.",
                                  "Consent states assumed CCPA (3) — confirm regulations."],
@@ -53,7 +52,7 @@ def test_internal_content_present():
     assert "410,000" in t or "410000" in t         # raw URL total (internal)
     assert "64x query-param spiral" in t           # per-domain derivation note
     assert "confirm regulations" in t.lower()      # assumption-to-verify
-    assert "430,744" in t or "430744" in t         # modeled scans
+    assert "430,744" in t or "430744" in t         # predicted_scans total renders in Pricing sheet
 
 
 def test_dominance_flag_when_one_domain_dominates():
@@ -117,6 +116,12 @@ def test_pricing_sheet_has_band_detail():
     flat = " ".join(vals)
     assert "0.17" in flat   # band rate
     assert "live @ https://app.observepoint.com" in flat  # pricing source
+    # predicted_scans total must render (holistic-review: previously blank)
+    assert "430,744" in flat or "430744" in flat, (
+        f"predicted_scans 430744 not found in Pricing sheet; got: {flat!r}")
+    # new single-column title — no "Contracted" or old modeled-vs-contracted header
+    assert "Contracted" not in flat
+    assert "modeled vs contracted" not in flat.lower()
 
 
 def test_cli_writes_file(tmp_path):

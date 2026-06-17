@@ -10,8 +10,7 @@ Input: {customer, date?, rollup{...}, per_domain[{...}], pricing?{...}, internal
 Key shape reference (see references/deliverables-mapping.md for full schema):
   rollup:     {spiral_adjusted_anchor, low, high, confidence, census_ids, crawl_status}
   per_domain: [{hostname, raw_urls, defensible_pages, discounted?, spiral_flag?, why?}]
-  pricing:    {price_by_band?, modeled_scans, modeled_price, recommended_scans,
-               recommended_price, pricing_source?}
+  pricing:    {price_by_band?, predicted_scans, modeled_price, pricing_source?}
   internal:   {assumptions?, implied_frequency?}
 """
 import json
@@ -155,11 +154,10 @@ def _pricing(wb, data):
     if not pr:
         return
     ws = wb.create_sheet("Pricing (INTERNAL)")
-    _widths(ws, [22, 20, 16, 16])
-    r = _title(ws, "Pricing — modeled vs contracted", 1)
-    r = _headers(ws, ["", "Modeled (precise)", "Contracted (clean)", ""], r)
-    r = _row(ws, r, ["Annual page scans", pr.get("modeled_scans", ""), pr.get("recommended_scans", ""), ""])
-    r = _row(ws, r, ["Annual price (USD)", pr.get("modeled_price", ""), pr.get("recommended_price", ""), ""], alt=True)
+    _widths(ws, [24, 18])
+    r = _title(ws, "Pricing — predicted scans & price", 1)
+    r = _row(ws, r, ["Predicted annual page scans", pr.get("predicted_scans", "")])
+    r = _row(ws, r, ["Annual price (USD)", pr.get("modeled_price", "")], alt=True)
     r += 1
     if pr.get("price_by_band"):
         r = _headers(ws, ["Band width", "Rate/scan", "Scans", "Cost"], r)

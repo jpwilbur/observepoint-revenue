@@ -29,8 +29,8 @@ Reconstruct `proposal.json` from the edited Scope of Work, then:
 - `consent_states` = `{count: <scenarios multiplier>, names: [Default/Opt-Out/GPC …]}`.
 - `multipliers` = `{geographies: <N>, scenarios: <N>, environments: <N>}` — all three required. Geographies and Environments rows render in the sweep table only when their value is >1; the consent-states row always renders.
 - `cadence_layers` ← Stage-2 `anchor.cadence_by_layer` verbatim (each entry must include `pct` and `why`). `pages`/`runs` keys are ignored — the proposal derives them from `pct`.
-- `usage` = `{combined_pages: anchor.combined_pages, annual_scans: anchor.predicted_scans}` — `predicted_scans` is the layer sum plus the additive buffer.
-- `pricing` = `{predicted_scans: anchor.predicted_scans, modeled_price: anchor.price.total, range_low_price: range.low.price_total, range_high_price: range.high.price_total, pricing_source}` — the price is the **exact** `graduated_price(predicted_scans)`; there is no back-solved recommended scans/price pair. **`pricing_source` is accepted-if-present but NOT rendered to the customer doc — the source stamp belongs in the internal-evidence file; include it there, not here.**
+- `usage` = `{combined_pages: anchor.combined_pages, predicted_scans: anchor.predicted_scans}` — `predicted_scans` is the layer sum plus the additive buffer.
+- `pricing` = `{predicted_price: anchor.price.total, predicted_scans: anchor.predicted_scans, range_low_price: range.low.price_total, range_high_price: range.high.price_total, price_by_band: anchor.price.breakdown, pricing_source}` — the price key `build_proposal` reads is **`predicted_price`**; there is no back-solved recommended scans/price pair. **`pricing_source` is accepted-if-present but NOT rendered to the customer doc — the source stamp belongs in the internal-evidence file; include it there, not here.**
 - plus `customer`, `prepared_by`, `date`, `use_case`, `domains`, `properties_note`, `regulations`, and a one-line `monitoring_summary` (NO internal terms — the generator rejects them).
 
 ## Output — Scope of Work workbook (customer-facing, live model, DEFAULT): `build_model.py <model.json> <out.xlsx>`
