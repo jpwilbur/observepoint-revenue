@@ -208,6 +208,25 @@ def test_crt_url_refuses_bare_suffix_or_tld():
     assert dd.crt_url("com") is None       # bare TLD
 
 
+def test_cli_blocked_prints_remediation(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(dd.time, "sleep", lambda s: None)
+    monkeypatch.setattr(dd, "_default_whois", lambda d: WHOIS_SAMPLE)
+
+    def blocked(url):
+        raise OSError("Tunnel connection failed: 403 Forbidden")
+
+    monkeypatch.setattr(dd, "_default_fetcher", blocked)
+    out = tmp_path / "hosts.json"
+    dd.main(["discover_domains.py", "ajg.com", str(out)])
+    captured = capsys.readouterr()
+    summary = json.loads(captured.out)
+    assert summary["crt_status"] == "blocked"
+    # The remediation hint goes to stderr and names the two-step recovery flags.
+    assert "blocked" in captured.err
+    assert "--print-crt-url" in captured.err
+    assert "--crt-json" in captured.err
+
+
 def test_cli_crt_json_parses_without_network(tmp_path, monkeypatch, capsys):
     # --crt-json feeds a pre-fetched payload; the network fetcher must NOT be called.
     monkeypatch.setattr(dd, "_default_fetcher",

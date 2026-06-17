@@ -224,6 +224,14 @@ def main(argv):
         {"registrable": summary["registrable"], "all_hosts": hosts}, indent=2))
     summary["all_hosts_file"] = args.out_hosts
     print(json.dumps(summary, indent=2))
+    if summary["crt_status"] == "blocked":
+        print(
+            f"\ncrt_status: blocked — crt.sh egress is policy-blocked here (e.g. HTTP 403 at an "
+            f"allowlisting proxy). host_count:0 is NOT a real zero. Recover subdomains two-step:\n"
+            f"  1) discover_domains.py {args.apex} --print-crt-url            # prints the crt.sh URL\n"
+            f"  2) fetch that URL with your web tool and save the JSON, then:\n"
+            f"  3) discover_domains.py {args.apex} {args.out_hosts} --crt-json <saved.json>",
+            file=sys.stderr)
 
 
 if __name__ == "__main__":
