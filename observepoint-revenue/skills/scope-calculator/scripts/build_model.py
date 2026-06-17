@@ -10,6 +10,7 @@ a dependency-free emulator asserts that in the tests.
 Sheets (in order): Scope Detail · Scope of Work · Pricing · Sample pages.
 """
 import pathlib
+import re
 import sys
 
 from openpyxl import Workbook
@@ -30,6 +31,9 @@ _BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
 _YBAR = Side(style="thick", color=YELLOW)
 
 TOP_N = 20   # individual domains listed; the rest collapse into one bottom aggregate row
+# Stage 1 may already hand us a long-tail aggregate row (the census itemizes only ~top-40); detect it
+# so we fold it INTO the single bottom aggregate instead of ranking it as if it were one domain.
+_AGG_RE = re.compile(r"^\(\s*(\d+)\s+additional domains")
 
 # Runs/yr → customer-facing cadence word.
 _CADENCE_WORD = {1: "Yearly", 4: "Quarterly", 12: "Monthly", 26: "Bi-weekly", 52: "Weekly", 365: "Daily"}
@@ -94,13 +98,24 @@ def _scope_detail(wb, data):
                       "Include in scope?", "Sample Size", "Notes"], r)
     ws.freeze_panes = ws.cell(r, 1)
 
-    ordered = sorted(data["per_domain"], key=lambda x: -x["defensible_pages"])
-    individual = ordered[:TOP_N]
+    # Separate any pre-existing long-tail aggregate row(s) from the individual domains, so a Stage-1
+    # aggregate isn't ranked as a domain (it would sort to the top) or double-counted. Fold it into
+    # the single bottom aggregate together with the individuals beyond the top-20.
+    individuals, agg_pages, agg_domains = [], 0, 0
+    for d in data["per_domain"]:
+        m = _AGG_RE.match(str(d["hostname"]))
+        if m:
+            agg_pages += d["defensible_pages"]
+            agg_domains += int(m.group(1))
+        else:
+            individuals.append(d)
+    ordered = sorted(individuals, key=lambda x: -x["defensible_pages"])
     tail = ordered[TOP_N:]
-    rows = [(d["hostname"], d["defensible_pages"]) for d in individual]
-    if tail:
-        rows.append((f"({len(tail)} additional domains — long tail, aggregated)",
-                     sum(d["defensible_pages"] for d in tail)))
+    rows = [(d["hostname"], d["defensible_pages"]) for d in ordered[:TOP_N]]
+    extra_domains = agg_domains + len(tail)
+    extra_pages = agg_pages + sum(d["defensible_pages"] for d in tail)
+    if extra_domains > 0:
+        rows.append((f"({extra_domains} additional domains — long tail, aggregated)", extra_pages))
 
     first = r
     last = r + len(rows) - 1

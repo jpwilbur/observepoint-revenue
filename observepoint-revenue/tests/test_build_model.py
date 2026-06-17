@@ -1,5 +1,5 @@
 # tests/test_build_model.py
-import json, pathlib
+import json, pathlib, re
 import pytest
 
 import build_model as bm
@@ -228,3 +228,31 @@ def test_empty_per_domain_raises():
     d = json.loads(json.dumps(DATA)); d["per_domain"] = []
     with pytest.raises(ValueError):
         bm.build_workbook(d)
+
+
+def test_prebuilt_aggregate_row_is_folded_into_single_bottom_row():
+    """Stage 1 hands per_domain a long-tail aggregate row (the census itemizes only ~top-40).
+    build_model must NOT rank it as a domain (it would sort to the top) or emit a second aggregate —
+    it folds it into the SINGLE bottom aggregate with the leftover individuals."""
+    d = json.loads(json.dumps(DATA))
+    indiv = [{"hostname": f"x{i}.com", "defensible_pages": 1000 - i * 10, "url_samples": []}
+             for i in range(25)]                                    # 25 individual domains
+    pre_agg = {"hostname": "(256 additional domains — long tail, aggregated)",
+               "defensible_pages": 22_765, "url_samples": []}        # Stage-1 aggregate already present
+    d["per_domain"] = indiv + [pre_agg]
+    total = sum(x["defensible_pages"] for x in d["per_domain"])
+    d["page_count"] = {"low": total - 1000, "anchor": total, "high": total + 1000}
+    d["rollup"] = {"spiral_adjusted_anchor": total}
+
+    ws = bm.build_workbook(d)["Scope Detail"]
+    rows, rr = [], 4
+    while ws.cell(rr, 1).value not in (None, ""):
+        rows.append((ws.cell(rr, 1).value, ws.cell(rr, 2).value)); rr += 1
+    aggs = [a for (a, b) in rows if "additional domains" in str(a)]
+    assert len(aggs) == 1, f"expected exactly ONE aggregate row, got {aggs}"
+    assert "additional domains" in str(rows[-1][0]), "aggregate must be the LAST (bottom) row"
+    assert "additional domains" not in str(rows[0][0]), "no aggregate at the top"
+    assert len(rows) == 20 + 1, "top-20 individuals + one bottom aggregate"
+    n = int(re.match(r"^\((\d+) additional", rows[-1][0]).group(1))
+    assert n == 256 + (25 - 20), f"folded domain count should be 256 + 5 leftover, got {n}"
+    assert sum(b for (a, b) in rows) == total, "displayed pages must preserve the total"
