@@ -39,7 +39,7 @@ a config edit. When adding or editing a skill, preserve this boundary.
 
 ## Dev
 
-- **Tests:** `cd observepoint-revenue && /opt/homebrew/bin/python3 -m pytest tests -q` (243 passing).
+- **Tests:** `cd observepoint-revenue && /opt/homebrew/bin/python3 -m pytest tests -q` (291 passing).
   **Interpreter trap:** bare `python3` may resolve to `/usr/bin/python3` (CLT 3.9, no pytest/openpyxl);
   always use `/opt/homebrew/bin/python3`. Never pipe pytest through `| tail` in an `&&` chain — it
   masks a missing-pytest failure.

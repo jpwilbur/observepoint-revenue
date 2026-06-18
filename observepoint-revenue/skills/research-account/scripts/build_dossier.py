@@ -206,11 +206,11 @@ def build_html(data):
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>{_e(data.get('account',''))} — Account Research Dossier</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap');
+@import url('{brand_kit.font()["google_fonts"]}');
 *{{box-sizing:border-box}}
 html{{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 body{{margin:0;background:{BG};color:{TEXT};
-  font-family:"Montserrat",-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5}}
+  font-family:'{brand_kit.font()["family"]}',{brand_kit.font()["fallback"]};font-size:13px;line-height:1.5}}
 .page{{max-width:840px;margin:0 auto;padding:34px 40px 56px}}
 a{{color:{LINK};text-decoration:none}} a:hover{{text-decoration:underline}}
 .brand{{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.3px}}

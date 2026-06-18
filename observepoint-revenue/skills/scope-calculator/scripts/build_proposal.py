@@ -6,8 +6,7 @@ names and "why" lines) are guarded by customer_clean.assert_clean before the doc
 Identity/factual fields (customer, domains, prepared_by, regulations) are NOT passed to the
 guard — see customer_clean caller contract.
 
-Theming matches ObservePoint's brand: Montserrat, near-black #1E1E1E, brand yellow #F2CD14,
-light gray #F2F2F2 table rows, and the OP logo in the header.
+Theming is pulled from the branding-guide skill via brand_kit (the single source of truth for ObservePoint's fonts, colors, and logo); see skills/branding-guide/references/brand-spec.json.
 
 Input schema (all keys tolerant; orchestrator assembles from derive-page-count + size-and-price):
 {
