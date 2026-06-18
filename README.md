@@ -24,6 +24,13 @@ A growing suite of Claude Code tools for the **ObservePoint revenue team** — p
    (`.xlsx`)** the rep tunes; a clean customer **proposal (`.docx`)** is recomputed from that edited
    workbook on request.
 
+5. **branding-guide** — *ObservePoint brand authority + branded document maker + brand checker.*
+   The single source of truth for ObservePoint's brand: colors, fonts, logos, dark/light themes,
+   voice, and boilerplate copy. Every skill renderer calls it before producing any OP document.
+   Also makes net-new branded docs (one-pager, report, letter, memo, deck), checks any draft against
+   the brand spec (`brand_check.py`), and watches the live site for brand drift (`verify_brand.py`).
+   `brand_kit.py` is the shared render kit all other skills import.
+
 More revenue tooling (outreach sequencing, enrichment, QBR prep) is planned.
 
 ## Install (private repo)
@@ -69,5 +76,5 @@ export GH_TOKEN=...        # or GITHUB_TOKEN
 ## Tests
 
 ```
-/opt/homebrew/bin/python3 -m pytest observepoint-revenue/tests -q     # 243 passing
+/opt/homebrew/bin/python3 -m pytest observepoint-revenue/tests -q     # 291 passing
 ```
