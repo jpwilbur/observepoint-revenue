@@ -106,6 +106,7 @@ def test_html_to_pdf_returns_none_without_engine(tmp_path, monkeypatch):
     html = tmp_path / "x.html"
     html.write_text("<html><body>hi</body></html>")
     assert brand_kit.html_to_pdf(str(html), str(tmp_path / "x.pdf")) is None
+    assert brand_kit.html_to_pdf(str(html), str(tmp_path / "x2.pdf"), timeout=5) is None
 
 
 def test_emit_json_cli_prints_spec():
@@ -145,3 +146,13 @@ def test_dossier_uses_brand_kit_palette():
     assert build_dossier.PANEL.upper() == d["panel"].upper()
     assert build_dossier.TEXT.upper() == d["text"].upper()
     assert build_dossier.RED.upper() == brand_kit.colors()["semantic"]["alert"].upper()
+
+
+def test_no_duplicate_per_skill_logos():
+    import pathlib as _pl
+    skills = _pl.Path(__file__).resolve().parent.parent / "skills"
+    stale = list(skills.glob("scope-calculator/assets/op-logo.png")) + \
+            list(skills.glob("research-account/assets/op-logo.png"))
+    assert stale == [], f"stale per-skill logos still present: {stale}"
+    # the one canonical asset exists
+    assert (skills / "branding-guide" / "assets" / "logo-primary.png").exists()

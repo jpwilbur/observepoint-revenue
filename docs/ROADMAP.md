@@ -3,9 +3,9 @@
 A living backlog for the revenue-team plugin. Tags: **[you]** requested by Jarrod ·
 **[deferred]** explicitly punted earlier · **[idea]** suggestion. Check items off as they ship.
 
-**Shipped so far (4 skills):** `find-accounts` → territory discovery (in-territory triggered prospects, ranked, seen-log dedup); `owned-properties` → domain-footprint discovery (crt.sh + WHOIS + web research →
+**Shipped so far (5 skills):** `find-accounts` → territory discovery (in-territory triggered prospects, ranked, seen-log dedup); `owned-properties` → domain-footprint discovery (crt.sh + WHOIS + web research →
 confirmable `.xlsx` + confirmed domains printed for scoping); `scope-calculator` → the single scope/price tool (3 internal stages: derive page count → size usage → price → proposal `.docx` + evidence `.xlsx`); `research-account` → dark NERD-styled
-HTML→PDF dossier. Uniform output under `~/Documents/ObservePoint Revenue/<tool>/<Account>/`. Plugin at v0.10.0.
+HTML→PDF dossier; `branding-guide` → ObservePoint brand authority, branded document maker, brand checker, and live-site drift watcher. Uniform output under `~/Documents/ObservePoint Revenue/<tool>/<Account>/`. Plugin at v0.16.0.
 
 > **v0.10.0 — pricing skills consolidated.** `derive-page-count` and `size-and-price` were merged into `scope-calculator` (they were three front doors to one job). The deterministic engine is unchanged — `compute_scope.py`, `fetch_pricing.py`, `build_evidence_appendix.py` just moved under `scope-calculator/scripts/`; the SKILL.md now has three entry paths (full scope / known page count / count only). 111 tests still green.
 
@@ -16,6 +16,11 @@ HTML→PDF dossier. Uniform output under `~/Documents/ObservePoint Revenue/<tool
 ---
 
 ## ✅ Recently shipped
+- [x] **branding-guide (brand authority + document maker + brand checker)** — single source of
+  truth for ObservePoint branding (colors, fonts, logos, dark/light themes, voice, boilerplate);
+  shared `brand_kit.py` render kit imported by all skill renderers; `brand_check.py` draft checker;
+  `verify_brand.py` live-site drift watcher; net-new branded document maker (one-pager, report,
+  letter, memo, deck). Shipped in v0.16.0 (2026-06-17).
 - [x] **find-accounts (territory discovery)** **[deferred→shipped]** — NERD Stage-0 ported:
   in-territory, ICP-fit, *triggered* accounts not already in pipeline; ranked with the shared
   trigger weights + recency decay; seen-log so re-runs only surface new names; chat-first with an

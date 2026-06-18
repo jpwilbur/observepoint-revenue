@@ -11,7 +11,7 @@ LLM-maintained state. The model classifies/researches/decides; scripts do the ar
 network I/O, the file rendering, and any persisted state. This keeps results reproducible and tuning
 a config edit. When adding or editing a skill, preserve this boundary.
 
-## Skills (4)
+## Skills (5)
 
 - **scope-calculator** — size/price a contract end to end. Three stages (derive page count → size
   usage → price); the default deliverable is the live **Scope of Work** workbook (`.xlsx`), and a
@@ -19,6 +19,11 @@ a config edit. When adding or editing a skill, preserve this boundary.
 - **research-account** — qualify a named prospect → scored ICP dossier (HTML→PDF).
 - **owned-properties** — discover an org's owned domains → confirmable `.xlsx` + confirmed-domain list.
 - **find-accounts** — surface new in-territory triggered prospects → ranked list (+ optional `.xlsx`).
+- **branding-guide** — the single source of truth for ObservePoint's brand (colors,
+  fonts, logos, dark/light themes, voice, boilerplate). Other skills call it before
+  rendering any OP document; it also makes net-new branded docs (one-pager/report/
+  letter/memo/deck), checks drafts (`brand_check.py`), and watches the live site for
+  drift (`verify_brand.py`). `brand_kit.py` is the shared render kit they import.
 
 ## Conventions the skills enforce (each SKILL.md is self-sufficient — don't rely on this file at runtime)
 
@@ -29,10 +34,12 @@ a config edit. When adding or editing a skill, preserve this boundary.
   `mkdir -p`; never a temp dir). `territory.md` and `Account Discovery/` live at that root.
 - Single shared scoring config: `skills/research-account/references/scoring-config.json` (find-accounts
   reads it by path — never copy it).
+- **Brand values come from `branding-guide` only** — `references/brand-spec.json` via
+  `brand_kit`; never hardcode a hex/font/logo path in a renderer.
 
 ## Dev
 
-- **Tests:** `cd observepoint-revenue && /opt/homebrew/bin/python3 -m pytest tests -q` (243 passing).
+- **Tests:** `cd observepoint-revenue && /opt/homebrew/bin/python3 -m pytest tests -q` (291 passing).
   **Interpreter trap:** bare `python3` may resolve to `/usr/bin/python3` (CLT 3.9, no pytest/openpyxl);
   always use `/opt/homebrew/bin/python3`. Never pipe pytest through `| tail` in an `&&` chain — it
   masks a missing-pytest failure.

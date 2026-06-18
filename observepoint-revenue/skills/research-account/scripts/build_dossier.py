@@ -5,9 +5,9 @@ INTERNAL AE artifact. The "best opening angle" is internal strategy, never prosp
 
 Output: a single self-contained .html (inline CSS, opens in any browser and looks like the NERD
 account-detail screen) plus a .pdf frozen from it. PDF engine, in order of preference:
-  1) headless Chrome / Chromium / Edge / Brave  (`--print-to-pdf`)  — highest fidelity, no Python deps
-  2) weasyprint                                                     — if importable
-  3) HTML only                                                      — always written; open + Print-to-PDF
+  PDF rendering is delegated to brand_kit.html_to_pdf (engine cascade: headless Chrome
+  via --print-to-pdf, then weasyprint). If no engine is available the dossier still writes
+  the self-contained .html so there is always a deliverable.
 The dossier is read, not edited, so a frozen PDF is the right format (the editable proposal stays .docx).
 
 CLI:  build_dossier.py <scored.json> <out.pdf>
@@ -206,11 +206,11 @@ def build_html(data):
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>{_e(data.get('account',''))} — Account Research Dossier</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap');
+@import url('{brand_kit.font()["google_fonts"]}');
 *{{box-sizing:border-box}}
 html{{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 body{{margin:0;background:{BG};color:{TEXT};
-  font-family:"Montserrat",-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5}}
+  font-family:'{brand_kit.font()["family"]}',{brand_kit.font()["fallback"]};font-size:13px;line-height:1.5}}
 .page{{max-width:840px;margin:0 auto;padding:34px 40px 56px}}
 a{{color:{LINK};text-decoration:none}} a:hover{{text-decoration:underline}}
 .brand{{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.3px}}
@@ -276,8 +276,10 @@ ul{{margin:6px 0;padding-left:20px}} li{{margin:4px 0}}
 
 # ---------- PDF rendering (delegated to brand_kit) ----------
 def to_pdf(html_path, pdf_path):
-    """Render html_path -> pdf_path via the shared brand_kit engine cascade."""
-    return brand_kit.html_to_pdf(html_path, pdf_path)
+    """Render html_path -> pdf_path via the shared brand_kit engine cascade.
+
+    Passes timeout=90 (heavy full-page dossiers) — the dossier's historical limit."""
+    return brand_kit.html_to_pdf(html_path, pdf_path, timeout=90)
 
 
 def main(argv):
