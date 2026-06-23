@@ -1,0 +1,34 @@
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r observepoint-revenue/requirements.txt -r observepoint-revenue/requirements-dev.txt
+
+      - name: Plugin test suite
+        run: cd observepoint-revenue && python -m pytest tests -q
+
+      - name: Release-tooling tests
+        run: python -m pytest scripts/test_publish_to_drive.py -q
+
+      - name: Build artifact (smoke test, no publish)
+        run: bash scripts/build_plugin.sh /tmp/out.plugin
+
+      - name: Bundle is a plugin, not a marketplace
+        run: |
+          unzip -l /tmp/out.plugin | grep -qE '\.claude-plugin/plugin\.json'
+          if unzip -l /tmp/out.plugin | grep -q 'marketplace.json'; then
+            echo "ERROR: marketplace.json leaked into the bundle" >&2; exit 1
+          fi
