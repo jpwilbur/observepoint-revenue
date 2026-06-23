@@ -51,7 +51,13 @@ rm -f "$STAGE/.claude-plugin/marketplace.json"
 [ ! -f "$STAGE/.claude-plugin/marketplace.json" ] || { echo "ERROR: marketplace.json still in staged tree." >&2; exit 1; }
 [ -f "$STAGE/.claude-plugin/plugin.json" ] || { echo "ERROR: no .claude-plugin/plugin.json at staged root." >&2; exit 1; }
 
-# 3. HARD GATE: validate as a plugin. Skipped only when the claude CLI is absent
+# 3. Pre-publish metadata gate that mirrors the Cowork / plugin-directory UPLOAD
+#    validator (stricter than `claude plugin validate`): plugin.json description
+#    <= 500 chars, and no skill SKILL.md description contains XML tags. Pure Python,
+#    so this gate runs in CI too, where the claude CLI is absent.
+"$PYTHON" "$ROOT/scripts/check_plugin_meta.py" "$STAGE" || { echo "ERROR: pre-publish metadata check failed (see above)." >&2; exit 1; }
+
+# 4. HARD GATE: validate as a plugin. Skipped only when the claude CLI is absent
 #    (e.g. Linux CI); on the maintainer's Mac it runs and gates every real release.
 if command -v claude >/dev/null 2>&1; then
   VALIDATION="$(claude plugin validate "$STAGE" 2>&1 || true)"
@@ -62,7 +68,7 @@ else
   echo "WARN: 'claude' CLI not found; skipping validation (build smoke test only)." >&2
 fi
 
-# 4. Zip staged contents at root so .claude-plugin/plugin.json sits at the ZIP root.
+# 5. Zip staged contents at root so .claude-plugin/plugin.json sits at the ZIP root.
 mkdir -p "$(dirname "$OUT")"
 rm -f "$OUT"
 ( cd "$STAGE" && zip -rq "$OUT" . -x '*.DS_Store' )

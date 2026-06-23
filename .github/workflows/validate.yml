@@ -21,7 +21,10 @@ jobs:
         run: cd observepoint-revenue && python -m pytest tests -q
 
       - name: Release-tooling tests
-        run: python -m pytest scripts/test_publish_to_drive.py -q
+        run: python -m pytest scripts -q
+
+      - name: Plugin metadata (Cowork upload rules)
+        run: python scripts/check_plugin_meta.py observepoint-revenue
 
       - name: Build artifact (smoke test, no publish)
         run: bash scripts/build_plugin.sh /tmp/out.plugin
