@@ -45,12 +45,21 @@ def resolve_drive_dir(folder_name, *, override=None, home=None):
 
 
 def current_published_version(drive_dir):
-    """Return the semver embedded in the folder's current *.plugin name, or None."""
-    files = sorted(p for p in Path(drive_dir).glob("*.plugin") if p.is_file())
-    if not files:
-        return None
-    m = VERSION_RE.search(files[-1].name)
-    return m.group(1) if m else None
+    """Return the highest semver embedded in the folder's *.plugin names, or None.
+
+    Compares parsed version tuples, not filenames, so 0.10.0 > 0.9.0.
+    """
+    best = None
+    for p in Path(drive_dir).glob("*.plugin"):
+        if not p.is_file():
+            continue
+        m = VERSION_RE.search(p.name)
+        if not m:
+            continue
+        ver = tuple(int(x) for x in m.group(1).split("."))
+        if best is None or ver > best[0]:
+            best = (ver, m.group(1))
+    return best[1] if best else None
 
 
 def publish(artifact, drive_dir, *, dry_run=False, force=False):
@@ -108,7 +117,8 @@ def main(argv=None):
         return 1
 
     if args.print_current:
-        print(current_published_version(drive_dir) or "" if drive_dir.is_dir() else "")
+        version = current_published_version(drive_dir) if drive_dir.is_dir() else None
+        print(version or "")
         return 0
 
     if not args.artifact:

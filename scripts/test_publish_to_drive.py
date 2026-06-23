@@ -74,6 +74,7 @@ def test_publish_self_heals_to_one_current(tmp_path):
     ptd.publish(art, drive)
     assert [p.name for p in drive.glob("*.plugin")] == ["observepoint-revenue-0.16.0.plugin"]
     assert (drive / "Old Versions" / "observepoint-revenue-0.15.0.plugin").is_file()
+    assert (drive / "observepoint-revenue-0.16.0.plugin").read_bytes() == b"PK\x03\x04 fake zip"
 
 
 def test_dry_run_touches_nothing(tmp_path):
@@ -117,3 +118,37 @@ def test_resolve_drive_dir_multiple_mounts(tmp_path):
         (tmp_path / "Library" / "CloudStorage" / n).mkdir(parents=True)
     with pytest.raises(ValueError):
         ptd.resolve_drive_dir("ObservePoint Revenue", home=str(tmp_path))
+
+
+def test_main_print_current(tmp_path, capsys):
+    drive = tmp_path / "ObservePoint Revenue"
+    drive.mkdir()
+    (drive / "observepoint-revenue-0.16.1.plugin").write_bytes(b"x")
+    rc = ptd.main(["--folder", "ObservePoint Revenue", "--drive-dir", str(drive), "--print-current"])
+    assert rc == 0
+    assert capsys.readouterr().out.strip() == "0.16.1"
+
+
+def test_main_print_current_empty_when_none(tmp_path, capsys):
+    drive = tmp_path / "ObservePoint Revenue"
+    drive.mkdir()
+    rc = ptd.main(["--folder", "ObservePoint Revenue", "--drive-dir", str(drive), "--print-current"])
+    assert rc == 0
+    assert capsys.readouterr().out.strip() == ""
+
+
+def test_main_publishes(tmp_path):
+    drive = tmp_path / "ObservePoint Revenue"
+    drive.mkdir()
+    art = tmp_path / "observepoint-revenue-0.16.0.plugin"
+    art.write_bytes(b"PK\x03\x04 fake zip")
+    rc = ptd.main([str(art), "--folder", "ObservePoint Revenue", "--drive-dir", str(drive)])
+    assert rc == 0
+    assert (drive / "observepoint-revenue-0.16.0.plugin").is_file()
+
+
+def test_main_missing_artifact_returns_2(tmp_path):
+    drive = tmp_path / "ObservePoint Revenue"
+    drive.mkdir()
+    rc = ptd.main(["--folder", "ObservePoint Revenue", "--drive-dir", str(drive)])
+    assert rc == 2
