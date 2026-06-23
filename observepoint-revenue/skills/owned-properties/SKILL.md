@@ -1,6 +1,6 @@
 ---
 name: owned-properties
-description: Use when you need to discover all the web properties / domains an organization owns — "what domains does <org> own", "find their full web footprint", "map all their properties", "they don't know everything they own", before scoping an account. Produces a confirmable .xlsx inventory + a confirmed-domains list that feeds scope-calculator. For sizing/pricing a known domain set use scope-calculator; this finds the domains in the first place.
+description: Use when you need to discover all the web properties / domains an organization owns — "what domains does an org own", "find their full web footprint", "map all their properties", "they don't know everything they own", before scoping an account. Produces a confirmable .xlsx inventory + a confirmed-domains list that feeds scope-calculator. For sizing/pricing a known domain set use scope-calculator; this finds the domains in the first place.
 ---
 
 # Owned Properties

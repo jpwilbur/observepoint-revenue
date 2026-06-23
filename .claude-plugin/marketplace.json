@@ -12,7 +12,7 @@
         "name": "Jarrod Wilbur",
         "email": "jarrod.wilbur@observepoint.com"
       },
-      "description": "ObservePoint revenue-team tooling suite. find-accounts (surface in-territory, ICP-fit, triggered prospects, ranked), research-account (qualify a prospect into a scored ICP dossier with why-now triggers and sourced contacts), owned-properties (discover all the web properties an org owns into a confirmable inventory + a domain list for scoping), scope-calculator (page count -> usage -> live price -> customer proposal + evidence workbook), and branding-guide (the single source of truth for ObservePoint branding — colors, fonts, logos, themes, voice — that every renderer consumes, plus a branded document maker, a brand checker, and a live-site drift check). More revenue tools to come."
+      "description": "ObservePoint revenue-team tooling: find-accounts (surface ranked in-territory prospects), research-account (qualify a prospect into a scored ICP dossier), owned-properties (discover an org's web properties for scoping), scope-calculator (page count to usage to live price to proposal + evidence workbook), and branding-guide (ObservePoint brand source of truth, branded-doc maker, brand checker, live-site drift check)."
     }
   ]
 }

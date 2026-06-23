@@ -1,6 +1,6 @@
 ---
 name: research-account
-description: Use when a revenue or sales rep wants to research and qualify a single named prospect for ObservePoint — "research <company>", "is <company> a good fit", "qualify this account", "build an account dossier", "why now for <company>". Produces a scored ICP PDF dossier (self-contained HTML fallback if no PDF engine is present) with dated/sourced why-now triggers and real sourced contacts. For sizing or pricing a deal use scope-calculator; this is account research, not contract scoping.
+description: Use when a revenue or sales rep wants to research and qualify a single named prospect for ObservePoint — "research a company", "is this company a good fit", "qualify this account", "build an account dossier", "why now for this company". Produces a scored ICP PDF dossier (self-contained HTML fallback if no PDF engine is present) with dated/sourced why-now triggers and real sourced contacts. For sizing or pricing a deal use scope-calculator; this is account research, not contract scoping.
 ---
 
 # Research Account
