@@ -20,6 +20,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# NOTE: `:-` treats an empty string as unset, so passing PLUGIN_SUBDIR="" as an env
+# override here re-defaults to observepoint-revenue. The consultant repo (root-is-plugin)
+# must bake PLUGIN_SUBDIR="${PLUGIN_SUBDIR:-}" as its own default instead.
 PLUGIN_SUBDIR="${PLUGIN_SUBDIR:-observepoint-revenue}"
 if [ -n "$PLUGIN_SUBDIR" ]; then
   MANIFEST="$PLUGIN_SUBDIR/.claude-plugin/plugin.json"

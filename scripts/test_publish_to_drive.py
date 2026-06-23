@@ -152,3 +152,13 @@ def test_main_missing_artifact_returns_2(tmp_path):
     drive.mkdir()
     rc = ptd.main(["--folder", "ObservePoint Revenue", "--drive-dir", str(drive)])
     assert rc == 2
+
+
+def test_main_override_is_a_file_returns_1(tmp_path, capsys):
+    bogus = tmp_path / "not-a-dir"
+    bogus.write_text("x")
+    art = tmp_path / "observepoint-revenue-0.16.0.plugin"
+    art.write_bytes(b"PK\x03\x04 fake zip")
+    rc = ptd.main([str(art), "--folder", "ObservePoint Revenue", "--drive-dir", str(bogus)])
+    assert rc == 1
+    assert "ERROR" in capsys.readouterr().err

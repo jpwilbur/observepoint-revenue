@@ -129,7 +129,7 @@ def main(argv=None):
         if not args.dry_run:
             drive_dir.mkdir(parents=True, exist_ok=True)
         result = publish(Path(args.artifact), drive_dir, dry_run=args.dry_run, force=args.force)
-    except ValueError as e:
+    except (ValueError, OSError) as e:
         print("ERROR: %s" % e, file=sys.stderr)
         return 1
 
