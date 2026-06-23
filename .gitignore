@@ -9,3 +9,6 @@ __pycache__/
 # transient browser-preview artifacts
 .playwright-mcp/
 .superpowers/
+
+# built plugin artifacts — local only, never pushed
+dist/
