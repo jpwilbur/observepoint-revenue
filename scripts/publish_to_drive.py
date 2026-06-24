@@ -98,6 +98,30 @@ def publish(artifact, drive_dir, *, dry_run=False, force=False):
     return {"published": True, "skipped": False, "archived": archived, "target": str(drive_dir)}
 
 
+def _maybe_notify_slack(args, result):
+    """On a real publish (not a no-op or dry-run), post a Slack announcement if --notify."""
+    if not (args.notify and args.name and args.folder_url):
+        return
+    if result.get("skipped"):
+        return
+    import importlib
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    notify = importlib.import_module("notify_slack")
+    m = VERSION_RE.search(Path(args.artifact).name)
+    version = m.group(1) if m else "?"
+    text = notify.build_message(args.name, version, args.folder_url)
+    if args.dry_run:
+        print("[dry-run] would notify: " + text)
+        return
+    webhook = notify.resolve_webhook()
+    if not webhook:
+        print("NOTE: %s not set; skipping Slack notification." % notify.WEBHOOK_ENV, file=sys.stderr)
+    elif notify.post(webhook, text):
+        print("Notified Slack.")
+    else:
+        print("WARN: Slack notification failed (publish already succeeded).", file=sys.stderr)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Publish a .plugin artifact to its shared-drive folder.")
     ap.add_argument("artifact", nargs="?", help="path to the built .plugin file")
@@ -108,6 +132,10 @@ def main(argv=None):
                     help="print the version currently published to the folder, then exit")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--notify", action="store_true",
+                    help="post a Slack release announcement on a real publish")
+    ap.add_argument("--name", help="display name for the Slack message (e.g. 'ObservePoint Revenue')")
+    ap.add_argument("--folder-url", help="Drive folder share link for the Slack message")
     args = ap.parse_args(argv)
 
     try:
@@ -140,6 +168,8 @@ def main(argv=None):
         for name in result["archived"]:
             print("%sArchived %s -> Old Versions/" % (prefix, name))
         print("%sPublished %s -> %s" % (prefix, Path(args.artifact).name, result["target"]))
+
+    _maybe_notify_slack(args, result)
     return 0
 
 
