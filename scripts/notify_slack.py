@@ -15,14 +15,21 @@ from pathlib import Path
 
 WEBHOOK_ENV = "OP_RELEASE_SLACK_WEBHOOK"
 WEBHOOK_FILE = Path(".config") / "op-release" / "slack-webhook"  # relative to $HOME
+DEFAULT_NOTE = "Bug fixes and performance improvements."
 
 
-def build_message(name, version, folder_url):
-    """Return the Slack mrkdwn announcement for a new release."""
+def build_message(name, version, folder_url, note=None):
+    """Return the Slack mrkdwn announcement for a new release.
+
+    `note` is a one-sentence summary of the release; it defaults to DEFAULT_NOTE
+    when empty (the common "just bug fixes / perf" case).
+    """
+    note = (note or "").strip() or DEFAULT_NOTE
     return (
         "🟢 *%s* `v%s` is now available to install.\n"
+        "_%s_\n"
         "Grab the latest from the shared drive and update: <%s|%s>"
-        % (name, version, folder_url, name)
+        % (name, version, note, folder_url, name)
     )
 
 

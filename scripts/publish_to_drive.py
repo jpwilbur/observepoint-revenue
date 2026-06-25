@@ -109,7 +109,7 @@ def _maybe_notify_slack(args, result):
     notify = importlib.import_module("notify_slack")
     m = VERSION_RE.search(Path(args.artifact).name)
     version = m.group(1) if m else "?"
-    text = notify.build_message(args.name, version, args.folder_url)
+    text = notify.build_message(args.name, version, args.folder_url, args.note)
     if args.dry_run:
         print("[dry-run] would notify: " + text)
         return
@@ -136,6 +136,8 @@ def main(argv=None):
                     help="post a Slack release announcement on a real publish")
     ap.add_argument("--name", help="display name for the Slack message (e.g. 'ObservePoint Revenue')")
     ap.add_argument("--folder-url", help="Drive folder share link for the Slack message")
+    ap.add_argument("--note", default=os.environ.get("OP_RELEASE_NOTE"),
+                    help="one-sentence release summary (default: env OP_RELEASE_NOTE, else a generic note)")
     args = ap.parse_args(argv)
 
     try:
