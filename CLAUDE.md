@@ -11,7 +11,7 @@ LLM-maintained state. The model classifies/researches/decides; scripts do the ar
 network I/O, the file rendering, and any persisted state. This keeps results reproducible and tuning
 a config edit. When adding or editing a skill, preserve this boundary.
 
-## Skills (5)
+## Skills (6)
 
 - **scope-calculator** — size/price a contract end to end. Three stages (derive page count → size
   usage → price); the default deliverable is the live **Scope of Work** workbook (`.xlsx`), and a
@@ -24,6 +24,11 @@ a config edit. When adding or editing a skill, preserve this boundary.
   rendering any OP document; it also makes net-new branded docs (one-pager/report/
   letter/memo/deck), checks drafts (`brand_check.py`), and watches the live site for
   drift (`verify_brand.py`). `brand_kit.py` is the shared render kit they import.
+- **op-mcp-post-mortem** — the outlier: about the **OP MCP server itself** misbehaving, not selling.
+  Two modes share a standardized post-mortem `.md`. Submitter mode turns a rough MCP session into a
+  redaction-safe post-mortem (`scan_secrets.py` flags secrets/PII, `render_post_mortem.py` validates
+  + renders); maintainer mode (`remediate <file>`) gates triage → reproduce-in-a-test-account → TDD
+  fix → verify → close-the-loop, operating on the separate `observepoint-mcp` repo.
 
 ## Conventions the skills enforce (each SKILL.md is self-sufficient — don't rely on this file at runtime)
 
