@@ -16,6 +16,22 @@ def test_build_message_has_name_version_and_link():
     assert "available to install" in msg
 
 
+def test_build_message_default_note():
+    msg = ns.build_message("ObservePoint MCP", "0.6.40", "https://x")
+    assert "_Bug fixes and performance improvements._" in msg
+
+
+def test_build_message_custom_note():
+    msg = ns.build_message("ObservePoint MCP", "0.6.40", "https://x", "Fixes the PII masking leak.")
+    assert "_Fixes the PII masking leak._" in msg
+    assert "Bug fixes and performance improvements" not in msg
+
+
+def test_build_message_blank_note_falls_back_to_default():
+    msg = ns.build_message("ObservePoint MCP", "0.6.40", "https://x", "   ")
+    assert "_Bug fixes and performance improvements._" in msg
+
+
 def test_resolve_webhook_env_precedence(tmp_path):
     # env wins even if the file also exists
     f = tmp_path / ".config" / "op-release" / "slack-webhook"
