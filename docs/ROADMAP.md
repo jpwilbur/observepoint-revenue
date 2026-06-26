@@ -89,8 +89,7 @@ Agreed build order — **CSMs are ahead of sales on adoption, so CS tooling is b
 - [ ] **`sample_site_census_pages` MCP tool** **[deferred]** — spec'd in
   `docs/mcp-sample-pages-tool-spec.md`; build in the MCP server repo for zero-context sample-page
   retrieval.
-- [ ] **Salesforce sync** — read foundation + territory shipped in v0.18.0 (salesforce-core: org map + sf_io, resolve_territory, classify_overlap; find-accounts territory live). Write-back (research-account → SF) still pending.
-  (NERD had this.)
+- [ ] **Salesforce sync** **[partial — read shipped]** — read foundation + territory shipped in v0.18.0 (salesforce-core: org map + sf_io, resolve_territory, classify_overlap; find-accounts territory live). Write-back (research-account → SF) still pending. (NERD had this.)
 - [ ] **journeys as a 2nd usage meter** in scope-calculator **[deferred]**.
 
 ## Hygiene / polish
