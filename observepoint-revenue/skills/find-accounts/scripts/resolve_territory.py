@@ -43,7 +43,7 @@ def normalize_territory(mcp_result):
     (territory_ids == []), which the skill treats as 'no territory — get an explicit target'."""
     records = sf_io.parse_records(mcp_result)
     return {
-        "territory_ids": [r["Id"] for r in records if (r or {}).get("Id")],
+        "territory_ids": sorted({r.get("Id") for r in records if (r or {}).get("Id")}),
         "regions": _collect(records, "World_Region__c"),
         "sub_regions": _collect(records, "Sub_Region__c"),
         "countries": _collect(records, "Country__c"),

@@ -22,6 +22,7 @@ def test_normalize_collects_unique_sorted():
     assert b["regions"] == ["AMER"]
     assert b["segments"] == ["Enterprise"]
     assert b["ae_names"] == ["Dana AE"]
+    assert b["adm_names"] == ["Sam ADM"]
     assert b["csm_names"] == []          # a None relationship is tolerated
 
 
