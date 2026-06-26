@@ -93,7 +93,9 @@ Read first: `$SKILL/references/discovery-sources.md` (sources, hard rules) and t
    ```
 
    It drops hard-excludes, annotates the survivors with `sf_status`, and prints a one-line summary to
-   stderr. **Then rank the annotated file** (note: `discovery-candidates.sf.json`, not the raw one):
+   stderr. (`resolve_territory.py` and `classify_overlap.py` are stdlib-only — any `python3` runs them;
+   only the ranker below needs openpyxl for the `--xlsx` path, so prefer `/opt/homebrew/bin/python3`
+   there.) **Then rank the annotated file** (note: `discovery-candidates.sf.json`, not the raw one):
 
    ```bash
    python3 "$SKILL/scripts/rank_candidates.py" /tmp/discovery-candidates.sf.json "$SCORING" \
