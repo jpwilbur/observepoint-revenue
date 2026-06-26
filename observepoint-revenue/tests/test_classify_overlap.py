@@ -60,6 +60,9 @@ def test_name_fallback_when_no_domain():
     accts = [_acct("Example Health System Inc", "", type_="Prospect", owner_name="Pat")]
     kept, summ = co.classify([_cand("The Example Health-System, Inc.")], accts, TERR_IDS, TARGET)
     assert kept[0]["sf_status"]["owner"] == "Pat"
+    assert len(kept) == 1
+    assert kept[0]["sf_status"] == {"owner": "Pat", "type": "Prospect"}
+    assert summ["flagged"] == ["The Example Health-System, Inc."]
 
 
 def test_cli_writes_annotated_and_summary(tmp_path):

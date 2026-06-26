@@ -61,7 +61,7 @@ def classify(candidates, accounts, territory_ids, target_user_id):
         owner_obj = acct.get("Owner")
         owner = owner_obj.get("Name") if isinstance(owner_obj, dict) else None
         atype = acct.get("Type")
-        in_terr = acct.get("OP_Territory__c") in tids
+        in_terr = bool(acct.get("OP_Territory__c")) and acct.get("OP_Territory__c") in tids
         owned = bool(target_user_id) and acct.get("OwnerId") == target_user_id
         if in_terr or owned:
             excluded["own_or_territory"].append(c.get("name")); continue
