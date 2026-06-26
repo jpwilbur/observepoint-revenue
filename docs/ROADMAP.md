@@ -19,7 +19,7 @@ HTML→PDF dossier; `branding-guide` → ObservePoint brand authority, branded d
 ## 🔜 Active sequence — Salesforce MCP unlock (decided 2026-06-25)
 The Salesforce MCP is now connected, unblocking items long deferred on "needs a SF connector."
 Agreed build order — **CSMs are ahead of sales on adoption, so CS tooling is bumped up**:
-1. **SF access foundation + find-accounts territory** — *in design now.* A shared, read-first
+1. **SF access foundation + find-accounts territory** — *shipped in v0.18.0.* A shared, read-first
    Salesforce access layer (query/read + a write-payload discipline, match-before-write upsert, and
    an owned-custom-fields governance contract with rev ops). Its first consumer replaces
    find-accounts' `territory.md` with a live SF-derived territory **and** an overlap-guard exclusion
@@ -89,8 +89,8 @@ Agreed build order — **CSMs are ahead of sales on adoption, so CS tooling is b
 - [ ] **`sample_site_census_pages` MCP tool** **[deferred]** — spec'd in
   `docs/mcp-sample-pages-tool-spec.md`; build in the MCP server repo for zero-context sample-page
   retrieval.
-- [ ] **Salesforce sync** **[in design]** — connector now attached. Superseded by the Active-sequence
-  foundation above: overlap-guard + territory (read) first, then research write-back. (NERD had this.)
+- [ ] **Salesforce sync** — read foundation + territory shipped in v0.18.0 (salesforce-core: org map + sf_io, resolve_territory, classify_overlap; find-accounts territory live). Write-back (research-account → SF) still pending.
+  (NERD had this.)
 - [ ] **journeys as a 2nd usage meter** in scope-calculator **[deferred]**.
 
 ## Hygiene / polish

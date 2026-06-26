@@ -11,7 +11,7 @@ LLM-maintained state. The model classifies/researches/decides; scripts do the ar
 network I/O, the file rendering, and any persisted state. This keeps results reproducible and tuning
 a config edit. When adding or editing a skill, preserve this boundary.
 
-## Skills (6)
+## Skills (7)
 
 - **scope-calculator** — size/price a contract end to end. Three stages (derive page count → size
   usage → price); the default deliverable is the live **Scope of Work** workbook (`.xlsx`), and a
@@ -29,6 +29,11 @@ a config edit. When adding or editing a skill, preserve this boundary.
   redaction-safe post-mortem (`scan_secrets.py` flags secrets/PII, `render_post_mortem.py` validates
   + renders); maintainer mode (`remediate <file>`) gates triage → reproduce-in-a-test-account → TDD
   fix → verify → close-the-loop, operating on the separate `observepoint-mcp` repo.
+- **salesforce-core** — the shared read-side Salesforce foundation: the canonical org map
+  (`references/salesforce-org.md`) + `sf_io.py` (digests SF MCP result JSON). Read-only; the
+  model runs the MCP queries, scripts compute on the returned JSON. find-accounts uses it for
+  territory + the overlap-guard; future SF skills (research write-back, CSM review, expansion)
+  reuse it.
 
 ## Conventions the skills enforce (each SKILL.md is self-sufficient — don't rely on this file at runtime)
 
@@ -44,7 +49,7 @@ a config edit. When adding or editing a skill, preserve this boundary.
 
 ## Dev
 
-- **Tests:** `cd observepoint-revenue && /opt/homebrew/bin/python3 -m pytest tests -q` (291 passing).
+- **Tests:** `cd observepoint-revenue && /opt/homebrew/bin/python3 -m pytest tests -q` (338 passing).
   **Interpreter trap:** bare `python3` may resolve to `/usr/bin/python3` (CLT 3.9, no pytest/openpyxl);
   always use `/opt/homebrew/bin/python3`. Never pipe pytest through `| tail` in an `&&` chain — it
   masks a missing-pytest failure.
