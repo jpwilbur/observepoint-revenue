@@ -12,8 +12,11 @@ deep-research them.
 You judge (territory, triggers, evidence); `rank_candidates.py` does the mechanics (validation,
 seen-log dedup, ranking with research-account's trigger weights + recency decay).
 
-**Tool fence:** The sweep uses `WebSearch` (and `WebFetch` to read a specific result) ONLY. Do NOT
-open a browser / Playwright / Claude-in-Chrome or any page-rendering/scraping tool.
+**Tool fence:** The web sweep uses `WebSearch` (and `WebFetch` to read a specific result) ONLY — no
+browser / Playwright / Claude-in-Chrome or any page-rendering/scraping tool. Territory and the
+overlap-guard use the **Salesforce MCP read tools** (`getUserInfo`, `soqlQuery`, `find`) — read-only;
+never `create`/`update`. Run the canonical queries from
+`${CLAUDE_PLUGIN_ROOT}/skills/salesforce-core/references/salesforce-org.md`.
 
 Set `SKILL=${CLAUDE_PLUGIN_ROOT}/skills/find-accounts` and
 `SCORING=${CLAUDE_PLUGIN_ROOT}/skills/research-account/references/scoring-config.json`.
@@ -28,32 +31,46 @@ Read first: `$SKILL/references/discovery-sources.md` (sources, hard rules) and t
 
 ## Workflow
 
-1. **Territory.** Read `~/Documents/ObservePoint Revenue/territory.md`. If missing, ask the rep for
-   region(s) + verticals (default verticals: the `targetVerticals` list in `$SCORING`) and write
-   the file:
+1. **Territory (Salesforce-first).** Resolve the boundary from Salesforce, not a hand-kept file.
+   Read `${CLAUDE_PLUGIN_ROOT}/skills/salesforce-core/references/salesforce-org.md` for the queries.
 
-   ```markdown
-   # Territory — <rep name>
-   - **Region(s):** <e.g. US West>
-   - **Verticals:** <comma-separated, or "all target verticals">
-   - **Notes:** <segment limits, named exclusions, anything else>
-   ```
+   a. **Identify the target AE/ADM.** Call `getUserInfo`. This is a *hint only* — the SF MCP
+      authenticates as whoever connected it, who may not be the human running this. If the connected
+      user is an AE/ADM and no target was named, confirm and use them. Otherwise ask whose territory
+      to run, and resolve them: `SELECT Id, Name, Email FROM User WHERE Email = :email AND IsActive = true`.
 
-   A per-run override ("just healthcare this time") adjusts THIS run only — never rewrite the file
-   for an override. Territory is a hard boundary: when in doubt, leave the company out.
+   b. **Pull the territory** (key on the target's actual role — never assume AE≡ADM):
+      ```sql
+      SELECT Id, Name, Name__c, Segment__c, World_Region__c, Sub_Region__c,
+             Country__c, State__c, AE__r.Name, ADM__r.Name, CSM__r.Name
+      FROM OP_Territories__c WHERE AE__c = :targetUserId      -- or ADM__c = :targetUserId
+      ```
+      Save the result to `/tmp/territory-soql.json` and normalize it:
+      ```bash
+      python3 "$SKILL/scripts/resolve_territory.py" /tmp/territory-soql.json > /tmp/territory-boundary.json
+      ```
+      The boundary gives `regions / sub_regions / countries / states / segments` (the geographic +
+      segment patch) and `territory_ids` (used by the overlap-guard). **Verticals are NOT in SF** —
+      take them from the `targetVerticals` list in `$SCORING` (+ any per-run narrowing the rep asks
+      for). A per-run override adjusts THIS run only.
 
-   **Shared-machine state guard.** This skill reads/writes per-home-dir state under
-   `~/Documents/ObservePoint Revenue/`. On a SHARED training laptop that cross-contaminates reps.
-   `territory.md` carries a rep name in its `# Territory — <rep name>` header: confirm WHOSE file
-   this is, and if the rep running differs from the file's owner, WARN and ASK before using or
-   overwriting it (offer a per-run override instead of a rewrite). Likewise the seen-log
-   (`Account Discovery/seen-candidates.json`) is per-machine and may hold another rep's history —
-   note that out loud so an "already seen" exclusion isn't mistaken for the current rep's own.
+   c. **No territory found** (`territory_ids` empty): the target has no AE/ADM territory. Say so and
+      ask for an explicit region + segment (or a different target) — do not guess a boundary.
 
-2. **Exclusions.** Union of: (a) subfolder names under
-   `~/Documents/ObservePoint Revenue/Account Research/` (already researched — `ls` it),
-   (b) any rep-supplied pipeline list, (c) the seen-log (the script enforces that one). Also skip
-   obvious duplicates/subsidiaries of excluded names.
+   **Fallback.** If the Salesforce MCP is unavailable, fall back to
+   `~/Documents/ObservePoint Revenue/territory.md` (region + verticals); if that's missing too, ask
+   the rep and write it (the legacy `# Territory — <rep name>` format). SF is the source of truth
+   when connected; the file is only a cache/override.
+
+2. **Exclusions.** Two layers:
+   - **Local** (unchanged): subfolder names under `~/Documents/ObservePoint Revenue/Account Research/`
+     (already researched — `ls` it), any rep-supplied pipeline list, and the seen-log (the ranker
+     enforces that one). Skip obvious duplicates/subsidiaries of excluded names.
+   - **Salesforce overlap-guard** (applied after the sweep, in step 5): the model matches the swept
+     candidates against SF and `classify_overlap.py` enforces the policy — **hard-exclude** anything
+     in the target's territory or owned by the target (this catches named accounts in other
+     territories) and any `Type = Customer`; **flag but keep** companies already in SF under another
+     rep or as Prospect/Previous Customer/Defunct, annotated `already in SF — owner: X, type: Y`.
 
 3. **Sweep** (`WebSearch`/`WebFetch`) per `$SKILL/references/discovery-sources.md`. Build each
    candidate: `name`, `domain` (when obvious), `vertical`, one-line `reason`, `triggerKey` (must be
@@ -65,8 +82,21 @@ Read first: `$SKILL/references/discovery-sources.md` (sources, hard rules) and t
 
 5. **Rank:**
 
+   **First, the Salesforce overlap-guard.** Collect the candidate domains and match them against SF
+   (domain-first; `find` by name for any without a website match), per the account-match query in
+   `salesforce-org.md`. Save the result to `/tmp/sf-account-matches.json`, then:
+
    ```bash
-   python3 "$SKILL/scripts/rank_candidates.py" /tmp/discovery-candidates.json "$SCORING" \
+   python3 "$SKILL/scripts/classify_overlap.py" /tmp/discovery-candidates.json \
+     /tmp/sf-account-matches.json --territory /tmp/territory-boundary.json \
+     --target-user "<targetUserId>" --out /tmp/discovery-candidates.sf.json
+   ```
+
+   It drops hard-excludes, annotates the survivors with `sf_status`, and prints a one-line summary to
+   stderr. **Then rank the annotated file** (note: `discovery-candidates.sf.json`, not the raw one):
+
+   ```bash
+   python3 "$SKILL/scripts/rank_candidates.py" /tmp/discovery-candidates.sf.json "$SCORING" \
      --seen "$HOME/Documents/ObservePoint Revenue/Account Discovery/seen-candidates.json"
    ```
 
@@ -74,7 +104,9 @@ Read first: `$SKILL/references/discovery-sources.md` (sources, hard rules) and t
    previously-seen names, appends new ones to the log, and prints the ranked list. It also
    deprioritizes and flags off-ICP verticals (`⚠ off-ICP vertical: …`) — it never silently drops
    them, so surface them too, clearly marked. Run the script with a Python that has openpyxl for
-   the `--xlsx` path (prefer `/opt/homebrew/bin/python3`).
+   the `--xlsx` path (prefer `/opt/homebrew/bin/python3`). Flagged candidates carry an `already in SF`
+   note in chat and an **In SF?** column in the radar — surface them, clearly marked; they are not
+   silently dropped.
 
 6. **Summarize in chat:** the ranked list (name, trigger, points, date, reason, source link),
    off-ICP flags carried through, which territory/verticals were used, and how many were excluded
@@ -107,4 +139,4 @@ Read first: `$SKILL/references/discovery-sources.md` (sources, hard rules) and t
 ## What this skill does not do (v1)
 
 Deep research (research-account), auto-running research on candidates, contact work, outreach copy,
-Salesforce sync, scheduled sweeps, paid data sources.
+Salesforce *write-back* (read-only today), scheduled sweeps, paid data sources.
