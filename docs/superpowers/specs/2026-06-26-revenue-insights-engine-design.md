@@ -1,4 +1,4 @@
-# revenue-insights engine (with folded-in Domo foundation) — design
+# revenue-insights engine (+ `lib/` foundations) — design
 
 - **Date:** 2026-06-26
 - **Status:** Draft for review
@@ -35,20 +35,29 @@ Python**:
 Every number in every report is produced by a tested Python script. The model classifies the ask,
 runs the queries, judges the "so what," and narrates caveats — it never does the arithmetic.
 
-**Read-only**, matching `salesforce-core`. No SF/Domo/OP writes in this work; any future write-back is
-deferred and governed separately.
+**Read-only**, matching the `lib/salesforce` posture. No SF/Domo/OP writes in this work; any future
+write-back is deferred and governed separately.
 
 ## Scope
 
-**One new skill, not two.** `salesforce-core` already exists as a shared root skill (consumed by
-`find-accounts` today, shipped in v0.18.0); `revenue-insights` reuses it by importing `sf_io`. The
-**Domo foundation is folded into `revenue-insights` as plain files** (`scripts/domo_io.py` +
-`references/domo-datasets.md`), not a separate skill — its only consumer is the engine. See decision 9.
+**Exactly one new *skill*; the foundations are *libraries*, not skills.** A foundation is only ever
+referenced by path (consumers read its docs and `import` its scripts) — nothing invokes it. So the rule
+is: **has a `SKILL.md` ⇒ invokable skill, listed for the user/model; no `SKILL.md` ⇒ a path-referenced
+library under `lib/`.** This work therefore adds one skill (`revenue-insights`) and two libraries
+(`lib/salesforce/`, `lib/domo/`), and **migrates the existing `salesforce-core` skill into
+`lib/salesforce/`** (drop its `SKILL.md`; the org map + `sf_io.py` stay, referenced by path as they
+already are). See decision 9.
 
 **In scope (Phase 1)**
-- A new engine skill **`revenue-insights`** containing: the Domo foundation (dataset map +
-  `domo_io.py`), the metrics canon, the recipe catalog, the per-recipe compute scripts, shared compute
-  helpers, the branded in-chat **viz kit**, and the ad-hoc fallback. Read-only.
+- **Migrate `salesforce-core` → `lib/salesforce/`** (org map + `sf_io.py`; no `SKILL.md`). Update the
+  three path references that already exist (find-accounts script shims, `conftest.py`, the
+  find-accounts `SKILL.md` read path), the two manifest description strings, and the CLAUDE.md skill
+  list. **No functional change to find-accounts** — 338 tests stay green. *(Do this first, isolated.)*
+- **New `lib/domo/` library** — the Domo foundation (`domo-datasets.md` + `domo_io.py`), sibling to
+  `lib/salesforce/`. Not a skill.
+- A new engine **skill** **`revenue-insights`** — the metrics canon, the recipe catalog, the
+  per-recipe compute scripts, shared compute helpers, the branded in-chat **viz kit**, and the ad-hoc
+  fallback. It reads `lib/salesforce/` and `lib/domo/` by path. Read-only.
 - **Four seed recipes** spanning every altitude and all three sources:
   1. **renewals-at-risk** (RevOps/CSM; SF) — rebuild the screenshot, better. *Built first* as the
      anchor that validates the viz kit against a known-good target.
@@ -67,9 +76,9 @@ deferred and governed separately.
 
 ## Decisions captured during brainstorming
 
-1. **Structure:** Approach C — engine (`revenue-insights`) + future consumers, reusing the existing
-   `salesforce-core` foundation. *(chosen over a single knowledge-rich skill and over a strict
-   recipe-only catalog.)*
+1. **Structure:** Approach C — engine (`revenue-insights`) + future consumers, on top of the shared
+   foundation libraries. *(chosen over a single knowledge-rich skill and over a strict recipe-only
+   catalog.)*
 2. **Hero deliverable:** in-chat branded **visual** first (like the screenshot); PDF/deck/`.xlsx`
    exports are on-request via `branding-guide`.
 3. **Data division:** SF = live deals · Domo = curated truth · OP = product usage. Engine picks the
@@ -80,40 +89,55 @@ deferred and governed separately.
 6. **Quota/target source:** unknown today → **discover during the live SF/Domo inventory**, record in
    the canon.
 7. **Domo probe:** read-only inventory at implementation start is approved.
-8. **Read-only**, mirroring `salesforce-core`.
-9. **Foundation placement — one new skill, not two.** A foundation earns its own root skill only when
-   it is user-invokable *or* shared by 2+ independent sibling skills. `salesforce-core` meets that
-   (used by `find-accounts` today, shipped) → stays a root skill; `revenue-insights` imports `sf_io`
-   from it. The Domo foundation has exactly one consumer (the engine) → **folded into
-   `revenue-insights` as plain files**, not a `domo-core` skill. Extract to a standalone `domo-core`
-   skill later *iff* a second, non-revenue-insights consumer needs Domo directly (a mechanical move:
-   relocate the two files + add a SKILL.md + a `conftest.py` sys.path line).
+8. **Read-only**, mirroring the `lib/salesforce` posture.
+9. **Foundations are libraries, not skills.** Nothing ever *invokes* a foundation — consumers read its
+   docs and `import` its scripts by path (verified: the find-accounts↔salesforce-core dependency is
+   100% path-based; only the `SKILL.md` manifest made it appear in the invokable list). So foundations
+   live under **`lib/`** with **no `SKILL.md`**, and `salesforce-core` is **migrated** from a skill into
+   `lib/salesforce/`. Rule: *`SKILL.md` ⇒ invokable skill; no `SKILL.md` ⇒ path-referenced library.*
+   *(chosen over keeping the cores as library-skills under `skills/`, and over folding Domo inside
+   `revenue-insights`; a dedicated `lib/` makes "not a skill" self-evident and keeps the two cores
+   symmetric.)*
 
 ## Design
 
-### A. Domo foundation (folded into `revenue-insights`)
+### A. The foundation libraries (`lib/salesforce/`, `lib/domo/`)
 
-Not a separate skill — plain files inside `revenue-insights`, structured like the `salesforce-core`
-artifacts they mirror:
+Two path-referenced libraries under `observepoint-revenue/lib/` — **neither is a skill** (no
+`SKILL.md`). Symmetric structure: a canonical reference map + a deterministic IO digester each.
 
-1. **`references/domo-datasets.md`** — the canonical, human-readable map: the Domo datasets/columns
-   this plugin reads, the **named `DomoSqlQueryTool` queries** recipes run, which metric each dataset
-   is *authoritative* for, refresh cadence/hygiene caveats, and the read-only rule. Authored from a
-   live, read-only probe (`SearchTool` to inventory datasets, a few sample `DomoSqlQueryTool` /
+**A1. `lib/salesforce/` — migrated from the `salesforce-core` skill.** Move `salesforce-org.md` and
+`sf_io.py` here; **delete the `SKILL.md`** (its dev-orientation content can survive as a short
+`README.md`). Update the existing path references — find-accounts' two script shims
+(`parents[2] / "salesforce-core" / "scripts"`), `conftest.py` (`skills/salesforce-core/scripts`), and
+find-accounts' `SKILL.md` read path (`${CLAUDE_PLUGIN_ROOT}/skills/salesforce-core/...`) — to the new
+`lib/salesforce/` location. Also drop salesforce-core from the `plugin.json` / `marketplace.json`
+description strings and the CLAUDE.md skill list (it's a library now, not one of the skills). Behavior
+unchanged; 338 tests stay green. **Done first, as an isolated migration commit.**
+
+**A2. `lib/domo/` — new.** Mirrors A1's shape:
+1. **`domo-datasets.md`** — the canonical, human-readable map: the Domo datasets/columns this plugin
+   reads, the **named `DomoSqlQueryTool` queries** recipes run, which metric each dataset is
+   *authoritative* for, refresh cadence/hygiene caveats, and the read-only rule. Authored from a live,
+   read-only probe (`SearchTool` to inventory datasets, a few sample `DomoSqlQueryTool` /
    `FileSetQueryTool` reads to confirm columns). When Domo changes, this file changes.
-2. **`scripts/domo_io.py`** — deterministic helpers that *parse, shape-check, coerce* the JSON the
-   Domo MCP returns. Never calls Domo. Initial functions:
+2. **`domo_io.py`** — deterministic helpers that *parse, shape-check, coerce* the JSON the Domo MCP
+   returns. Never calls Domo. Initial functions:
    - `parse_query_result(mcp_result)` → list of row dicts; validates the result envelope, raises on
      known error shapes so callers fall back cleanly.
    - type coercion (numeric/date) + null handling for downstream compute.
 
-`tests/conftest.py` already puts `salesforce-core/scripts` on `sys.path` (for `sf_io`) and will add
-`revenue-insights/scripts` (for `domo_io` + the recipe scripts). No separate `domo-core` path.
+**Wiring.** `tests/conftest.py` lists `lib/salesforce` and `lib/domo` (replacing the old
+`skills/salesforce-core/scripts` entry) so tests `import sf_io` / `import domo_io`. Consuming skills
+add the same dirs via their relative-path shims (e.g. `parents[3] / "lib" / "domo"` from a skill's
+`scripts/` dir).
 
 ### B. `revenue-insights` (the engine)
 
-A new skill `observepoint-revenue/skills/revenue-insights/`. It **reuses `salesforce-core`** (imports
-`sf_io`, reads `salesforce-org.md` for SF queries) and **houses the Domo foundation from section A**.
+A new skill `observepoint-revenue/skills/revenue-insights/`. It **reads both libraries by path**
+(imports `sf_io` from `lib/salesforce` and `domo_io` from `lib/domo`; reads `salesforce-org.md` and
+`domo-datasets.md` for the queries it runs). It contains only engine-specific artifacts (canon, recipe
+catalog, compute scripts, viz kit) — the foundations stay in `lib/`.
 
 **B1. `references/metrics-canon.md` — the encoded judgment.**
 The world-class core. For each metric: its **definition/formula**, its **canonical source** (SF /
@@ -155,7 +179,8 @@ via `brand_kit` — never hardcoded.** Takes a recipe's structured result, emits
 ### C. Request flow (the shared spine)
 
 1. **Classify** — Claude maps the ask → altitude + recipe (or ad-hoc) + sources + parameters
-   (period, segment, territory). Territory/segment resolution **reuses `salesforce-core`**.
+   (period, segment, territory). Territory/segment resolution **reuses `lib/salesforce`**
+   (the same `resolve_territory`/`sf_io` path find-accounts uses).
 2. **Gather** — Claude runs the queries via MCP: SF `soqlQuery`/`find`, Domo `DomoSqlQueryTool`,
    OP usage tools.
 3. **Compute** — the recipe script (or the generic helper) digests the JSON and computes every number.
@@ -190,7 +215,7 @@ skills. Representative analyses (seeds in **bold**):
 ### F. Testing
 
 Every compute script + `viz_kit` is tested against **fixture MCP JSON** (captured SF/Domo/OP
-responses) — **no live source in the test suite**, mirroring `salesforce-core`. Fixtures include:
+responses) — **no live source in the test suite**, mirroring the `lib/salesforce` tests. Fixtures include:
 - renewals-at-risk: mixed-currency (USD + GBP), mixed health (incl. the "Green but flagged WNR"
   edge), in-window vs out-of-window close dates.
 - pipeline-coverage: coverage ratio math, forecast-category splits, a missing-quota case.
@@ -217,8 +242,6 @@ responses) — **no live source in the test suite**, mirroring `salesforce-core`
 - **Phase 2 — CS consumers:** customer review builder, expansion-signal radar, and consumption-pacing
   monitor refactor to call engine recipes + add their packaging, instead of three separate analytics
   builds.
-- **`domo-core` extraction** — promote the Domo foundation (section A) into its own root skill *iff*
-  a second consumer outside `revenue-insights` needs Domo directly. Mechanical when the day comes.
 - **Scheduled delivery** of recurring reports via the `scheduled-tasks` MCP.
 - **Write-back** (e.g., pushing a computed health/forecast annotation to SF) — deferred and gated on
   the same rev-ops owned-custom-fields governance contract as the other SF write items.
