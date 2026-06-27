@@ -24,3 +24,6 @@ The encoded methodology so every report computes a metric the same way. The MODE
   undetermined bucket, so they carry no undetermined weight.
 - **Auto-caveat:** any Will-Not-Renew row whose joined health is Green is flagged "verify"
   (status/health contradiction).
+- **Known limitation:** `health_token` matches a color word by substring (the documented
+  `account_health_score` is a clean 5-state color string). If that field ever carries free-text
+  status phrases, tighten the match to whole words — it's the join helper recipes reuse.

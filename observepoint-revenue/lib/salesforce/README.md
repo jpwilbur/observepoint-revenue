@@ -24,6 +24,6 @@ on a rev-ops owned-custom-fields governance contract; they will arrive as payloa
   relative-path shim (`parents[3] / "lib" / "salesforce"`).
 
 ## Using it from another skill
-1. Read `references/salesforce-org.md` for the query you need.
+1. Read `salesforce-org.md` for the query you need.
 2. Have the model run that query via the Salesforce MCP (`soqlQuery` / `find` / `getUserInfo`).
 3. Pass the returned JSON to the consuming skill's script, which uses `sf_io` to digest it.
