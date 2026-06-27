@@ -1,0 +1,50 @@
+{
+  "totalSize": 4,
+  "done": true,
+  "records": [
+    {
+      "attributes": {"type": "Subscription__c"},
+      "Account__r": {"Name": "Acme Corp"},
+      "Page_Scans_per_Month__c": 1000000,
+      "Limit_Type__c": "Monthly",
+      "Status__c": "Active",
+      "App_Id__c": "acme-001",
+      "Subscription_Start_Date__c": "2026-01-01",
+      "Subscription_End_Date__c": "2026-12-31",
+      "CurrencyIsoCode": "USD"
+    },
+    {
+      "attributes": {"type": "Subscription__c"},
+      "Account__r": {"Name": "Globex"},
+      "Page_Scans_per_Month__c": 500000,
+      "Limit_Type__c": "Monthly",
+      "Status__c": "Active",
+      "App_Id__c": "globex-002",
+      "Subscription_Start_Date__c": "2026-01-01",
+      "Subscription_End_Date__c": "2026-12-31",
+      "CurrencyIsoCode": "USD"
+    },
+    {
+      "attributes": {"type": "Subscription__c"},
+      "Account__r": {"Name": "Initech"},
+      "Page_Scans_per_Month__c": 200000,
+      "Limit_Type__c": "Monthly",
+      "Status__c": "Active",
+      "App_Id__c": "initech-003",
+      "Subscription_Start_Date__c": "2026-01-01",
+      "Subscription_End_Date__c": "2026-12-31",
+      "CurrencyIsoCode": "GBP"
+    },
+    {
+      "attributes": {"type": "Subscription__c"},
+      "Account__r": {"Name": "OldCo"},
+      "Page_Scans_per_Month__c": 100000,
+      "Limit_Type__c": "Yearly",
+      "Status__c": "Expired",
+      "App_Id__c": "oldco-004",
+      "Subscription_Start_Date__c": "2025-01-01",
+      "Subscription_End_Date__c": "2025-12-31",
+      "CurrencyIsoCode": "USD"
+    }
+  ]
+}

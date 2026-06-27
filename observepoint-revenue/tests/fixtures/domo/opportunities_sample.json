@@ -1,0 +1,5 @@
+[
+  {"amount": 45000.0, "CloseDate": "2026-07-15", "Type": "New Business", "Acquisition_Segment__c": "Sales", "IsWon": "false", "isSQO": 1},
+  {"amount": 0.0, "CloseDate": "2026-06-30", "Type": "New Business", "Acquisition_Segment__c": "Sales", "IsWon": "false", "isSQO": 1},
+  {"amount": 16535.0, "CloseDate": "2026-05-20", "Type": "Existing Business", "Acquisition_Segment__c": "Sales", "IsWon": "true", "isSQO": 1}
+]

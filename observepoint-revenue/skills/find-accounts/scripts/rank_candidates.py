@@ -162,9 +162,10 @@ def rank(data, config, seen=None, include_seen=False):
 
 
 RADAR_HEADERS = ["Rank", "Company", "Vertical", "Trigger", "Trigger date", "Why now",
-                 "Source", "First seen", "Pursue?", "Notes"]
+                 "Source", "First seen", "In SF?", "Pursue?", "Notes"]
 RADAR_WIDTHS = {"Rank": 6, "Company": 30, "Vertical": 20, "Trigger": 36, "Trigger date": 12,
-                "Why now": 60, "Source": 44, "First seen": 12, "Pursue?": 10, "Notes": 30}
+                "Why now": 60, "Source": 44, "First seen": 12, "In SF?": 28, "Pursue?": 10,
+                "Notes": 30}
 DARK = "1E1E1E"
 
 
@@ -183,9 +184,12 @@ def build_radar(ranked):
         c.alignment = Alignment(horizontal="left", vertical="center")
         ws.column_dimensions[get_column_letter(i)].width = RADAR_WIDTHS[h]
     for i, e in enumerate(ranked, 1):
+        sf = e.get("sf_status")
+        sf_cell = (f"owner: {sf.get('owner') or 'another rep'}, type: {sf.get('type') or '?'}"
+                   if sf else "")
         ws.append([i, e.get("name", ""), e.get("vertical", ""), e.get("triggerLabel", ""),
                    e.get("triggerDate", ""), e.get("reason", ""), e.get("sourceUrl", ""),
-                   e.get("firstSeen", ""), "", ""])
+                   e.get("firstSeen", ""), sf_cell, "", ""])
         src = ws.cell(row=ws.max_row, column=7)
         src.hyperlink = e.get("sourceUrl", "")
         src.font = Font(color="0563C1", underline="single")  # explicit (avoid named-style dependency)
@@ -204,6 +208,12 @@ def render_chat(ranked, dropped):
                          "— deprioritized; verify it's worth pursuing")
         lines.append(f"   {e.get('reason', '')}")
         lines.append(f"   {e.get('sourceUrl', '')}")
+        sf = e.get("sf_status")
+        if sf:
+            owner = sf.get("owner") or "another rep"
+            atype = sf.get("type") or "unknown type"
+            lines.append(f"   ⓘ already in SF — owner: {owner}, type: {atype} "
+                         "(not yours — confirm before pursuing)")
     if dropped:
         lines.append("")
         lines.append(f"Excluded {dropped} previously-seen candidate(s) — "

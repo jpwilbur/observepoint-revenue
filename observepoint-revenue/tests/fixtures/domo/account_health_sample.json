@@ -1,0 +1,8 @@
+[
+  {"account_name": "Acme Corp", "account_health_score": "Green", "days_in_current_health": 120},
+  {"account_name": "Stark Industries", "account_health_score": "Blue", "days_in_current_health": 30},
+  {"account_name": "Globex", "account_health_score": "Yellow", "days_in_current_health": 45},
+  {"account_name": "Initech", "account_health_score": "Green", "days_in_current_health": 200},
+  {"account_name": "Umbrella", "account_health_score": "Red", "days_in_current_health": 60},
+  {"account_name": "Soylent", "account_health_score": "Yellow", "days_in_current_health": 15}
+]

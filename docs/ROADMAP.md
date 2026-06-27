@@ -1,7 +1,8 @@
 # observepoint-revenue — roadmap / backlog
 
 A living backlog for the revenue-team plugin. Tags: **[you]** requested by Jarrod ·
-**[deferred]** explicitly punted earlier · **[idea]** suggestion. Check items off as they ship.
+**[deferred]** explicitly punted earlier · **[idea]** suggestion · **[next]** queued in the Active
+sequence · **[in design]** spec in progress. Check items off as they ship.
 
 **Shipped so far (5 skills):** `find-accounts` → territory discovery (in-territory triggered prospects, ranked, seen-log dedup); `owned-properties` → domain-footprint discovery (crt.sh + WHOIS + web research →
 confirmable `.xlsx` + confirmed domains printed for scoping); `scope-calculator` → the single scope/price tool (3 internal stages: derive page count → size usage → price → proposal `.docx` + evidence `.xlsx`); `research-account` → dark NERD-styled
@@ -14,6 +15,26 @@ HTML→PDF dossier; `branding-guide` → ObservePoint brand authority, branded d
 > **v0.11.0 — census-pricing post-mortem fixes.** (1) `build_proposal` page-count display rounded to the nearest 1,000, which read "approximately 0 pages" for a ~80-page prospect and collapsed 4,722 & 5,398 both to "5,000" — replaced with 2-sig-fig rounding (`_round_sig`) matching the methodology. (2) New `check_artifacts.py` + a **required pre-quote gate**: in-path `%22`/doubled-slash crawler junk defeats the spiral gate (it inflates URLs and paths equally), so a ~80-page census read as 306 (~4× over-scope); the tell is `patterns ≪ raw_urls` at url/path ratio ~1. 120 tests. MCP-side counterparts are catalogued in `docs/mcp-issues-from-census-pricing-postmortem.md` (for the OP_MCP repo).
 
 ---
+
+## 🔜 Active sequence — Salesforce MCP unlock (decided 2026-06-25)
+The Salesforce MCP is now connected, unblocking items long deferred on "needs a SF connector."
+Agreed build order — **CSMs are ahead of sales on adoption, so CS tooling is bumped up**:
+1. **SF access foundation + find-accounts territory** — *shipped in v0.18.0.* A shared, read-first
+   Salesforce access layer (query/read + a write-payload discipline, match-before-write upsert, and
+   an owned-custom-fields governance contract with rev ops). Its first consumer replaces
+   find-accounts' `territory.md` with a live SF-derived territory **and** an overlap-guard exclusion
+   list (never surface a name already owned / in pipeline). Honors the architecture principle: a
+   script runs the SOQL and emits the boundary + exclusions; the model still judges fit/triggers.
+2. **Customer review builder (CSM, on-demand)** — top priority after the foundation. See CS section.
+3. **expansion-signal radar** — alongside the review builder; see CS section.
+4. **research-account → SF write-back** — quick follow; first real exercise of the write discipline.
+5. **scope-calculator page-estimate field** — trivial write extension; gated on a rev-ops field def.
+
+> **Architecture guardrail for everything SF/reporting:** scripts pull and compute every number
+> (SOQL, roll-ups, deltas, pacing); Claude reads the computed result and judges/narrates — never does
+> the arithmetic and never holds state. Writes go through a deterministic payload builder; the model
+> only relays it through the MCP. Write **only** namespaced custom fields we own — never core
+> AE/CSM-owned fields — sandbox-first, idempotent, with a dry-run mode.
 
 ## ✅ Recently shipped
 - [x] **branding-guide (brand authority + document maker + brand checker)** — single source of
@@ -46,21 +67,29 @@ HTML→PDF dossier; `branding-guide` → ObservePoint brand authority, branded d
   scope-calculator wraps its sub-skills).
 
 ## Customer success / renewal / expansion
-- [ ] **QBR preparation** **[you]** — aggregate known customer context → an executive-summary report
-  for the decision-maker + an account-planning view for the CSM. Pulls ObservePoint account
-  health/usage/config (have it) + emails (Gmail) + Gong/AskElephant notes. **Crux: data ingestion** —
-  no Gong/AskElephant/Salesforce connector attached today, so v1 ≈ ObservePoint + Gmail + pasted/
-  exported call notes; real connectors are a follow-on.
+- [ ] **customer review builder (CSM, on-demand)** **[you] [next]** — *reframed from "QBR prep":
+  cadence is NOT the point.* Whenever a CSM wants to start a review with their customer, quickly
+  gather + assemble the resources so their prep is done for them — an executive-summary for the
+  customer's decision-maker + an account-planning view for the CSM. Sources: **ObservePoint account
+  data** (health/usage/config — have it) + **Salesforce** (account, contract, opps, history — now
+  connected) + **Gong** and **AskElephant** call intel (CSMs use both) + **"win stories"** +
+  optionally Gmail. **Data-ingestion status:** SF ✓ live; Gong + AskElephant connectors NOT attached
+  yet → graceful-degradation v1 = ObservePoint + Salesforce (+ pasted/exported call notes & win
+  stories), with Gong/AskElephant as fast-follow connectors. Reuses branding-guide for the
+  deliverable; scripts compute, Claude narrates.
+- [ ] **expansion-signal radar** **[idea] [next]** — run the trigger engine against *existing
+  customers* (new lawsuit, new exec, new site) → warm expansion plays. Reuses research-account's
+  trigger logic, now cross-referenced with **SF contract/usage** to prioritize by account value and
+  whitespace. Pairs with the review builder.
 - [ ] **consumption pacing monitor** **[idea]** — track a customer's page-scans vs. contract; flag
-  over-pacing (expansion) / under-pacing (churn risk). Pure ObservePoint usage data.
-- [ ] **expansion-signal radar** **[idea]** — run the trigger engine against *existing customers*
-  (new lawsuit, new exec, new site) → warm expansion plays. Reuses research-account's trigger logic.
+  over-pacing (expansion) / under-pacing (churn risk). Pure ObservePoint usage data; SF contract
+  terms sharpen the "vs. contract" baseline.
 
 ## Platform / integrations
 - [ ] **`sample_site_census_pages` MCP tool** **[deferred]** — spec'd in
   `docs/mcp-sample-pages-tool-spec.md`; build in the MCP server repo for zero-context sample-page
   retrieval.
-- [ ] **Salesforce sync** **[deferred]** — overlap-guard + write-back (NERD had it). Needs a SF connector.
+- [ ] **Salesforce sync** **[partial — read shipped]** — read foundation + territory shipped in v0.18.0 (salesforce-core: org map + sf_io, resolve_territory, classify_overlap; find-accounts territory live). Write-back (research-account → SF) still pending. (NERD had this.)
 - [ ] **journeys as a 2nd usage meter** in scope-calculator **[deferred]**.
 
 ## Hygiene / polish

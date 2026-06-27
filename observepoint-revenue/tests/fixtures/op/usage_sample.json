@@ -1,0 +1,5 @@
+{
+  "Acme Corp": "═══ Account Usage Overview ═══\nAudit Pages: 600,000 pages used (no contract limit)\n  Contract: 2026-01-01 → 2026-12-31\nJourney Runs: 12 runs used (no contract limit)\nOverages: Allowed",
+  "Globex": "═══ Account Usage Overview ═══\nAudit Pages: 180,000 pages used (limit 500,000)\n  Contract: 2026-01-01 → 2026-12-31\nJourney Runs: 0 runs used (no contract limit)\nOverages: Not Allowed",
+  "Initech": "═══ Account Usage Overview ═══\nAudit Pages: 95,000 pages used (limit 200,000)\n  Contract: 2026-01-01 → 2026-12-31\nJourney Runs: 3 runs used (no contract limit)\nOverages: Allowed"
+}

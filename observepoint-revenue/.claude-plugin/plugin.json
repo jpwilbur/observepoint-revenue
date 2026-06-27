@@ -1,9 +1,9 @@
 {
   "name": "observepoint-revenue",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "author": {
     "name": "Jarrod Wilbur",
     "email": "jarrod.wilbur@observepoint.com"
   },
-  "description": "ObservePoint revenue-team tooling: find-accounts (surface ranked in-territory prospects), research-account (qualify a prospect into a scored ICP dossier), owned-properties (discover an org's web properties for scoping), scope-calculator (page count to usage to live price to proposal + evidence workbook), branding-guide (ObservePoint brand source of truth, branded-doc maker, brand checker, live-site drift check), and op-mcp-post-mortem (report & remediate OP MCP server defects)."
+  "description": "ObservePoint revenue-team tooling: find-accounts (ranked in-territory prospects), research-account (scored ICP dossier), owned-properties (discover an org's web properties), scope-calculator (page count to live price to proposal + evidence workbook), branding-guide (brand source of truth, doc maker, checker, drift watch), and op-mcp-post-mortem (report & remediate OP MCP defects)."
 }

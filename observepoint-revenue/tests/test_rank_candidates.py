@@ -190,13 +190,14 @@ def test_xlsx_radar_columns_hyperlink_fillable(tmp_path):
     ws = wb["Discovery radar"]
     hdr = [c.value for c in ws[1]]
     assert hdr == ["Rank", "Company", "Vertical", "Trigger", "Trigger date", "Why now",
-                   "Source", "First seen", "Pursue?", "Notes"]
+                   "Source", "First seen", "In SF?", "Pursue?", "Notes"]
     assert ws.cell(row=2, column=1).value == 1
     assert ws.cell(row=2, column=2).value == "Alpha Co"
     src = ws.cell(row=2, column=7)
     assert src.hyperlink is not None and src.hyperlink.target == "https://example.org/x"
-    assert ws.cell(row=2, column=9).value in (None, "")    # Pursue? fillable
-    assert ws.cell(row=2, column=10).value in (None, "")   # Notes fillable
+    assert ws.cell(row=2, column=9).value in (None, "")     # In SF? blank for a no-status candidate
+    assert ws.cell(row=2, column=10).value in (None, "")    # Pursue? fillable (was col 9)
+    assert ws.cell(row=2, column=11).value in (None, "")    # Notes fillable (was col 10)
 
 
 def test_xlsx_rows_follow_rank_order(tmp_path):
@@ -334,3 +335,33 @@ def test_cli_missing_config_path_friendly_error(tmp_path):
     assert "scoring-config" in res.stderr
     assert "Traceback" not in res.stderr
     assert str(bogus) in res.stderr
+
+
+# ── Task: SF overlap status display ──────────────────────────────────────────
+
+def test_sf_status_flag_carried_and_shown_in_chat():
+    c = _cand("Rival Co")
+    c["sf_status"] = {"owner": "Pat Other", "type": "Prospect"}
+    ranked, dropped, _ = rc.rank(_data([c]), CONFIG)
+    assert ranked[0]["sf_status"] == {"owner": "Pat Other", "type": "Prospect"}
+    chat = rc.render_chat(ranked, dropped)
+    assert "already in SF" in chat and "Pat Other" in chat and "Prospect" in chat
+
+
+def test_no_sf_status_means_no_sf_chat_line():
+    ranked, dropped, _ = rc.rank(_data([_cand("Clean Co")]), CONFIG)
+    assert "already in SF" not in rc.render_chat(ranked, dropped)
+
+
+def test_xlsx_in_sf_column_present_and_filled(tmp_path):
+    from openpyxl import load_workbook
+    c = _cand("Rival Co")
+    c["sf_status"] = {"owner": "Pat Other", "type": "Prospect"}
+    out = tmp_path / "radar.xlsx"
+    res = _run_cli(tmp_path, _data([c]), "--xlsx", str(out))
+    assert res.returncode == 0, res.stderr
+    ws = load_workbook(out)["Discovery radar"]
+    hdr = [cell.value for cell in ws[1]]
+    assert hdr == ["Rank", "Company", "Vertical", "Trigger", "Trigger date", "Why now",
+                   "Source", "First seen", "In SF?", "Pursue?", "Notes"]
+    assert "Pat Other" in (ws.cell(row=2, column=9).value or "")     # In SF? populated
