@@ -14,5 +14,6 @@ for rel in (
     "skills/find-accounts/scripts",
     "skills/branding-guide/scripts",
     "skills/op-mcp-post-mortem/scripts",
+    "skills/revenue-insights/scripts",
 ):
     sys.path.insert(0, str(ROOT / rel))
