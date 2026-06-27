@@ -7,6 +7,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent  # observepoint-revenue/
 for rel in (
     "lib/salesforce",
+    "lib/domo",
     "skills/scope-calculator/scripts",
     "skills/research-account/scripts",
     "skills/owned-properties/scripts",
