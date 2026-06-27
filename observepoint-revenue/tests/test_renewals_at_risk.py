@@ -78,3 +78,22 @@ def test_health_by_account_and_join():
     joined = rar.join_health(sf_rows, hmap)
     assert joined[0]["health"] == "green"
     assert joined[1]["health"] is None   # no Domo health for this account
+
+
+import json
+import pathlib
+
+FIX = pathlib.Path(__file__).parent / "fixtures"
+
+
+def test_end_to_end_render_from_sf_and_domo_fixtures():
+    sf = json.loads((FIX / "sf" / "renewals_sample.json").read_text())
+    health = json.loads((FIX / "domo" / "account_health_sample.json").read_text())
+    result = rar.compute(sf, health, today_iso="2026-06-26")
+    out = rar.render(result)
+    assert "Renewals at Risk" in out
+    assert "Will Not Renew" in out and "Undetermined" in out
+    assert "var(--op-bg)" in out                      # branded page
+    assert "despite a Green health score" in out      # caveat fired from the joined-health edge row
+    # Domo health joined onto an SF row drives risk-weighting (Umbrella Undetermined+Red = 0.25)
+    assert result["summary"]["undetermined"]["risk_weighted"].get("USD") == 65500.0 * 0.25
