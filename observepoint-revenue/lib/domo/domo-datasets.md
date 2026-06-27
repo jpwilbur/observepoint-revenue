@@ -105,6 +105,12 @@ intended shape (synthetic) once a real source is wired.
 rather than erroring on unknown columns — always confirm returned VALUES look right, not just that
 columns came back named as asked.
 
+**Lead (2026-06-26):** the rep identified **`Health_Score__c`** as the health field visible in Domo,
+but its origin is still being traced (rep + rev-ops, offline). It is NOT on SF `Opportunity`/`Account`
+(both schemas checked). When its source dataset/column is confirmed, wire it as the recipe's health
+join (query that column by its real name; map its value → a color token via `health_token`, or apply
+the documented banding) and update this section + the `health_by_account` source.
+
 ## Named queries (phrase to route to the right dataset)
 
 - **ARR/NRR bridge (current fiscal quarter):**
