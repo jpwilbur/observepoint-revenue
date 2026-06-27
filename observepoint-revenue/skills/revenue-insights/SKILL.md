@@ -23,14 +23,14 @@ and render the branded visual. No LLM math, no LLM-held state. Read-only.**
 
 ## Recipe: renewals-at-risk
 1. Read `${CLAUDE_PLUGIN_ROOT}/lib/salesforce/salesforce-org.md` ("Renewals") → run the renewal
-   SOQL via `soqlQuery`; save to `<renewals.json>`. **Health is not in SF.**
-2. Read `${CLAUDE_PLUGIN_ROOT}/lib/domo/domo-datasets.md` ("Account health") → run the health query
-   via `DomoSqlQueryTool` (name the columns so it routes correctly); save to `<health.json>`.
-3. `python3 ${CLAUDE_PLUGIN_ROOT}/skills/revenue-insights/scripts/renewals_at_risk.py <renewals.json>
-   --health <health.json> --today <YYYY-MM-DD>
+   SOQL via `soqlQuery` (the query now includes `Account.Health_Score__c`); save to `<renewals.json>`.
+2. `python3 ${CLAUDE_PLUGIN_ROOT}/skills/revenue-insights/scripts/renewals_at_risk.py <renewals.json>
+   --today <YYYY-MM-DD>
    --out "~/Documents/ObservePoint Revenue/revenue-insights/renewals-at-risk-<date>.html"`
-   (the script joins SF renewals + Domo health on account name and computes every number).
-4. Show the HTML; narrate the caveats it computed. Methodology: `references/metrics-canon.md`.
+   (the script extracts health from `Account.Health_Score__c` and computes every number).
+3. Show the HTML; narrate the caveats it computed. Methodology: `references/metrics-canon.md`.
+   **⚠️ `Account.Health_Score__c` requires field-level Read (rev-ops must grant it); until granted,
+   health will be `None` and Undetermined rows carry no risk-weighting.**
 
 See `references/recipe-catalog.md` for the authoritative index of all recipes (renewals-at-risk, arr-nrr-bridge, pipeline-coverage, consumption-pacing) with their run commands.
 

@@ -73,43 +73,29 @@ by path (no `SKILL.md`). Discovered live, read-only, 2026-06-26.
 `isSQO`. **NOT yet confirmed** (the NL tool didn't surface them on the probe — confirm in Plan 3 via
 a column-named question): stage name, forecast category, owner, account name, currency.
 
-## Account health (the renewals-recipe health join)
+## Account health (renewals recipe — SUPERSEDED)
 
-The renewal report's **Green/Yellow/Red/Black/Blue** health is a **Domo** field (not SF, no Gainsight
-in the org). Source columns (from the production health Beast Mode):
-- `account_name` — join key to SF `Account.Name`.
-- `account_health_score` — **string containing the color word** (matched case-insensitively, e.g.
-  `LIKE '%green%'`); five states: **green, yellow, red, black, blue**.
-- `days_in_current_health` — integer, how long in the current band.
+**The renewals recipe no longer sources health from Domo.** The real health field is
+**`Account.Health_Score__c`** on the SF `Account` object — a restricted picklist populated by
+ChurnZero: `1- Black / 2- Red / 3- Yellow / 4- Blue / 5- Green`. The recipe reads it in the
+single renewal SOQL gather and normalizes it via `health_token`. No Domo join is needed.
 
-Domo's own presentation colors (for reference only — **our in-chat viz uses brand tokens, not these**):
-black `#333333`, red `#d40000`, yellow `#f2cd14`, blue `#0055d4`, green `#5aa02c`. The
-`revenue-insights` viz kit maps the five states to **brand** colors via `brand_kit`
-(green→semantic success, red→semantic alert, yellow→brand_yellow, blue→semantic link, black→muted).
-
-**⚠️ Health is a card-level Beast Mode, NOT a queryable column (found in the 2026-06-26 live smoke
-test).** The `account_health_score` / `days_in_current_health` fields the production health Beast Mode
-references live on the **"Master - Renewal Opportunities" card** (dataset `789f9dcd-e5c0-4c59-8c09-82b6eb0e3aa7`),
-which is a raw ~100-column Opportunity dump with **no stored `account_health_score` column** — those are
+**Why the Domo path was a dead end (2026-06-26 smoke test):** The `account_health_score` /
+`days_in_current_health` fields the production health Beast Mode references live on the **"Master -
+Renewal Opportunities" card** (dataset `789f9dcd-e5c0-4c59-8c09-82b6eb0e3aa7`), which is a raw
+~100-column Opportunity dump with **no stored `account_health_score` column** — those are
 themselves derived Beast Modes computed in the card layer. **The Domo SQL MCP (`DomoSqlQueryTool`)
 cannot read card Beast Modes**, and worse, when asked for a non-existent column name it **silently
-aliases the name onto a wrong source column** (it returned `AccountId` as `account_name` and `Amount` as
-`account_health_score`, yielding a 0/77 health-join). So the renewals recipe's health source is **TBD —
-pick one:** (a) the raw column(s) `account_health_score` derives from (then the recipe computes the
-color band deterministically), (b) a different Domo dataset that stores health as a real column, or
-(c) the OP platform `get_account_health`. Until resolved, the recipe renders real buckets + ARR with
-`health = None` (no risk-weighting). Fixture `tests/fixtures/domo/account_health_sample.json` is the
-intended shape (synthetic) once a real source is wired.
+aliases the name onto a wrong source column** (it returned `AccountId` as `account_name` and
+`Amount` as `account_health_score`, yielding a 0/77 health-join). The "Master - Renewal
+Opportunities" card Beast Mode was a red herring.
 
-**Domo SQL MCP caveat (general):** it aliases requested column names onto best-guess source columns
-rather than erroring on unknown columns — always confirm returned VALUES look right, not just that
-columns came back named as asked.
+**Domo SQL MCP caveat (general — still valid):** it aliases requested column names onto best-guess
+source columns rather than erroring on unknown columns — always confirm returned VALUES look right,
+not just that columns came back named as asked.
 
-**Lead (2026-06-26):** the rep identified **`Health_Score__c`** as the health field visible in Domo,
-but its origin is still being traced (rep + rev-ops, offline). It is NOT on SF `Opportunity`/`Account`
-(both schemas checked). When its source dataset/column is confirmed, wire it as the recipe's health
-join (query that column by its real name; map its value → a color token via `health_token`, or apply
-the documented banding) and update this section + the `health_by_account` source.
+The fixture `tests/fixtures/domo/account_health_sample.json` is no longer referenced by any
+recipe test and can be treated as an archived reference.
 
 ## Named queries (phrase to route to the right dataset)
 

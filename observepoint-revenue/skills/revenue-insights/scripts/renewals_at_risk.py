@@ -1,7 +1,11 @@
-"""renewals-at-risk recipe (RevOps/CSM): SF renewal opps + Domo account health -> bucketed
-at-risk view. The MODEL runs the renewal SOQL (lib/salesforce/salesforce-org.md) and the Domo
-health query (lib/domo/domo-datasets.md "Account health"); this script joins them and computes
-every number. No SF/Domo calls, no model math."""
+"""renewals-at-risk recipe (RevOps/CSM): SF renewal opps (including Account.Health_Score__c)
+-> bucketed at-risk view. The MODEL runs the renewal SOQL (lib/salesforce/salesforce-org.md);
+this script digests the JSON and computes every number. No SF calls, no model math.
+
+Health source: Account.Health_Score__c — restricted picklist populated by ChurnZero:
+  1- Black / 2- Red / 3- Yellow / 4- Blue / 5- Green.
+  ⚠️ The connector currently lacks field-level Read on it (rev-ops must grant Read on
+  Account.Health_Score__c); build and unit-test the recipe now; wire live when access is granted."""
 import argparse
 import json
 import pathlib
@@ -9,9 +13,7 @@ import sys
 
 _HERE = pathlib.Path(__file__).resolve()
 sys.path.insert(0, str(_HERE.parents[3] / "lib" / "salesforce"))
-sys.path.insert(0, str(_HERE.parents[3] / "lib" / "domo"))
 import sf_io  # noqa: E402
-import domo_io  # noqa: E402
 import currency  # noqa: E402  (same scripts dir, on sys.path at runtime + via conftest)
 import periods  # noqa: E402
 import risk_weight  # noqa: E402
@@ -20,9 +22,10 @@ import viz_kit  # noqa: E402
 # Undetermined-bucket risk weights — see metrics-canon.md (matches the proven report).
 RENEWAL_WEIGHTS = {"red": 0.25, "yellow": 0.5}
 
-# SF renewal fields -> normalized keys (confirmed Plan 1; health is NOT here — joined from Domo).
+# SF renewal fields -> normalized keys (health comes from Account.Health_Score__c).
 DEFAULT_FIELD_MAP = {
     "account": "Account.Name",
+    "health": "Account.Health_Score__c",
     "status": "Renewal_Forecast__c",
     "arr": "Renewable_ARR__c",
     "currency": "CurrencyIsoCode",
@@ -41,13 +44,9 @@ def _get(rec, path):
     return cur
 
 
-def _norm_acct(name):
-    return str(name or "").strip().lower()
-
-
 def health_token(s):
-    """Extract the color token from a Domo account_health_score string (e.g. 'Red - At Risk'
-    -> 'red'). Returns None if no known color is present."""
+    """Extract the color token from a picklist string (e.g. '5- Green' -> 'green',
+    'Red - At Risk' -> 'red'). Returns None if no known color is present."""
     low = str(s or "").lower()
     for c in _HEALTH_COLORS:
         if c in low:
@@ -56,33 +55,19 @@ def health_token(s):
 
 
 def normalize_sf_records(records, field_map=DEFAULT_FIELD_MAP):
-    """SF renewal records -> normalized rows (account/status/arr/currency/close_date). No health."""
+    """SF renewal records -> normalized rows (account/health/status/arr/currency/close_date).
+    health is extracted from Account.Health_Score__c and normalized to a color token."""
     out = []
     for r in records:
         out.append({
             "account": _get(r, field_map["account"]),
+            "health": health_token(_get(r, field_map["health"])),
             "status": _get(r, field_map["status"]),
             "arr": _get(r, field_map["arr"]),
             "currency": _get(r, field_map["currency"]) or "USD",
             "close_date": _get(r, field_map["close_date"]),
         })
     return out
-
-
-def health_by_account(domo_health_records):
-    """Domo health rows -> {normalized account_name: color token}."""
-    out = {}
-    for r in domo_health_records:
-        acct = _norm_acct(r.get("account_name"))
-        tok = health_token(r.get("account_health_score"))
-        if acct and tok:
-            out[acct] = tok
-    return out
-
-
-def join_health(sf_rows, health_map):
-    """Add a `health` color token to each SF row from the Domo health map (None if no match)."""
-    return [{**r, "health": health_map.get(_norm_acct(r["account"]))} for r in sf_rows]
 
 
 def _bucket(status):
@@ -135,12 +120,11 @@ def compute_from_normalized(rows, *, today_iso, fy_start_month=2, weights=None):
     }
 
 
-def compute(sf_records, health_records, *, today_iso, fy_start_month=2, weights=None,
+def compute(sf_records, *, today_iso, fy_start_month=2, weights=None,
             field_map=DEFAULT_FIELD_MAP):
-    """SF renewal JSON + Domo health JSON -> the renewals-at-risk result. Joins health on account."""
-    sf_rows = normalize_sf_records(sf_io.parse_records(sf_records), field_map)
-    hmap = health_by_account(domo_io.parse_query_result(health_records))
-    rows = join_health(sf_rows, hmap)
+    """SF renewal JSON (including Account.Health_Score__c) -> the renewals-at-risk result.
+    Health is read from each SF record's Account.Health_Score__c — no Domo join needed."""
+    rows = normalize_sf_records(sf_io.parse_records(sf_records), field_map)
     return compute_from_normalized(rows, today_iso=today_iso,
                                    fy_start_month=fy_start_month, weights=weights)
 
@@ -187,18 +171,17 @@ def render(result):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="renewals-at-risk recipe -> branded HTML")
-    ap.add_argument("renewals_json", help="SF renewal SOQL result JSON")
-    ap.add_argument("--health", required=True, help="Domo account-health result JSON")
+    ap.add_argument("renewals_json",
+                    help="SF renewal SOQL result JSON (must include Account.Health_Score__c)")
     ap.add_argument("--today", required=True, help="ISO date anchoring the fiscal quarter")
     ap.add_argument("--fy-start-month", type=int, default=2)
     ap.add_argument("--out", default="renewals-at-risk.html", help="HTML output path")
     a = ap.parse_args(argv)
     sf_data = json.loads(pathlib.Path(a.renewals_json).read_text())
-    health_data = json.loads(pathlib.Path(a.health).read_text())
     try:
-        result = compute(sf_data, health_data, today_iso=a.today, fy_start_month=a.fy_start_month)
-    except (sf_io.SalesforceResultError, domo_io.DomoResultError) as e:
-        sys.exit(f"renewal/health result unusable: {e}")
+        result = compute(sf_data, today_iso=a.today, fy_start_month=a.fy_start_month)
+    except sf_io.SalesforceResultError as e:
+        sys.exit(f"renewal result unusable: {e}")
     pathlib.Path(a.out).write_text(render(result))
     print(a.out)
 

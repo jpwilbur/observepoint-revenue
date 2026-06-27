@@ -55,17 +55,17 @@ deals sit in the forecast-category ladder.
 - **Renewable ARR** = `Renewable_ARR__c` on the SF renewal Opportunity (Plan 1 schema).
 - **Forecast buckets** from `Renewal_Forecast__c`: Will Renew / Undetermined / Will Not Renew.
 - **Will Not Renew** = confirmed churn (at-risk ARR booked as lost).
-- **Account health** is NOT in SF — it is a **Domo** field `account_health_score` (string → color
-  token: green/yellow/red/blue/black), joined onto SF renewals by account name. See
-  `lib/domo/domo-datasets.md` → "Account health" and `lib/salesforce/salesforce-org.md` → "Renewals".
+- **Account health** = `Account.Health_Score__c` on the SF `Account` object — restricted picklist
+  populated by ChurnZero: `1- Black / 2- Red / 3- Yellow / 4- Blue / 5- Green`. Normalized to a
+  color token via `health_token` (e.g. `"3- Yellow"` → `"yellow"`). Read in the single renewal
+  SOQL gather — no separate Domo query or join needed. See
+  `lib/salesforce/salesforce-org.md` → "Renewals" for the named query and FLS caveat.
 - **Undetermined risk-weighting** = Renewable ARR × health weight: **Red 0.25, Yellow 0.50**
-  (the gross-renewal methodology; matches the proven report). Other states are not in the
-  undetermined bucket, so they carry no undetermined weight.
-- **Auto-caveat:** any Will-Not-Renew row whose joined health is Green is flagged "verify"
+  (the gross-renewal methodology; matches the proven report). Other states carry no weight.
+- **Auto-caveat:** any Will-Not-Renew row whose health token is `"green"` is flagged "verify"
   (status/health contradiction).
-- **Known limitation:** `health_token` matches a color word by substring (the documented
-  `account_health_score` is a clean 5-state color string). If that field ever carries free-text
-  status phrases, tighten the match to whole words — it's the join helper recipes reuse.
+- **Known limitation:** `health_token` matches a color word by substring against the known 5-value
+  picklist. If the picklist ever expands, update `_HEALTH_COLORS` in the script.
 
 ## Consumption pacing (consumption-pacing)
 

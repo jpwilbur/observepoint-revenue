@@ -59,30 +59,30 @@ Confirmed fields:
 - `CurrencyIsoCode` — picklist `['AUD','GBP','CAD','EUR','SGD','USD']` (multi-currency org →
   keep currencies separate; `currency.sum_by_currency`).
 - `CloseDate` — date; `Renewal_Date__c` — date (renewal-specific).
-- `Account.Name`, `OwnerId`/`Owner.Name`.
+- `Account.Name`, `Account.Health_Score__c`, `OwnerId`/`Owner.Name`.
 
-**Named query — renewals in a window:**
+**Account health** is **`Account.Health_Score__c`** — a restricted picklist populated by ChurnZero:
+`1- Black / 2- Red / 3- Yellow / 4- Blue / 5- Green`. Normalized to a color token via
+`health_token` (e.g. `"3- Yellow"` → `"yellow"`). **⚠️ The connector currently lacks field-level
+Read on it (rev-ops must grant Read on `Account.Health_Score__c`); confirmed via a direct SOQL
+returning INVALID_FIELD while sibling Account custom fields read fine.** The recipe and fixtures
+are built and unit-tested; wire live when access is granted.
+
+**Named query — renewals in a window (single SF gather; includes health):**
 ```sql
-SELECT Account.Name, Renewal_Forecast__c, Renewable_ARR__c, CurrencyIsoCode,
+SELECT Account.Name, Account.Health_Score__c,
+       Renewal_Forecast__c, Renewable_ARR__c, CurrencyIsoCode,
        CloseDate, Renewal_Date__c, Owner.Name
 FROM Opportunity
 WHERE Renewal_Forecast__c != null
   AND CloseDate >= :quarterStart AND CloseDate <= :quarterEnd
 ```
 
-**Health (Green/Yellow/Red/Black/Blue) is NOT a Salesforce field — it lives in Domo.** Verified:
-no color/health picklist or score on `Opportunity` or `Account` (and no Gainsight package in the
-org). Health is a **Domo** field `account_health_score` (a string containing the color word), with a
-companion `days_in_current_health`, keyed by `account_name`. See
-`lib/domo/domo-datasets.md` → "Account health". So the renewals recipe **gathers SF renewals AND
-Domo account health, then joins on account name** (deterministic, in the recipe script). The renewal
-*risk-weighting* (Undetermined: Red 0.25 / Yellow 0.50) applies that joined health — see
-`revenue-insights/references/metrics-canon.md`.
-
-**Normalized field map:** from SF: `Account.Name`→`account`, `Renewal_Forecast__c`→`status`,
-`Renewable_ARR__c`→`arr`, `CurrencyIsoCode`→`currency`, `CloseDate`→`close_date`. From Domo (joined
-on `account` == `account_name`): `account_health_score`→`health` (normalized to a color token),
-`days_in_current_health`→`days_in_health`.
+**Normalized field map** (all from SF — single query, no Domo join):
+`Account.Name`→`account`, `Account.Health_Score__c`→`health` (via `health_token`),
+`Renewal_Forecast__c`→`status`, `Renewable_ARR__c`→`arr`, `CurrencyIsoCode`→`currency`,
+`CloseDate`→`close_date`. The renewal *risk-weighting* (Undetermined: Red 0.25 / Yellow 0.50)
+uses the SF-sourced health token — see `revenue-insights/references/metrics-canon.md`.
 
 ## Contract / subscription (consumption-pacing recipe)
 

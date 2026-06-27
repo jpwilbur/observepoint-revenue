@@ -5,7 +5,7 @@ A request with no matching recipe uses the **ad-hoc fallback** (see SKILL.md).
 
 | Recipe | Altitude | Sources | Compute script | Status |
 |---|---|---|---|---|
-| renewals-at-risk | RevOps / CSM | SF renewal forecast + Domo health | `scripts/renewals_at_risk.py` | shipped |
+| renewals-at-risk | RevOps / CSM | SF renewal forecast (incl. `Account.Health_Score__c`) | `scripts/renewals_at_risk.py` | shipped |
 | pipeline-coverage | VP Sales | SF open opps + Quota__c | `scripts/pipeline_coverage.py` | shipped |
 | arr-nrr-bridge | Board / CRO | Domo | `scripts/arr_nrr_bridge.py` | shipped |
 | consumption-pacing | CSM | OP usage text + SF Subscription__c | `scripts/consumption_pacing.py` | shipped |
@@ -16,10 +16,9 @@ A request with no matching recipe uses the **ad-hoc fallback** (see SKILL.md).
 - **Viz:** 3 KPI cards (Net New ARR / NRR / GRR) + ARR bridge waterfall table.
 
 ## renewals-at-risk
-- **Queries:** the renewal SOQL in `lib/salesforce/salesforce-org.md` ("Renewals") + the account-
-  health query in `lib/domo/domo-datasets.md` ("Account health"). Save each result to JSON.
-- **Run:** `renewals_at_risk.py <renewals.json> --health <health.json> --today <ISO> [--out <path>]`
-  → branded HTML.
+- **Queries:** the renewal SOQL in `lib/salesforce/salesforce-org.md` ("Renewals") — a single SF
+  gather that now includes `Account.Health_Score__c`. Save result to JSON.
+- **Run:** `renewals_at_risk.py <renewals.json> --today <ISO> [--out <path>]` → branded HTML.
 - **Viz:** 3 KPI cards (Will Renew / Undetermined / Will Not Renew) + Will-Not-Renew table
   + Undetermined risk-weighted table + caveats footnote.
 

@@ -49,14 +49,24 @@ def test_rows_sorted_by_arr_desc():
     assert arrs == sorted(arrs, reverse=True)
 
 
-def test_normalize_sf_maps_nested_account_name_no_health():
-    # SF does NOT carry health (confirmed in Plan 1 Task 5) — normalize_sf_records omits it.
-    raw = [{"Account": {"Name": "Acme"}, "Renewal_Forecast__c": "Will Not Renew",
+def test_normalize_sf_maps_nested_account_and_health_score():
+    # SF now carries health via Account.Health_Score__c — normalize_sf_records extracts it.
+    raw = [{"Account": {"Name": "Acme", "Health_Score__c": "5- Green"},
+            "Renewal_Forecast__c": "Will Not Renew",
             "Renewable_ARR__c": 200, "CurrencyIsoCode": "GBP", "CloseDate": "2026-07-12"}]
     norm = rar.normalize_sf_records(raw)
     assert norm[0]["account"] == "Acme" and norm[0]["arr"] == 200
     assert norm[0]["currency"] == "GBP" and norm[0]["status"] == "Will Not Renew"
-    assert "health" not in norm[0] or norm[0]["health"] is None
+    assert norm[0]["health"] == "green"  # health_token normalizes "5- Green" -> "green"
+
+
+def test_normalize_sf_health_none_when_field_absent():
+    # When Health_Score__c is absent from the SF record, health should be None (not KeyError).
+    raw = [{"Account": {"Name": "Bare"}, "Renewal_Forecast__c": "Will Renew",
+            "Renewable_ARR__c": 100, "CurrencyIsoCode": "USD", "CloseDate": "2026-07-01"}]
+    norm = rar.normalize_sf_records(raw)
+    assert norm[0]["account"] == "Bare"
+    assert norm[0]["health"] is None
 
 
 def test_health_token_extracts_color_from_string():
@@ -67,33 +77,26 @@ def test_health_token_extracts_color_from_string():
     assert rar.health_token(None) is None
 
 
-def test_health_by_account_and_join():
-    domo_health = [
-        {"account_name": "Acme", "account_health_score": "Green", "days_in_current_health": 10},
-        {"account_name": "Globex", "account_health_score": "Red - At Risk", "days_in_current_health": 5},
-    ]
-    hmap = rar.health_by_account(domo_health)
-    assert hmap == {"acme": "green", "globex": "red"}
-    sf_rows = [
-        {"account": "Acme", "status": "Will Renew", "arr": 1, "currency": "USD", "close_date": "2026-07-01"},
-        {"account": "Nomatch", "status": "Undetermined", "arr": 2, "currency": "USD", "close_date": "2026-07-01"},
-    ]
-    joined = rar.join_health(sf_rows, hmap)
-    assert joined[0]["health"] == "green"
-    assert joined[1]["health"] is None   # no Domo health for this account
+def test_health_token_sf_picklist_values():
+    # Verify health_token handles the full SF picklist ("N- Color" format).
+    assert rar.health_token("1- Black") == "black"
+    assert rar.health_token("2- Red") == "red"
+    assert rar.health_token("3- Yellow") == "yellow"
+    assert rar.health_token("4- Blue") == "blue"
+    assert rar.health_token("5- Green") == "green"
 
 
 FIX = pathlib.Path(__file__).parent / "fixtures"
 
 
-def test_end_to_end_render_from_sf_and_domo_fixtures():
+def test_end_to_end_render_from_sf_fixture_only():
+    # Single SF gather — no Domo health file; health comes from Account.Health_Score__c.
     sf = json.loads((FIX / "sf" / "renewals_sample.json").read_text())
-    health = json.loads((FIX / "domo" / "account_health_sample.json").read_text())
-    result = rar.compute(sf, health, today_iso="2026-06-26")
+    result = rar.compute(sf, today_iso="2026-06-26")
     out = rar.render(result)
     assert "Renewals at Risk" in out
     assert "Will Not Renew" in out and "Undetermined" in out
     assert "var(--op-bg)" in out                      # branded page
-    assert "despite a Green health score" in out      # caveat fired from the joined-health edge row
-    # Domo health joined onto an SF row drives risk-weighting (Umbrella Undetermined+Red = 0.25)
+    assert "despite a Green health score" in out      # caveat fired from the SF-health edge row
+    # SF health on Umbrella (Red = 0.25 weight) drives risk-weighting
     assert result["summary"]["undetermined"]["risk_weighted"].get("USD") == 65500.0 * 0.25

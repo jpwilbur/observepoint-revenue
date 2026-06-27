@@ -2,11 +2,11 @@
   "totalSize": 6,
   "done": true,
   "records": [
-    {"attributes": {"type": "Opportunity"}, "Account": {"Name": "Acme Corp"}, "Renewal_Forecast__c": "Will Renew", "Renewable_ARR__c": 250000.0, "CurrencyIsoCode": "USD", "CloseDate": "2026-07-01", "Renewal_Date__c": "2026-07-01", "Owner": {"Name": "Dana Reps"}},
-    {"attributes": {"type": "Opportunity"}, "Account": {"Name": "Stark Industries"}, "Renewal_Forecast__c": "Will Renew", "Renewable_ARR__c": 120000.0, "CurrencyIsoCode": "USD", "CloseDate": "2026-06-15", "Renewal_Date__c": "2026-06-15", "Owner": {"Name": "Dana Reps"}},
-    {"attributes": {"type": "Opportunity"}, "Account": {"Name": "Globex"}, "Renewal_Forecast__c": "Will Not Renew", "Renewable_ARR__c": 37550.0, "CurrencyIsoCode": "USD", "CloseDate": "2026-07-28", "Renewal_Date__c": "2026-07-28", "Owner": {"Name": "Lee Closer"}},
-    {"attributes": {"type": "Opportunity"}, "Account": {"Name": "Initech"}, "Renewal_Forecast__c": "Will Not Renew", "Renewable_ARR__c": 1000.0, "CurrencyIsoCode": "GBP", "CloseDate": "2026-07-14", "Renewal_Date__c": "2026-07-14", "Owner": {"Name": "Lee Closer"}},
-    {"attributes": {"type": "Opportunity"}, "Account": {"Name": "Umbrella"}, "Renewal_Forecast__c": "Undetermined", "Renewable_ARR__c": 65500.0, "CurrencyIsoCode": "USD", "CloseDate": "2026-07-17", "Renewal_Date__c": "2026-07-17", "Owner": {"Name": "Dana Reps"}},
-    {"attributes": {"type": "Opportunity"}, "Account": {"Name": "Soylent"}, "Renewal_Forecast__c": "Undetermined", "Renewable_ARR__c": 65200.0, "CurrencyIsoCode": "GBP", "CloseDate": "2026-07-20", "Renewal_Date__c": "2026-07-20", "Owner": {"Name": "Dana Reps"}}
+    {"attributes": {"type": "Opportunity"}, "Account": {"Name": "Acme Corp", "Health_Score__c": "5- Green"}, "Renewal_Forecast__c": "Will Renew", "Renewable_ARR__c": 250000.0, "CurrencyIsoCode": "USD", "CloseDate": "2026-07-01", "Renewal_Date__c": "2026-07-01", "Owner": {"Name": "Dana Reps"}},
+    {"attributes": {"type": "Opportunity"}, "Account": {"Name": "Stark Industries", "Health_Score__c": "4- Blue"}, "Renewal_Forecast__c": "Will Renew", "Renewable_ARR__c": 120000.0, "CurrencyIsoCode": "USD", "CloseDate": "2026-06-15", "Renewal_Date__c": "2026-06-15", "Owner": {"Name": "Dana Reps"}},
+    {"attributes": {"type": "Opportunity"}, "Account": {"Name": "Globex", "Health_Score__c": "3- Yellow"}, "Renewal_Forecast__c": "Will Not Renew", "Renewable_ARR__c": 37550.0, "CurrencyIsoCode": "USD", "CloseDate": "2026-07-28", "Renewal_Date__c": "2026-07-28", "Owner": {"Name": "Lee Closer"}},
+    {"attributes": {"type": "Opportunity"}, "Account": {"Name": "Initech", "Health_Score__c": "5- Green"}, "Renewal_Forecast__c": "Will Not Renew", "Renewable_ARR__c": 1000.0, "CurrencyIsoCode": "GBP", "CloseDate": "2026-07-14", "Renewal_Date__c": "2026-07-14", "Owner": {"Name": "Lee Closer"}},
+    {"attributes": {"type": "Opportunity"}, "Account": {"Name": "Umbrella", "Health_Score__c": "2- Red"}, "Renewal_Forecast__c": "Undetermined", "Renewable_ARR__c": 65500.0, "CurrencyIsoCode": "USD", "CloseDate": "2026-07-17", "Renewal_Date__c": "2026-07-17", "Owner": {"Name": "Dana Reps"}},
+    {"attributes": {"type": "Opportunity"}, "Account": {"Name": "Soylent", "Health_Score__c": "3- Yellow"}, "Renewal_Forecast__c": "Undetermined", "Renewable_ARR__c": 65200.0, "CurrencyIsoCode": "GBP", "CloseDate": "2026-07-20", "Renewal_Date__c": "2026-07-20", "Owner": {"Name": "Dana Reps"}}
   ]
 }
