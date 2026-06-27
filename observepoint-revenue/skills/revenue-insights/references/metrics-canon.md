@@ -65,3 +65,21 @@ deals sit in the forecast-category ladder.
 - **Known limitation:** `health_token` matches a color word by substring (the documented
   `account_health_score` is a clean 5-state color string). If that field ever carries free-text
   status phrases, tighten the match to whole words — it's the join helper recipes reuse.
+
+## Consumption pacing (consumption-pacing)
+
+The CSM-altitude view: is each account consuming its OP page-scan allowance at the expected
+rate given how far through its contract window it is?
+
+- **Pace** = `used ÷ (contracted × period_fraction)`.
+  - `used` = Audit Pages consumed, from OP `get_usage_overview` text (parsed by
+    `parse_usage_overview`; strips commas from the formatted integer).
+  - `contracted` = `Page_Scans_per_Month__c` on SF `Subscription__c` (Active only).
+  - `period_fraction` = elapsed days ÷ total contract days, clamped to [0, 1], from
+    `Subscription_Start_Date__c` / `Subscription_End_Date__c`.
+- **Bands (±10%):** pace > 1.10 → "over"; pace < 0.90 → "under"; else "on".
+- **Unknown:** contracted, period_fraction, or used missing → status "unknown" (no math).
+- **Page scans only** — no currency, no $. Each account is independent (no cross-account total).
+- **Source:** contracted allowance from SF `Subscription__c.Page_Scans_per_Month__c`;
+  usage from OP `get_usage_overview` (formatted text, not JSON — needs `parse_usage_overview`).
+- **Compute script:** `skills/revenue-insights/scripts/consumption_pacing.py`.

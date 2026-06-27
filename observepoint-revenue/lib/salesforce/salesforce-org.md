@@ -84,6 +84,34 @@ Domo account health, then joins on account name** (deterministic, in the recipe 
 on `account` == `account_name`): `account_health_score`→`health` (normalized to a color token),
 `days_in_current_health`→`days_in_health`.
 
+## Contract / subscription (consumption-pacing recipe)
+
+Contracted page-scan allowances live on **`Subscription__c`** (confirmed fields, read-only).
+Confirmed fields:
+- `Account__r.Name` — the customer account name (lookup → Account).
+- `Page_Scans_per_Month__c` — double; the contracted monthly page-scan allowance.
+- `Limit_Type__c` — picklist: `'Yearly'` | `'Monthly'`.
+- `Status__c` — picklist; filter to `'Active'` (exclude Expired, etc.).
+- `App_Id__c` — OP platform bridge (the OP account id).
+- `Subscription_Start_Date__c` — date (contract window start).
+- `Subscription_End_Date__c` — date (contract window end).
+- `CurrencyIsoCode` — picklist (multi-currency org).
+
+**Named query — active subscriptions:**
+```sql
+SELECT Account__r.Name, Page_Scans_per_Month__c, Limit_Type__c, Status__c,
+       App_Id__c, Subscription_Start_Date__c, Subscription_End_Date__c
+FROM Subscription__c
+WHERE Status__c = 'Active'
+```
+
+**Normalized field map:** `Account__r.Name`→`account`, `Page_Scans_per_Month__c`→`contracted`,
+`Subscription_Start_Date__c`→`start`, `Subscription_End_Date__c`→`end`.
+
+**Usage (page scans consumed)** is NOT in SF — it comes from the OP platform via
+`get_usage_overview` (returns formatted TEXT, not JSON). Parse with
+`consumption_pacing.parse_usage_overview`. The recipe joins on account name.
+
 ## Pipeline + quota (revenue-insights — pipeline-coverage recipe)
 
 Open opportunities and quota targets live in **`Opportunity`** and **`Quota__c`** respectively.

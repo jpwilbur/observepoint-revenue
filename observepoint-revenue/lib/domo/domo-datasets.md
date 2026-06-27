@@ -122,6 +122,26 @@ the documented banding) and update this section + the `health_by_account` source
   return open opportunities with amount, CloseDate, Type, stage, forecast category, owner, account,
   segment."* (Confirm the stage/forecast/owner column names from the result.)
 
+## OP platform usage (consumption-pacing recipe)
+
+**`get_usage_overview` returns FORMATTED TEXT (not JSON).** The MCP tool for per-account page-scan
+usage returns a human-readable block, e.g.:
+
+```
+═══ Account Usage Overview ═══
+Audit Pages: 402,929 pages used (no contract limit)
+  Contract: 2025-12-27 → 2026-12-27
+Journey Runs: 0 runs used (no contract limit)
+Overages: Allowed
+```
+
+With a limit it reads `Audit Pages: 120,000 pages used (limit 200,000)`.
+
+**Do NOT treat this as JSON.** Parse it with `consumption_pacing.parse_usage_overview(text)` which
+uses deterministic regex to extract `used` (int), `limit` (int|None), and the contract window dates.
+The model must call `get_usage_overview` per account (iterating the CSM's book) and pass the results
+as `{account_name: text}` to `consumption_pacing.compute`.
+
 ## Open items for Plan 3 (never fabricate — confirm live)
 
 - **Quota/target location:** `Actual vs Plan by quarter` returned 0 rows on a generic probe;
