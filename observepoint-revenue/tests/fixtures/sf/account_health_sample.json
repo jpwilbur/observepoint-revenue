@@ -1,0 +1,8 @@
+[
+  {"account": "Acme Corp", "health": "Green"},
+  {"account": "Stark Industries", "health": "Green"},
+  {"account": "Globex", "health": "Yellow"},
+  {"account": "Initech", "health": "Green"},
+  {"account": "Umbrella", "health": "Red"},
+  {"account": "Soylent", "health": "Yellow"}
+]
