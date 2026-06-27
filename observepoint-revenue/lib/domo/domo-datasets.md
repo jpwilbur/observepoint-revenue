@@ -73,6 +73,26 @@ by path (no `SKILL.md`). Discovered live, read-only, 2026-06-26.
 `isSQO`. **NOT yet confirmed** (the NL tool didn't surface them on the probe — confirm in Plan 3 via
 a column-named question): stage name, forecast category, owner, account name, currency.
 
+## Account health (the renewals-recipe health join)
+
+The renewal report's **Green/Yellow/Red/Black/Blue** health is a **Domo** field (not SF, no Gainsight
+in the org). Source columns (from the production health Beast Mode):
+- `account_name` — join key to SF `Account.Name`.
+- `account_health_score` — **string containing the color word** (matched case-insensitively, e.g.
+  `LIKE '%green%'`); five states: **green, yellow, red, black, blue**.
+- `days_in_current_health` — integer, how long in the current band.
+
+Domo's own presentation colors (for reference only — **our in-chat viz uses brand tokens, not these**):
+black `#333333`, red `#d40000`, yellow `#f2cd14`, blue `#0055d4`, green `#5aa02c`. The
+`revenue-insights` viz kit maps the five states to **brand** colors via `brand_kit`
+(green→semantic success, red→semantic alert, yellow→brand_yellow, blue→semantic link, black→muted).
+
+**Named query (confirm the dataset id at runtime — NL-routed by these column names):**
+*"Return account_name, account_health_score, days_in_current_health for all active customer accounts."*
+The exact dataset id was not pinned during the probe (candidate homes: a CSM/customer dataset such as
+"MASTER - Top 10,000 Accounts" or "csm - stack rank"); confirm it on the first live recipe run and
+record it here. Fixture: `tests/fixtures/domo/account_health_sample.json` (synthetic, real columns).
+
 ## Named queries (phrase to route to the right dataset)
 
 - **ARR/NRR bridge (current fiscal quarter):**

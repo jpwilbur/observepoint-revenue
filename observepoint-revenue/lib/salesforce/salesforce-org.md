@@ -70,15 +70,16 @@ WHERE Renewal_Forecast__c != null
   AND CloseDate >= :quarterStart AND CloseDate <= :quarterEnd
 ```
 
-**Health (Green/Yellow/Red/Black) is NOT a Salesforce field.** Verified: no color/health
-picklist or score on `Opportunity` or `Account` (Account only carries CS fields like
-`CSM_Segment__c`, NPS/relationship scores — not the renewal health banding). So the recipe must
-**join account health from an external source** — the **ObservePoint platform**
-(`get_account_health` OP MCP tool, OP's own product-health, primary) or a Domo account-health
-dataset (fallback). The exact health values/mapping are finalized when wiring the recipe's gather
-step (Plan 2). The renewal *risk-weighting* (Undetermined: Red 0.25 / Yellow 0.50) applies that
-joined health — see `revenue-insights/references/metrics-canon.md`.
+**Health (Green/Yellow/Red/Black/Blue) is NOT a Salesforce field — it lives in Domo.** Verified:
+no color/health picklist or score on `Opportunity` or `Account` (and no Gainsight package in the
+org). Health is a **Domo** field `account_health_score` (a string containing the color word), with a
+companion `days_in_current_health`, keyed by `account_name`. See
+`lib/domo/domo-datasets.md` → "Account health". So the renewals recipe **gathers SF renewals AND
+Domo account health, then joins on account name** (deterministic, in the recipe script). The renewal
+*risk-weighting* (Undetermined: Red 0.25 / Yellow 0.50) applies that joined health — see
+`revenue-insights/references/metrics-canon.md`.
 
-**Normalized field map (raw SF → recipe key):** `Account.Name`→`account`,
-`Renewal_Forecast__c`→`status`, `Renewable_ARR__c`→`arr`, `CurrencyIsoCode`→`currency`,
-`CloseDate`→`close_date`. **`health` is joined from the external health source, not from SF.**
+**Normalized field map:** from SF: `Account.Name`→`account`, `Renewal_Forecast__c`→`status`,
+`Renewable_ARR__c`→`arr`, `CurrencyIsoCode`→`currency`, `CloseDate`→`close_date`. From Domo (joined
+on `account` == `account_name`): `account_health_score`→`health` (normalized to a color token),
+`days_in_current_health`→`days_in_health`.
