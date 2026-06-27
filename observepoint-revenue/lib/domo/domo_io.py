@@ -20,7 +20,9 @@ def parse_query_result(mcp_result):
     or unrecognized shape so callers fall back cleanly instead of computing on garbage.
     """
     if isinstance(mcp_result, list):
-        return mcp_result
+        if not mcp_result or isinstance(mcp_result[0], dict):
+            return mcp_result
+        raise DomoResultError("list envelope must contain row dicts")
     if not isinstance(mcp_result, dict):
         raise DomoResultError(f"expected dict or list, got {type(mcp_result).__name__}")
     if "error" in mcp_result:
