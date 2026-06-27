@@ -87,11 +87,23 @@ black `#333333`, red `#d40000`, yellow `#f2cd14`, blue `#0055d4`, green `#5aa02c
 `revenue-insights` viz kit maps the five states to **brand** colors via `brand_kit`
 (green→semantic success, red→semantic alert, yellow→brand_yellow, blue→semantic link, black→muted).
 
-**Named query (confirm the dataset id at runtime — NL-routed by these column names):**
-*"Return account_name, account_health_score, days_in_current_health for all active customer accounts."*
-The exact dataset id was not pinned during the probe (candidate homes: a CSM/customer dataset such as
-"MASTER - Top 10,000 Accounts" or "csm - stack rank"); confirm it on the first live recipe run and
-record it here. Fixture: `tests/fixtures/domo/account_health_sample.json` (synthetic, real columns).
+**⚠️ Health is a card-level Beast Mode, NOT a queryable column (found in the 2026-06-26 live smoke
+test).** The `account_health_score` / `days_in_current_health` fields the production health Beast Mode
+references live on the **"Master - Renewal Opportunities" card** (dataset `789f9dcd-e5c0-4c59-8c09-82b6eb0e3aa7`),
+which is a raw ~100-column Opportunity dump with **no stored `account_health_score` column** — those are
+themselves derived Beast Modes computed in the card layer. **The Domo SQL MCP (`DomoSqlQueryTool`)
+cannot read card Beast Modes**, and worse, when asked for a non-existent column name it **silently
+aliases the name onto a wrong source column** (it returned `AccountId` as `account_name` and `Amount` as
+`account_health_score`, yielding a 0/77 health-join). So the renewals recipe's health source is **TBD —
+pick one:** (a) the raw column(s) `account_health_score` derives from (then the recipe computes the
+color band deterministically), (b) a different Domo dataset that stores health as a real column, or
+(c) the OP platform `get_account_health`. Until resolved, the recipe renders real buckets + ARR with
+`health = None` (no risk-weighting). Fixture `tests/fixtures/domo/account_health_sample.json` is the
+intended shape (synthetic) once a real source is wired.
+
+**Domo SQL MCP caveat (general):** it aliases requested column names onto best-guess source columns
+rather than erroring on unknown columns — always confirm returned VALUES look right, not just that
+columns came back named as asked.
 
 ## Named queries (phrase to route to the right dataset)
 
