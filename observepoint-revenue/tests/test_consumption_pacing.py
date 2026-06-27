@@ -239,3 +239,16 @@ def test_render_has_account_names():
     out = cp.render(result)
     assert "Acme" in out
     assert "Globex" in out
+
+
+def test_render_over_pacing_account_and_status_in_html():
+    """Over-pacing account name and OVER status indicator must appear in the rendered HTML."""
+    rows = [
+        {"account": "OverPacer Corp", "used": 900_000, "contracted": 1_000_000, "period_fraction": 0.5},
+    ]
+    result = cp.compute_from_normalized(rows)
+    acme = result["accounts"][0]
+    assert acme["status"] == "over", "test setup: row should be over-pacing"
+    html = cp.render(result)
+    assert "OverPacer Corp" in html
+    assert "OVER" in html

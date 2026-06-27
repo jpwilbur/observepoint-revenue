@@ -16,8 +16,6 @@ _HERE = pathlib.Path(__file__).resolve()
 sys.path.insert(0, str(_HERE.parents[3] / "lib" / "salesforce"))
 import sf_io   # noqa: E402
 import viz_kit  # noqa: E402  (same scripts dir)
-import currency  # noqa: E402
-import periods   # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -30,7 +28,7 @@ _RE_USED = re.compile(r"Audit Pages:\s*([\d,]+)\s*pages used", re.IGNORECASE)
 _RE_LIMIT = re.compile(r"\(limit\s*([\d,]+)\)", re.IGNORECASE)
 # Matches: "Contract: 2025-12-27 → 2026-12-27" (unicode arrow or ASCII ->)
 _RE_CONTRACT = re.compile(
-    r"Contract:\s*(\d{4}-\d{2}-\d{2})\s*[→\-]+>?\s*(\d{4}-\d{2}-\d{2})",
+    r"Contract:\s*(\d{4}-\d{2}-\d{2})\s*(?:→|->)\s*(\d{4}-\d{2}-\d{2})",
     re.IGNORECASE,
 )
 
@@ -258,7 +256,7 @@ def render(result: dict) -> str:
         + viz_kit.section_header("Consumption Pacing — Page Scans")
         + table
         + viz_kit.caveats([
-            "Contracted allowance from SF Subscription__c.Page_Scans_per_Month__c.",
+            "Contracted allowance = Subscription__c.Page_Scans_per_Month__c, treated as the full contract-window allowance (unit unverified).",
             "Usage from OP get_usage_overview (parsed text). Over/on/under band ±10%.",
             "Accounts with no usage data show status: UNKNOWN.",
         ])

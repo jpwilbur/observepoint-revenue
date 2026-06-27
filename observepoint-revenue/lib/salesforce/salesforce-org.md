@@ -89,7 +89,7 @@ on `account` == `account_name`): `account_health_score`→`health` (normalized t
 Contracted page-scan allowances live on **`Subscription__c`** (confirmed fields, read-only).
 Confirmed fields:
 - `Account__r.Name` — the customer account name (lookup → Account).
-- `Page_Scans_per_Month__c` — double; the contracted monthly page-scan allowance.
+- `Page_Scans_per_Month__c` — double; contracted page-scan allowance. **⚠️ Name implies a monthly rate, but consumption-pacing currently uses it as the total allowance over the contract window — verify the true unit with rev-ops before production use.**
 - `Limit_Type__c` — picklist: `'Yearly'` | `'Monthly'`.
 - `Status__c` — picklist; filter to `'Active'` (exclude Expired, etc.).
 - `App_Id__c` — OP platform bridge (the OP account id).

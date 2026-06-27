@@ -74,7 +74,7 @@ rate given how far through its contract window it is?
 - **Pace** = `used ÷ (contracted × period_fraction)`.
   - `used` = Audit Pages consumed, from OP `get_usage_overview` text (parsed by
     `parse_usage_overview`; strips commas from the formatted integer).
-  - `contracted` = `Page_Scans_per_Month__c` on SF `Subscription__c` (Active only).
+  - `contracted` = `Page_Scans_per_Month__c` on SF `Subscription__c` (Active only). (⚠️ unit unverified — used as the full-window allowance; confirm monthly-vs-window with rev-ops).
   - `period_fraction` = elapsed days ÷ total contract days, clamped to [0, 1], from
     `Subscription_Start_Date__c` / `Subscription_End_Date__c`.
 - **Bands (±10%):** pace > 1.10 → "over"; pace < 0.90 → "under"; else "on".
