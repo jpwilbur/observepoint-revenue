@@ -2,8 +2,8 @@
 
 The MODEL calls the Salesforce MCP (the gather step); this module only parses and
 normalizes the JSON it returns (the compute step). Nothing here calls Salesforce.
-Shared across SF-backed skills via the skills/salesforce-core/scripts sys.path entry
-(tests) or a relative-path shim (runtime CLI).
+Shared across SF-backed skills via the lib/salesforce sys.path entry
+(tests) or a relative-path shim (`parents[3] / "lib" / "salesforce"`, runtime CLI).
 """
 import re
 

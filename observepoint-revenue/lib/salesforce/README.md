@@ -1,7 +1,7 @@
----
-name: salesforce-core
-description: Shared read-side Salesforce foundation for the revenue plugin — the canonical org map, the named SOQL/SOSL queries other skills run, and sf_io.py (the deterministic helper that digests Salesforce MCP results). Not a standalone task; read/imported by find-accounts (territory + overlap-guard) and, later, research-account write-back, the CSM review builder, and expansion radar. Use it to look up how this org is modeled or which query to run; it does NOT itself sell, scope, or research.
----
+# lib/salesforce — shared read-side Salesforce foundation (library, not a skill)
+
+Referenced by path: skills read `salesforce-org.md` and `import sf_io` via a relative-path
+shim (`parents[3] / "lib" / "salesforce"`) / the `tests/conftest.py` sys.path entry.
 
 # Salesforce Core (shared read foundation)
 
@@ -15,13 +15,13 @@ on a rev-ops owned-custom-fields governance contract; they will arrive as payloa
 `sf_io.py` with their own design.
 
 ## What's here
-- **`references/salesforce-org.md`** — the canonical org map: objects/fields this plugin reads, the
+- **`salesforce-org.md`** — the canonical org map: objects/fields this plugin reads, the
   field-hygiene rules, and the named queries (territory, user lookup, account-match). Read it before
   writing any SOQL against this org. When the org schema changes, change that file.
-- **`scripts/sf_io.py`** — `parse_records(mcp_result)` (validate + extract a SOQL/SOSL record list)
+- **`sf_io.py`** — `parse_records(mcp_result)` (validate + extract a SOQL/SOSL record list)
   and `normalize_domain(url_or_host)` (comparable host for account matching). Imported by SF-backed
-  skills: `skills/salesforce-core/scripts` is on the test sys.path; CLI scripts add it via a
-  relative-path shim.
+  skills: `lib/salesforce` is on the test sys.path; CLI scripts add it via a
+  relative-path shim (`parents[3] / "lib" / "salesforce"`).
 
 ## Using it from another skill
 1. Read `references/salesforce-org.md` for the query you need.

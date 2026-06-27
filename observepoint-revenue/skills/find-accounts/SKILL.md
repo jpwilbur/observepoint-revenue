@@ -16,7 +16,7 @@ seen-log dedup, ranking with research-account's trigger weights + recency decay)
 browser / Playwright / Claude-in-Chrome or any page-rendering/scraping tool. Territory and the
 overlap-guard use the **Salesforce MCP read tools** (`getUserInfo`, `soqlQuery`, `find`) — read-only;
 never `create`/`update`. Run the canonical queries from
-`${CLAUDE_PLUGIN_ROOT}/skills/salesforce-core/references/salesforce-org.md`.
+`${CLAUDE_PLUGIN_ROOT}/lib/salesforce/salesforce-org.md`.
 
 Set `SKILL=${CLAUDE_PLUGIN_ROOT}/skills/find-accounts` and
 `SCORING=${CLAUDE_PLUGIN_ROOT}/skills/research-account/references/scoring-config.json`.
@@ -32,7 +32,7 @@ Read first: `$SKILL/references/discovery-sources.md` (sources, hard rules) and t
 ## Workflow
 
 1. **Territory (Salesforce-first).** Resolve the boundary from Salesforce, not a hand-kept file.
-   Read `${CLAUDE_PLUGIN_ROOT}/skills/salesforce-core/references/salesforce-org.md` for the queries.
+   Read `${CLAUDE_PLUGIN_ROOT}/lib/salesforce/salesforce-org.md` for the queries.
 
    a. **Identify the target AE/ADM.** Call `getUserInfo`. This is a *hint only* — the SF MCP
       authenticates as whoever connected it, who may not be the human running this. If the connected

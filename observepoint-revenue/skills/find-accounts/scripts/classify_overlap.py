@@ -16,7 +16,7 @@ import json
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "salesforce-core" / "scripts"))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "lib" / "salesforce"))
 import sf_io  # noqa: E402
 from rank_candidates import normalize_name  # noqa: E402  (same dir; on sys.path at runtime + via conftest)
 

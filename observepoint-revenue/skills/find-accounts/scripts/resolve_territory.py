@@ -1,6 +1,6 @@
 """Normalize an OP_Territories__c SOQL result into a find-accounts territory boundary.
 
-The MODEL runs the territory query (see salesforce-core/references/salesforce-org.md) and
+The MODEL runs the territory query (see lib/salesforce/salesforce-org.md) and
 passes its JSON here; this script computes the boundary the sweep is constrained to.
 No Salesforce calls, no model math.
 
@@ -11,7 +11,7 @@ import json
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "salesforce-core" / "scripts"))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "lib" / "salesforce"))
 import sf_io  # noqa: E402
 
 
