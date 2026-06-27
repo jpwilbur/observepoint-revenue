@@ -12,6 +12,23 @@ The encoded methodology so every report computes a metric the same way. The MODE
 - **Source of truth per metric:** SF = live deal-level; Domo = curated/aggregate; OP = usage.
   When SF and Domo disagree, show both labeled — never silently pick.
 
+## ARR / NRR bridge (arr-nrr-bridge)
+
+The board-altitude view: how ARR moved during the fiscal quarter and what the retention rates are.
+
+- **Waterfall:** Starting ARR → + New logo → + Expansion → − Contraction → − Churn → Ending ARR.
+  All components are **USD, FX-normalized** — Domo pre-computes them on the `arr scorecard metrics
+  ALL SUBSCRIPTIONS` dataset; this engine does **not** recompute FX.
+- **NRR / GRR** are read directly from Domo's pre-computed fields
+  `quarterly_net_revenue_retention_rate` and `quarterly_gross_revenue_retention_rate` on the
+  **quarter-ending month row** (`isFiscalQuarterEndingMonth == 1`). If no such row exists, the last
+  row in the quarter is used.
+- **Expansion** = `expansion_arr_usd` + `upsell_arr_usd` (summed across all monthly rows).
+- **Contraction** = `downsell_arr_usd` (summed); **Churn** = `churn_arr_usd` (summed).
+- **Net New ARR** = New logo + Expansion − Contraction − Churn (derived; not a Domo field).
+- Quarter selection defaults to the dataset's own `current_fiscal_year` / `current_fiscal_quarter`
+  stamps; override via `fy_year` / `fy_quarter` kwargs.
+
 ## Renewals (renewals-at-risk)
 - **Renewable ARR** = `Renewable_ARR__c` on the SF renewal Opportunity (Plan 1 schema).
 - **Forecast buckets** from `Renewal_Forecast__c`: Will Renew / Undetermined / Will Not Renew.

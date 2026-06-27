@@ -7,8 +7,13 @@ A request with no matching recipe uses the **ad-hoc fallback** (see SKILL.md).
 |---|---|---|---|---|
 | renewals-at-risk | RevOps / CSM | SF renewal forecast + Domo health | `scripts/renewals_at_risk.py` | shipped |
 | pipeline-coverage | VP Sales | SF + Domo | `scripts/pipeline_coverage.py` | Plan 3 |
-| arr-nrr-bridge | Board / CRO | Domo | `scripts/arr_nrr_bridge.py` | Plan 3 |
+| arr-nrr-bridge | Board / CRO | Domo | `scripts/arr_nrr_bridge.py` | shipped |
 | consumption-pacing | CSM | OP usage + SF | `scripts/consumption_pacing.py` | Plan 3 |
+
+## arr-nrr-bridge
+- **Queries:** Domo `arr scorecard metrics ALL SUBSCRIPTIONS` dataset — save result JSON.
+- **Run:** `arr_nrr_bridge.py <scorecard.json> --out <path>` → branded HTML.
+- **Viz:** 3 KPI cards (Net New ARR / NRR / GRR) + ARR bridge waterfall table.
 
 ## renewals-at-risk
 - **Queries:** the renewal SOQL in `lib/salesforce/salesforce-org.md` ("Renewals") + the account-
