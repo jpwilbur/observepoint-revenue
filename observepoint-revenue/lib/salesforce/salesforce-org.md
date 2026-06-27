@@ -83,3 +83,30 @@ Domo account health, then joins on account name** (deterministic, in the recipe 
 `Renewable_ARR__c`→`arr`, `CurrencyIsoCode`→`currency`, `CloseDate`→`close_date`. From Domo (joined
 on `account` == `account_name`): `account_health_score`→`health` (normalized to a color token),
 `days_in_current_health`→`days_in_health`.
+
+## Pipeline + quota (revenue-insights — pipeline-coverage recipe)
+
+Open opportunities and quota targets live in **`Opportunity`** and **`Quota__c`** respectively.
+Pipeline coverage = open in-quarter pipeline ÷ quota for New/Expansion ACV types.
+Gap = quota − (Commit bucket + closed-won in quarter).
+
+**Named query — open opportunities in a fiscal quarter:**
+```sql
+SELECT Amount, CurrencyIsoCode, ForecastCategoryName, StageName, IsClosed, IsWon,
+       CloseDate, Acquisition_Segment__c, Owner.Name
+FROM Opportunity
+WHERE IsClosed = false
+  AND CloseDate >= :qStart AND CloseDate <= :qEnd
+```
+
+**Named query — quota rows for a fiscal quarter:**
+```sql
+SELECT Month_Quota__c, Month_Start__c, Type__c, Department__c, OwnerId, CurrencyIsoCode
+FROM Quota__c
+WHERE Month_Start__c >= :qStart AND Month_Start__c <= :qEnd
+```
+
+Filter `Quota__c` to `Type__c ∈ ('New ACV', 'New Logo ACV', 'Expansion ACV')` in the script —
+other types (e.g. MQL) are excluded deterministically. Currencies stay separate; no FX conversion.
+Closed-won opportunities in the quarter are included in gap-to-quota calculation (they count as
+booked against quota alongside open Commit) but excluded from open-pipeline totals.

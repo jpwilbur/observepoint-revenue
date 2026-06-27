@@ -1,0 +1,78 @@
+{
+  "totalSize": 9,
+  "done": true,
+  "records": [
+    {
+      "Month_Quota__c": 100000,
+      "Month_Start__c": "2026-05-01",
+      "Type__c": "New ACV",
+      "Department__c": "Sales",
+      "OwnerId": "005000000000001AAA",
+      "CurrencyIsoCode": "USD"
+    },
+    {
+      "Month_Quota__c": 100000,
+      "Month_Start__c": "2026-06-01",
+      "Type__c": "New ACV",
+      "Department__c": "Sales",
+      "OwnerId": "005000000000001AAA",
+      "CurrencyIsoCode": "USD"
+    },
+    {
+      "Month_Quota__c": 100000,
+      "Month_Start__c": "2026-07-01",
+      "Type__c": "New ACV",
+      "Department__c": "Sales",
+      "OwnerId": "005000000000001AAA",
+      "CurrencyIsoCode": "USD"
+    },
+    {
+      "Month_Quota__c": 25000,
+      "Month_Start__c": "2026-05-01",
+      "Type__c": "Expansion ACV",
+      "Department__c": "Sales",
+      "OwnerId": "005000000000002AAA",
+      "CurrencyIsoCode": "USD"
+    },
+    {
+      "Month_Quota__c": 25000,
+      "Month_Start__c": "2026-06-01",
+      "Type__c": "Expansion ACV",
+      "Department__c": "Sales",
+      "OwnerId": "005000000000002AAA",
+      "CurrencyIsoCode": "USD"
+    },
+    {
+      "Month_Quota__c": 25000,
+      "Month_Start__c": "2026-07-01",
+      "Type__c": "Expansion ACV",
+      "Department__c": "Sales",
+      "OwnerId": "005000000000002AAA",
+      "CurrencyIsoCode": "USD"
+    },
+    {
+      "Month_Quota__c": 40000,
+      "Month_Start__c": "2026-05-01",
+      "Type__c": "New ACV",
+      "Department__c": "EMEA Sales",
+      "OwnerId": "005000000000003AAA",
+      "CurrencyIsoCode": "GBP"
+    },
+    {
+      "Month_Quota__c": 40000,
+      "Month_Start__c": "2026-06-01",
+      "Type__c": "New ACV",
+      "Department__c": "EMEA Sales",
+      "OwnerId": "005000000000003AAA",
+      "CurrencyIsoCode": "GBP"
+    },
+    {
+      "Month_Quota__c": 12500,
+      "Month_Start__c": "2026-06-01",
+      "Type__c": "MQL",
+      "Department__c": "Marketing",
+      "OwnerId": "005000000000004AAA",
+      "CurrencyIsoCode": "USD"
+    }
+  ]
+}

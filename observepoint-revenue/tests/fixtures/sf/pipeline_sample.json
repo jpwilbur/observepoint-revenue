@@ -1,0 +1,94 @@
+{
+  "totalSize": 8,
+  "done": true,
+  "records": [
+    {
+      "Amount": 120000,
+      "CurrencyIsoCode": "USD",
+      "ForecastCategoryName": "Commit",
+      "StageName": "Negotiation",
+      "IsClosed": false,
+      "IsWon": false,
+      "CloseDate": "2026-06-30",
+      "Acquisition_Segment__c": "Sales",
+      "Owner": {"Name": "Alice Chen"}
+    },
+    {
+      "Amount": 85000,
+      "CurrencyIsoCode": "USD",
+      "ForecastCategoryName": "Commit",
+      "StageName": "Proposal",
+      "IsClosed": false,
+      "IsWon": false,
+      "CloseDate": "2026-07-15",
+      "Acquisition_Segment__c": "Sales",
+      "Owner": {"Name": "Bob Torres"}
+    },
+    {
+      "Amount": 60000,
+      "CurrencyIsoCode": "USD",
+      "ForecastCategoryName": "Best Case",
+      "StageName": "Discovery",
+      "IsClosed": false,
+      "IsWon": false,
+      "CloseDate": "2026-07-25",
+      "Acquisition_Segment__c": "Sales",
+      "Owner": {"Name": "Alice Chen"}
+    },
+    {
+      "Amount": 45000,
+      "CurrencyIsoCode": "USD",
+      "ForecastCategoryName": "Expect",
+      "StageName": "Evaluation",
+      "IsClosed": false,
+      "IsWon": false,
+      "CloseDate": "2026-06-20",
+      "Acquisition_Segment__c": "Sales",
+      "Owner": {"Name": "Carol Wu"}
+    },
+    {
+      "Amount": 30000,
+      "CurrencyIsoCode": "USD",
+      "ForecastCategoryName": "Pipeline",
+      "StageName": "Prospecting",
+      "IsClosed": false,
+      "IsWon": false,
+      "CloseDate": "2026-07-31",
+      "Acquisition_Segment__c": "Sales",
+      "Owner": {"Name": "Bob Torres"}
+    },
+    {
+      "Amount": 75000,
+      "CurrencyIsoCode": "GBP",
+      "ForecastCategoryName": "Commit",
+      "StageName": "Negotiation",
+      "IsClosed": false,
+      "IsWon": false,
+      "CloseDate": "2026-06-28",
+      "Acquisition_Segment__c": "Sales",
+      "Owner": {"Name": "Diana Park"}
+    },
+    {
+      "Amount": 200000,
+      "CurrencyIsoCode": "USD",
+      "ForecastCategoryName": "Closed",
+      "StageName": "Closed Won",
+      "IsClosed": true,
+      "IsWon": true,
+      "CloseDate": "2026-05-10",
+      "Acquisition_Segment__c": "Sales",
+      "Owner": {"Name": "Alice Chen"}
+    },
+    {
+      "Amount": 500000,
+      "CurrencyIsoCode": "USD",
+      "ForecastCategoryName": "Commit",
+      "StageName": "Negotiation",
+      "IsClosed": false,
+      "IsWon": false,
+      "CloseDate": "2025-01-15",
+      "Acquisition_Segment__c": "Sales",
+      "Owner": {"Name": "Bob Torres"}
+    }
+  ]
+}

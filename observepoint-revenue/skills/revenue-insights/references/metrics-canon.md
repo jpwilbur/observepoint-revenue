@@ -29,6 +29,27 @@ The board-altitude view: how ARR moved during the fiscal quarter and what the re
 - Quarter selection defaults to the dataset's own `current_fiscal_year` / `current_fiscal_quarter`
   stamps; override via `fy_year` / `fy_quarter` kwargs.
 
+## Pipeline coverage (pipeline-coverage)
+
+The VP-Sales-altitude view: how much open pipeline stands behind the quarter's quota, and where
+deals sit in the forecast-category ladder.
+
+- **Pipeline coverage** = open in-quarter pipeline ÷ quota for `Type__c ∈ ('New ACV', 'New Logo
+  ACV', 'Expansion ACV')`. Currencies kept separate; no FX conversion. A coverage ratio below 3x
+  is typically considered thin for a quarter still in progress.
+- **Quota** = sum of `Month_Quota__c` from `Quota__c` where `Month_Start__c` falls within the
+  fiscal quarter and `Type__c` is one of the target types. MQL and other non-pipeline types are
+  excluded deterministically.
+- **Open pipeline** = `Opportunity.Amount` where `IsClosed = false` and `CloseDate` is in the
+  fiscal quarter. Closed-won deals are excluded from open pipeline but included in gap calculation.
+- **Forecast pacing ladder** (in priority order): Commit / Expect / Best Case / Pipeline / Omitted.
+  Each bucket = sum of `Amount` for open opps in that `ForecastCategoryName`.
+- **Gap to quota** = `max(0, quota − Commit − closed_won_in_quarter)`. Commit (open) plus
+  already-closed-won ARR represents the most conservative "booked + highly likely" view against
+  quota; the gap is what remains to be covered.
+- **Source:** SF `Opportunity` (open opps) + `Quota__c` (quota targets). Both gathered by the
+  model via MCP; `pipeline_coverage.py` computes deterministically on the JSON.
+
 ## Renewals (renewals-at-risk)
 - **Renewable ARR** = `Renewable_ARR__c` on the SF renewal Opportunity (Plan 1 schema).
 - **Forecast buckets** from `Renewal_Forecast__c`: Will Renew / Undetermined / Will Not Renew.
