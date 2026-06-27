@@ -1,3 +1,6 @@
+import json
+import pathlib
+
 import renewals_at_risk as rar
 
 
@@ -79,9 +82,6 @@ def test_health_by_account_and_join():
     assert joined[0]["health"] == "green"
     assert joined[1]["health"] is None   # no Domo health for this account
 
-
-import json
-import pathlib
 
 FIX = pathlib.Path(__file__).parent / "fixtures"
 

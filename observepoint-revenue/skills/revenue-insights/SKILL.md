@@ -1,6 +1,6 @@
 ---
 name: revenue-insights
-description: Use when a revenue-team member wants an analysis, report, dashboard, or metric from Salesforce / Domo / ObservePoint usage data — "renewals at risk", "pipeline coverage", "how are we pacing", "ARR/NRR", "build me a revenue report", "show me the numbers for QBR/board/forecast". Produces a branded in-chat visual (exports on request). For account research use research-account; for scoping/pricing use scope-calculator.
+description: Use when a revenue-team member wants an analysis, report, dashboard, or metric from Salesforce / Domo / ObservePoint usage data — "renewals at risk", "pipeline coverage", "how are we pacing", "ARR/NRR", "build me a revenue report", "show me the numbers for QBR/board/forecast". For account research use research-account; for scoping/pricing use scope-calculator.
 ---
 
 # revenue-insights
