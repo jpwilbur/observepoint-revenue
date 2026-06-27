@@ -35,3 +35,8 @@ def test_page_is_dark_themed_and_titled():
 
 def test_html_is_escaped():
     assert "&lt;script&gt;" in viz_kit.stat_card("<script>", "1")
+
+
+def test_ranked_table_escapes_string_key_values():
+    out = viz_kit.ranked_table([("ACCOUNT", "account")], [{"account": "<script>x</script>"}])
+    assert "&lt;script&gt;" in out and "<script>" not in out

@@ -40,7 +40,14 @@ def section_header(text):
 
 
 def ranked_table(columns, rows):
-    """columns: list of (header, key) where key is a dict key or a callable(row)->str."""
+    """Render rows as an HTML table.
+
+    columns: list of (header, key). `key` is either:
+      - a string dict-key → the row's value is HTML-escaped (use for untrusted field values), or
+      - a callable(row) -> str → its return is inserted as TRUSTED HTML, NOT escaped (use for
+        composed viz_kit output like health_badge(); if a callable embeds untrusted field data,
+        the caller must escape it itself).
+    """
     head = "".join(f"<th>{_e(h)}</th>" for h, _ in columns)
     body = ""
     for r in rows:
