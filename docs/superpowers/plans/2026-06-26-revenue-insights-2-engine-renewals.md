@@ -17,7 +17,7 @@
 - **Never fabricate** a number/account/source; missing input → labeled default + an "assumptions to verify" note, or an honest "none found".
 - **Output location:** `~/Documents/ObservePoint Revenue/revenue-insights/` (rep override honored; `mkdir -p`; never a temp dir).
 - **Commit email:** `16406437+jpwilbur@users.noreply.github.com`.
-- **Depends on Plan 1:** `lib/salesforce` (sf_io + renewal field map), the SF renewal synthetic fixture `tests/fixtures/sf/renewals_sample.json`, fiscal-year start (default 2 = Feb, confirmed in Plan 1).
+- **Depends on Plan 1:** `lib/salesforce` (sf_io + renewal field map) and `lib/domo` (domo_io + the account-health field), the synthetic fixtures `tests/fixtures/sf/renewals_sample.json` + `tests/fixtures/domo/account_health_sample.json`, fiscal-year start (default 2 = Feb, confirmed in Plan 1). **Health is joined from Domo (`account_health_score`), not SF** — 5 states (green/yellow/red/blue/black).
 
 ---
 
@@ -280,6 +280,7 @@ def test_health_badge_uses_brand_semantic_colors():
     assert brand_kit.colors()["semantic"]["alert"] in viz_kit.health_badge("Red")
     assert brand_kit.colors()["semantic"]["success"] in viz_kit.health_badge("Green")
     assert brand_kit.brand_yellow() in viz_kit.health_badge("Yellow")
+    assert brand_kit.colors()["semantic"]["link"] in viz_kit.health_badge("Blue")
 
 
 def test_stat_card_shows_label_value_sub():
@@ -334,6 +335,7 @@ HEALTH_COLORS = {
     "green": _SEM["success"],
     "yellow": brand_kit.brand_yellow(),
     "red": _SEM["alert"],
+    "blue": _SEM["link"],
     "black": _T["muted"],
 }
 
@@ -442,8 +444,9 @@ The recipe's deterministic compute. Operates on normalized renewal rows; a thin 
 - Create: `observepoint-revenue/tests/test_renewals_at_risk.py`
 
 **Interfaces:**
-- Consumes: `sf_io` (lib/salesforce), `currency`, `periods`, `risk_weight` (Task 1); Plan 1 Task 5's field map + `tests/fixtures/sf/renewals_sample.json`.
-- Produces: `renewals_at_risk.DEFAULT_FIELD_MAP`, `RENEWAL_WEIGHTS`, `normalize_sf_records(records, field_map=DEFAULT_FIELD_MAP) -> list[dict]`, `compute_from_normalized(rows, *, today_iso, fy_start_month=2, weights=None) -> dict`, `compute(records, *, today_iso, fy_start_month=2, weights=None, field_map=DEFAULT_FIELD_MAP) -> dict`. The result dict shape: `{period, summary:{will_renew, undetermined, will_not_renew}, will_not_renew_rows, undetermined_rows, caveats}`.
+- Consumes: `sf_io` (lib/salesforce), `domo_io` (lib/domo), `currency`, `periods`, `risk_weight` (Task 1); Plan 1 Task 5's SF field map + `tests/fixtures/sf/renewals_sample.json`; Plan 1's Domo health field + `tests/fixtures/domo/account_health_sample.json`.
+- **Health is NOT in SF — it's joined from Domo.** SF gives account/status/arr/currency/close_date; Domo gives `account_health_score` (color string) + `days_in_current_health` keyed by `account_name`. The recipe joins on normalized account name.
+- Produces: `renewals_at_risk.DEFAULT_FIELD_MAP` (SF, no health), `RENEWAL_WEIGHTS`, `health_token(s) -> str|None` (extract green/yellow/red/black/blue from a string), `normalize_sf_records(records, field_map=DEFAULT_FIELD_MAP) -> list[dict]` (no health), `health_by_account(domo_health_records) -> dict[str,str]` (normalized account name → color token), `join_health(sf_rows, health_map) -> list[dict]` (adds `health`), `compute_from_normalized(rows, *, today_iso, fy_start_month=2, weights=None) -> dict`, `compute(sf_records, health_records, *, today_iso, fy_start_month=2, weights=None, field_map=DEFAULT_FIELD_MAP) -> dict`. Result dict shape: `{period, summary:{will_renew, undetermined, will_not_renew}, will_not_renew_rows, undetermined_rows, caveats}`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -498,16 +501,41 @@ def test_rows_sorted_by_arr_desc():
     assert arrs == sorted(arrs, reverse=True)
 
 
-def test_normalize_maps_nested_account_name_and_fields():
+def test_normalize_sf_maps_nested_account_name_no_health():
+    # SF does NOT carry health (confirmed in Plan 1 Task 5) — normalize_sf_records omits it.
     raw = [{"Account": {"Name": "Acme"}, "Renewal_Forecast__c": "Will Not Renew",
-            "Health__c": "Green", "Renewable_ARR__c": 200,
-            "CurrencyIsoCode": "GBP", "CloseDate": "2026-07-12"}]
-    norm = rar.normalize_sf_records(raw)   # uses DEFAULT_FIELD_MAP
+            "Renewable_ARR__c": 200, "CurrencyIsoCode": "GBP", "CloseDate": "2026-07-12"}]
+    norm = rar.normalize_sf_records(raw)
     assert norm[0]["account"] == "Acme" and norm[0]["arr"] == 200
     assert norm[0]["currency"] == "GBP" and norm[0]["status"] == "Will Not Renew"
+    assert "health" not in norm[0] or norm[0]["health"] is None
+
+
+def test_health_token_extracts_color_from_string():
+    assert rar.health_token("Green") == "green"
+    assert rar.health_token("Red - At Risk") == "red"
+    assert rar.health_token("BLUE") == "blue"
+    assert rar.health_token("") is None
+    assert rar.health_token(None) is None
+
+
+def test_health_by_account_and_join():
+    domo_health = [
+        {"account_name": "Acme", "account_health_score": "Green", "days_in_current_health": 10},
+        {"account_name": "Globex", "account_health_score": "Red - At Risk", "days_in_current_health": 5},
+    ]
+    hmap = rar.health_by_account(domo_health)
+    assert hmap == {"acme": "green", "globex": "red"}
+    sf_rows = [
+        {"account": "Acme", "status": "Will Renew", "arr": 1, "currency": "USD", "close_date": "2026-07-01"},
+        {"account": "Nomatch", "status": "Undetermined", "arr": 2, "currency": "USD", "close_date": "2026-07-01"},
+    ]
+    joined = rar.join_health(sf_rows, hmap)
+    assert joined[0]["health"] == "green"
+    assert joined[1]["health"] is None   # no Domo health for this account
 ```
 
-> **Field-map note:** `test_normalize_maps_nested_account_name_and_fields` uses the field names in `DEFAULT_FIELD_MAP`. Set `DEFAULT_FIELD_MAP` (and this test's raw keys) to the names **confirmed in Plan 1 Task 5** — `Health__c` here is the screenshot-evidenced placeholder; replace with the real health-field API name if it differs.
+> **Field-name note:** `DEFAULT_FIELD_MAP` and the Domo health columns (`account_name`, `account_health_score`) are the names **confirmed in Plan 1** (`lib/salesforce/salesforce-org.md` Renewals + `lib/domo/domo-datasets.md` Account health). The fixtures already use them.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -519,14 +547,18 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'renewals_at_risk'`.
 Create `observepoint-revenue/skills/revenue-insights/scripts/renewals_at_risk.py`:
 
 ```python
-"""renewals-at-risk recipe (RevOps/CSM): SF renewal opps -> bucketed at-risk view.
-The MODEL runs the renewal SOQL (see lib/salesforce/salesforce-org.md); this script
-computes every number. No SF calls, no model math."""
+"""renewals-at-risk recipe (RevOps/CSM): SF renewal opps + Domo account health -> bucketed
+at-risk view. The MODEL runs the renewal SOQL (lib/salesforce/salesforce-org.md) and the Domo
+health query (lib/domo/domo-datasets.md "Account health"); this script joins them and computes
+every number. No SF/Domo calls, no model math."""
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "lib" / "salesforce"))
+_HERE = pathlib.Path(__file__).resolve()
+sys.path.insert(0, str(_HERE.parents[3] / "lib" / "salesforce"))
+sys.path.insert(0, str(_HERE.parents[3] / "lib" / "domo"))
 import sf_io  # noqa: E402
+import domo_io  # noqa: E402
 import currency  # noqa: E402  (same scripts dir, on sys.path at runtime + via conftest)
 import periods  # noqa: E402
 import risk_weight  # noqa: E402
@@ -534,15 +566,16 @@ import risk_weight  # noqa: E402
 # Undetermined-bucket risk weights — see metrics-canon.md (matches the proven report).
 RENEWAL_WEIGHTS = {"red": 0.25, "yellow": 0.5}
 
-# Raw-SF -> normalized field map; confirm against lib/salesforce/salesforce-org.md (Plan 1 Task 5).
+# SF renewal fields -> normalized keys (confirmed Plan 1; health is NOT here — joined from Domo).
 DEFAULT_FIELD_MAP = {
     "account": "Account.Name",
     "status": "Renewal_Forecast__c",
-    "health": "Health__c",
     "arr": "Renewable_ARR__c",
     "currency": "CurrencyIsoCode",
     "close_date": "CloseDate",
 }
+
+_HEALTH_COLORS = ("green", "yellow", "red", "blue", "black")
 
 
 def _get(rec, path):
@@ -554,18 +587,48 @@ def _get(rec, path):
     return cur
 
 
+def _norm_acct(name):
+    return str(name or "").strip().lower()
+
+
+def health_token(s):
+    """Extract the color token from a Domo account_health_score string (e.g. 'Red - At Risk'
+    -> 'red'). Returns None if no known color is present."""
+    low = str(s or "").lower()
+    for c in _HEALTH_COLORS:
+        if c in low:
+            return c
+    return None
+
+
 def normalize_sf_records(records, field_map=DEFAULT_FIELD_MAP):
+    """SF renewal records -> normalized rows (account/status/arr/currency/close_date). No health."""
     out = []
     for r in records:
         out.append({
             "account": _get(r, field_map["account"]),
             "status": _get(r, field_map["status"]),
-            "health": _get(r, field_map["health"]),
             "arr": _get(r, field_map["arr"]),
             "currency": _get(r, field_map["currency"]) or "USD",
             "close_date": _get(r, field_map["close_date"]),
         })
     return out
+
+
+def health_by_account(domo_health_records):
+    """Domo health rows -> {normalized account_name: color token}."""
+    out = {}
+    for r in domo_health_records:
+        acct = _norm_acct(r.get("account_name"))
+        tok = health_token(r.get("account_health_score"))
+        if acct and tok:
+            out[acct] = tok
+    return out
+
+
+def join_health(sf_rows, health_map):
+    """Add a `health` color token to each SF row from the Domo health map (None if no match)."""
+    return [{**r, "health": health_map.get(_norm_acct(r["account"]))} for r in sf_rows]
 
 
 def _bucket(status):
@@ -594,14 +657,14 @@ def compute_from_normalized(rows, *, today_iso, fy_start_month=2, weights=None):
 
     und = []
     for r in buckets["undetermined"]:
-        rw = risk_weight.risk_weighted(currency.to_number(r["arr"]), r["health"], weights)
+        rw = risk_weight.risk_weighted(currency.to_number(r["arr"]), r.get("health"), weights)
         und.append({**r, "risk_weighted": rw,
-                    "weight": weights.get(str(r["health"] or "").strip().lower())})
+                    "weight": weights.get(str(r.get("health") or "").strip().lower())})
 
     caveats = [
         f"{r['account']} is flagged Will Not Renew despite a Green health score — worth verifying."
         for r in buckets["will_not_renew"]
-        if str(r["health"] or "").strip().lower() == "green"
+        if str(r.get("health") or "").strip().lower() == "green"
     ]
 
     return {
@@ -618,8 +681,12 @@ def compute_from_normalized(rows, *, today_iso, fy_start_month=2, weights=None):
     }
 
 
-def compute(records, *, today_iso, fy_start_month=2, weights=None, field_map=DEFAULT_FIELD_MAP):
-    rows = normalize_sf_records(sf_io.parse_records(records), field_map)
+def compute(sf_records, health_records, *, today_iso, fy_start_month=2, weights=None,
+            field_map=DEFAULT_FIELD_MAP):
+    """SF renewal JSON + Domo health JSON -> the renewals-at-risk result. Joins health on account."""
+    sf_rows = normalize_sf_records(sf_io.parse_records(sf_records), field_map)
+    hmap = health_by_account(domo_io.parse_query_result(health_records))
+    rows = join_health(sf_rows, hmap)
     return compute_from_normalized(rows, today_iso=today_iso,
                                    fy_start_month=fy_start_month, weights=weights)
 ```
@@ -656,7 +723,7 @@ Wires compute → viz_kit into a renderable HTML report, documents the methodolo
 - Modify: `observepoint-revenue/tests/test_renewals_at_risk.py` (add the end-to-end render test)
 
 **Interfaces:**
-- Consumes: `compute` (Task 3), `viz_kit` (Task 2), `currency` (Task 1); Plan 1 Task 5's `tests/fixtures/sf/renewals_sample.json`.
+- Consumes: `compute` (Task 3), `viz_kit` (Task 2), `currency` (Task 1); Plan 1's `tests/fixtures/sf/renewals_sample.json` + `tests/fixtures/domo/account_health_sample.json`.
 - Produces: `renewals_at_risk.render(result) -> str` (HTML), `renewals_at_risk.main(argv) -> None` (CLI). The `revenue-insights` skill, discoverable.
 
 - [ ] **Step 1: Write the failing end-to-end test**
@@ -667,20 +734,23 @@ Append to `observepoint-revenue/tests/test_renewals_at_risk.py`:
 import json
 import pathlib
 
-FIX_SF = pathlib.Path(__file__).parent / "fixtures" / "sf"
+FIX = pathlib.Path(__file__).parent / "fixtures"
 
 
-def test_end_to_end_render_from_sf_fixture():
-    data = json.loads((FIX_SF / "renewals_sample.json").read_text())
-    result = rar.compute(data, today_iso="2026-06-26")
+def test_end_to_end_render_from_sf_and_domo_fixtures():
+    sf = json.loads((FIX / "sf" / "renewals_sample.json").read_text())
+    health = json.loads((FIX / "domo" / "account_health_sample.json").read_text())
+    result = rar.compute(sf, health, today_iso="2026-06-26")
     out = rar.render(result)
     assert "Renewals at Risk" in out
     assert "Will Not Renew" in out and "Undetermined" in out
     assert "var(--op-bg)" in out                      # branded page
-    assert "despite a Green health score" in out      # caveat fired from the fixture's edge row
+    assert "despite a Green health score" in out      # caveat fired from the joined-health edge row
+    # Domo health joined onto an SF row drives risk-weighting (Umbrella Undetermined+Red = 0.25)
+    assert result["summary"]["undetermined"]["risk_weighted"].get("USD") == 65500.0 * 0.25
 ```
 
-> Depends on Plan 1 Task 5's `renewals_sample.json` containing a Green + Will-Not-Renew row (engineered there for exactly this).
+> Depends on Plan 1's two fixtures: `sf/renewals_sample.json` (Initech = Will Not Renew) joined with `domo/account_health_sample.json` (Initech = Green) → the Green-but-WNR caveat; Umbrella = Undetermined+Red → the risk-weight assertion.
 
 - [ ] **Step 2: Run it to verify it fails**
 
@@ -740,15 +810,17 @@ def render(result):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="renewals-at-risk recipe -> branded HTML")
     ap.add_argument("renewals_json", help="SF renewal SOQL result JSON")
+    ap.add_argument("--health", required=True, help="Domo account-health result JSON")
     ap.add_argument("--today", required=True, help="ISO date anchoring the fiscal quarter")
     ap.add_argument("--fy-start-month", type=int, default=2)
     ap.add_argument("--out", default="renewals-at-risk.html", help="HTML output path")
     a = ap.parse_args(argv)
-    data = json.loads(pathlib.Path(a.renewals_json).read_text())
+    sf_data = json.loads(pathlib.Path(a.renewals_json).read_text())
+    health_data = json.loads(pathlib.Path(a.health).read_text())
     try:
-        result = compute(data, today_iso=a.today, fy_start_month=a.fy_start_month)
-    except sf_io.SalesforceResultError as e:
-        sys.exit(f"renewal result unusable: {e}")
+        result = compute(sf_data, health_data, today_iso=a.today, fy_start_month=a.fy_start_month)
+    except (sf_io.SalesforceResultError, domo_io.DomoResultError) as e:
+        sys.exit(f"renewal/health result unusable: {e}")
     pathlib.Path(a.out).write_text(render(result))
     print(a.out)
 
@@ -782,13 +854,16 @@ The encoded methodology so every report computes a metric the same way. The MODE
   When SF and Domo disagree, show both labeled — never silently pick.
 
 ## Renewals (renewals-at-risk)
-- **Renewable ARR** = `Renewable_ARR__c` on the renewal record (per Plan 1 Task 5 schema).
+- **Renewable ARR** = `Renewable_ARR__c` on the SF renewal Opportunity (Plan 1 schema).
 - **Forecast buckets** from `Renewal_Forecast__c`: Will Renew / Undetermined / Will Not Renew.
 - **Will Not Renew** = confirmed churn (at-risk ARR booked as lost).
+- **Account health** is NOT in SF — it is a **Domo** field `account_health_score` (string → color
+  token: green/yellow/red/blue/black), joined onto SF renewals by account name. See
+  `lib/domo/domo-datasets.md` → "Account health" and `lib/salesforce/salesforce-org.md` → "Renewals".
 - **Undetermined risk-weighting** = Renewable ARR × health weight: **Red 0.25, Yellow 0.50**
-  (the gross-renewal methodology; matches the proven report). Green/Black are not in the
+  (the gross-renewal methodology; matches the proven report). Other states are not in the
   undetermined bucket, so they carry no undetermined weight.
-- **Auto-caveat:** any Will-Not-Renew row with a Green health score is flagged "verify"
+- **Auto-caveat:** any Will-Not-Renew row whose joined health is Green is flagged "verify"
   (status/health contradiction).
 ```
 
@@ -804,14 +879,16 @@ A request with no matching recipe uses the **ad-hoc fallback** (see SKILL.md).
 
 | Recipe | Altitude | Sources | Compute script | Status |
 |---|---|---|---|---|
-| renewals-at-risk | RevOps / CSM | SF renewal forecast | `scripts/renewals_at_risk.py` | shipped |
+| renewals-at-risk | RevOps / CSM | SF renewal forecast + Domo health | `scripts/renewals_at_risk.py` | shipped |
 | pipeline-coverage | VP Sales | SF + Domo | `scripts/pipeline_coverage.py` | Plan 3 |
 | arr-nrr-bridge | Board / CRO | Domo | `scripts/arr_nrr_bridge.py` | Plan 3 |
 | consumption-pacing | CSM | OP usage + SF | `scripts/consumption_pacing.py` | Plan 3 |
 
 ## renewals-at-risk
-- **Query:** the renewal SOQL in `lib/salesforce/salesforce-org.md` ("Renewals").
-- **Run:** `renewals_at_risk.py <renewals.json> --today <ISO> [--out <path>]` → branded HTML.
+- **Queries:** the renewal SOQL in `lib/salesforce/salesforce-org.md` ("Renewals") + the account-
+  health query in `lib/domo/domo-datasets.md` ("Account health"). Save each result to JSON.
+- **Run:** `renewals_at_risk.py <renewals.json> --health <health.json> --today <ISO> [--out <path>]`
+  → branded HTML.
 - **Viz:** 3 KPI cards (Will Renew / Undetermined / Will Not Renew) + Will-Not-Renew table
   + Undetermined risk-weighted table + caveats footnote.
 ```
@@ -845,11 +922,15 @@ and render the branded visual. No LLM math, no LLM-held state. Read-only.**
 5. **Export on request** — PDF/deck/`.xlsx` via `branding-guide`.
 
 ## Recipe: renewals-at-risk
-1. Read `${CLAUDE_PLUGIN_ROOT}/lib/salesforce/salesforce-org.md` ("Renewals") for the query +
-   field map; run it via `soqlQuery`; save the JSON.
-2. `python3 ${CLAUDE_PLUGIN_ROOT}/skills/revenue-insights/scripts/renewals_at_risk.py <json>
-   --today <YYYY-MM-DD> --out "~/Documents/ObservePoint Revenue/revenue-insights/renewals-at-risk-<date>.html"`
-3. Show the HTML; narrate the caveats it computed. Methodology: `references/metrics-canon.md`.
+1. Read `${CLAUDE_PLUGIN_ROOT}/lib/salesforce/salesforce-org.md` ("Renewals") → run the renewal
+   SOQL via `soqlQuery`; save to `<renewals.json>`. **Health is not in SF.**
+2. Read `${CLAUDE_PLUGIN_ROOT}/lib/domo/domo-datasets.md` ("Account health") → run the health query
+   via `DomoSqlQueryTool` (name the columns so it routes correctly); save to `<health.json>`.
+3. `python3 ${CLAUDE_PLUGIN_ROOT}/skills/revenue-insights/scripts/renewals_at_risk.py <renewals.json>
+   --health <health.json> --today <YYYY-MM-DD>
+   --out "~/Documents/ObservePoint Revenue/revenue-insights/renewals-at-risk-<date>.html"`
+   (the script joins SF renewals + Domo health on account name and computes every number).
+4. Show the HTML; narrate the caveats it computed. Methodology: `references/metrics-canon.md`.
 
 ## Ad-hoc fallback (no matching recipe)
 Use `references/metrics-canon.md` for definitions, write the SF/Domo SQL yourself, pipe the rows
@@ -998,7 +1079,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 **Spec coverage (Plan 2 scope):**
 - *`revenue-insights` skill (canon, recipe catalog, compute scripts, viz kit, ad-hoc fallback)* → Tasks 1–5. ✓
 - *Branded in-chat visual first, dark NERD theme, brand from branding-guide* → Task 2 (`viz_kit` pulls every color from `brand_kit`; `page()` is dark). ✓
-- *renewals-at-risk rebuilds the screenshot* → Task 3 (compute) + Task 4 (render: 3 KPI cards + Will-Not-Renew + Undetermined risk-weighted tables + caveats). ✓
+- *renewals-at-risk rebuilds the screenshot* → Task 3 (compute, **joining SF renewals + Domo health on account name** — health is not in SF) + Task 4 (render: 3 KPI cards + Will-Not-Renew + Undetermined risk-weighted tables + caveats). Health = 5 states (green/yellow/red/blue/black) via `health_token`. ✓
 - *Multi-currency native, no fabricated FX* → `currency.sum_by_currency` keeps currencies separate; canon states the rule. ✓
 - *Risk-weighting (screenshot: Red 25% / Yellow 50%)* → `risk_weight` + `RENEWAL_WEIGHTS`, tested against the screenshot numbers (65500→16375, 65200→32600). ✓
 - *Reconciliation / source-of-truth per metric* → canon cross-cutting rules. ✓
