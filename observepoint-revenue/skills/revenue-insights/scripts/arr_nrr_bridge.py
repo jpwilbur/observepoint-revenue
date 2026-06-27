@@ -93,8 +93,8 @@ def render(result):
         {"k": "Starting ARR", "v": _usd(result["starting_arr"])},
         {"k": "+ New logo", "v": _usd(result["new_logo"])},
         {"k": "+ Expansion", "v": _usd(result["expansion"])},
-        {"k": "− Contraction", "v": _usd(-result["contraction"])},
-        {"k": "− Churn", "v": _usd(-result["churn"])},
+        {"k": "− Contraction", "v": _usd(result["contraction"])},
+        {"k": "− Churn", "v": _usd(result["churn"])},
         {"k": "Ending ARR", "v": _usd(result["ending_arr"])},
     ]
     table = viz_kit.section_header("ARR bridge") + viz_kit.ranked_table(

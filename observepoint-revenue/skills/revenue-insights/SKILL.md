@@ -32,6 +32,8 @@ and render the branded visual. No LLM math, no LLM-held state. Read-only.**
    (the script joins SF renewals + Domo health on account name and computes every number).
 4. Show the HTML; narrate the caveats it computed. Methodology: `references/metrics-canon.md`.
 
+See `references/recipe-catalog.md` for the authoritative index of all recipes (renewals-at-risk, arr-nrr-bridge, pipeline-coverage, consumption-pacing) with their run commands.
+
 ## Ad-hoc fallback (no matching recipe)
 Use `references/metrics-canon.md` for definitions, write the SF/Domo SQL yourself, pipe the rows
 to `scripts/adhoc_aggregate.py` for the arithmetic (never compute in your head), render via

@@ -56,17 +56,12 @@ def compute(opp_records, quota_records, *, today_iso, fy_start_month=2, quota_ty
         forecast[cat] = currency.sum_by_currency(
             [o for o in open_opps if o["forecast"] == cat], amount_key="amount")
 
-    # Closed-won in quarter counts against quota for gap purposes
-    closed_won = [o for o in in_q if o["is_closed"]]
-    closed_won_total = currency.sum_by_currency(closed_won, amount_key="amount")
-
     coverage_ratio, gap = {}, {}
     for cur, q in quota.items():
         pipe = open_pipeline.get(cur, 0.0)
         coverage_ratio[cur] = (pipe / q) if q else None
         committed = forecast.get("Commit", {}).get(cur, 0.0)
-        closed = closed_won_total.get(cur, 0.0)
-        gap[cur] = max(0.0, q - committed - closed)
+        gap[cur] = max(0.0, q - committed)
 
     return {
         "period": period,

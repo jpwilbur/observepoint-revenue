@@ -116,7 +116,7 @@ WHERE Status__c = 'Active'
 
 Open opportunities and quota targets live in **`Opportunity`** and **`Quota__c`** respectively.
 Pipeline coverage = open in-quarter pipeline ÷ quota for New/Expansion ACV types.
-Gap = quota − (Commit bucket + closed-won in quarter).
+Gap = quota − Commit (open Commit bucket only; closed-won subtraction is a future enhancement).
 
 **Named query — open opportunities in a fiscal quarter:**
 ```sql
@@ -136,5 +136,5 @@ WHERE Month_Start__c >= :qStart AND Month_Start__c <= :qEnd
 
 Filter `Quota__c` to `Type__c ∈ ('New ACV', 'New Logo ACV', 'Expansion ACV')` in the script —
 other types (e.g. MQL) are excluded deterministically. Currencies stay separate; no FX conversion.
-Closed-won opportunities in the quarter are included in gap-to-quota calculation (they count as
-booked against quota alongside open Commit) but excluded from open-pipeline totals.
+Closed-won opportunities are excluded from both open-pipeline totals and the gap calculation
+(the gather query is `WHERE IsClosed = false`; gap = quota − Commit only).

@@ -44,9 +44,10 @@ deals sit in the forecast-category ladder.
   fiscal quarter. Closed-won deals are excluded from open pipeline but included in gap calculation.
 - **Forecast pacing ladder** (in priority order): Commit / Expect / Best Case / Pipeline / Omitted.
   Each bucket = sum of `Amount` for open opps in that `ForecastCategoryName`.
-- **Gap to quota** = `max(0, quota − Commit − closed_won_in_quarter)`. Commit (open) plus
-  already-closed-won ARR represents the most conservative "booked + highly likely" view against
-  quota; the gap is what remains to be covered.
+- **Gap to quota** = `max(0, quota − Commit)`. The Commit bucket (open opps in that forecast
+  category) is the most conservative "highly likely" view; the gap is what remains uncovered.
+  Note: an attainment-aware gap (also subtracting in-quarter closed-won ARR) is a future
+  enhancement that requires a second gather of closed-won opps from SF.
 - **Source:** SF `Opportunity` (open opps) + `Quota__c` (quota targets). Both gathered by the
   model via MCP; `pipeline_coverage.py` computes deterministically on the JSON.
 
@@ -82,4 +83,5 @@ rate given how far through its contract window it is?
 - **Page scans only** — no currency, no $. Each account is independent (no cross-account total).
 - **Source:** contracted allowance from SF `Subscription__c.Page_Scans_per_Month__c`;
   usage from OP `get_usage_overview` (formatted text, not JSON — needs `parse_usage_overview`).
+- **Join:** SF ↔ OP usage is joined **by account name**; `App_Id__c` is captured in the SF query but not yet used for joining.
 - **Compute script:** `skills/revenue-insights/scripts/consumption_pacing.py`.

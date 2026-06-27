@@ -32,7 +32,7 @@ def test_quota_total_sums_in_window_and_type():
 def test_coverage_ratio_and_gap():
     r = pc.compute(OPPS, QUOTA, today_iso="2026-06-26")
     assert round(r["coverage_ratio"]["USD"], 2) == 1.0   # 150k pipeline / 150k quota
-    assert r["gap_to_quota"]["USD"] == 0.0               # quota - committed/closed coverage (see canon)
+    assert r["gap_to_quota"]["USD"] == 50000.0           # quota($150k) - Commit($100k) = $50k gap
 
 
 def test_forecast_pacing_buckets():
