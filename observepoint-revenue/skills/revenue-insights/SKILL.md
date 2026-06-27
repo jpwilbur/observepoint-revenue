@@ -24,6 +24,9 @@ and render the branded visual. No LLM math, no LLM-held state. Read-only.**
 ## Recipe: renewals-at-risk
 1. Read `${CLAUDE_PLUGIN_ROOT}/lib/salesforce/salesforce-org.md` ("Renewals") → run the renewal
    SOQL via `soqlQuery` (the query now includes `Account.Health_Score__c`); save to `<renewals.json>`.
+   **If the SOQL returns `INVALID_FIELD` for `Account.Health_Score__c` (field-level security not yet
+   granted), omit that one field from the SELECT and re-run — the recipe runs health-less (all
+   Undetermined rows carry zero risk-weighting) until rev-ops grants Read.**
 2. `python3 ${CLAUDE_PLUGIN_ROOT}/skills/revenue-insights/scripts/renewals_at_risk.py <renewals.json>
    --today <YYYY-MM-DD>
    --out "~/Documents/ObservePoint Revenue/revenue-insights/renewals-at-risk-<date>.html"`

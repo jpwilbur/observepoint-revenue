@@ -77,6 +77,9 @@ FROM Opportunity
 WHERE Renewal_Forecast__c != null
   AND CloseDate >= :quarterStart AND CloseDate <= :quarterEnd
 ```
+**FLS fallback:** if this SOQL returns `INVALID_FIELD` for `Account.Health_Score__c` (Read not yet
+granted), drop that one field from the SELECT and re-run — the recipe runs health-less
+(`health=None`; Undetermined rows carry zero risk-weighting) until rev-ops grants access.
 
 **Normalized field map** (all from SF — single query, no Domo join):
 `Account.Name`→`account`, `Account.Health_Score__c`→`health` (via `health_token`),
